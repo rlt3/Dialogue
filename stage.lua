@@ -1,7 +1,5 @@
 Dialogue = require 'Dialogue'
-Draw = require 'draw'
-
-s = Dialogue.Script("draw");
+s = Dialogue.Script{"draw", 400, 200}
 
 --E = Dialogue.Envelope
 --e = E("draw", 10, 20)

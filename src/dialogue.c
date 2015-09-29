@@ -4,6 +4,7 @@
 /*
  * Dialogue = {
  *     "Envelope" : function_new_envelope()
+ *     "Script" : function_new_script()
  * }
  */
 int
