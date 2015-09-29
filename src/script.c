@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "script.h"
 #include "utils.h"
 
@@ -20,6 +21,7 @@ static int
 lua_script_new (lua_State *L)
 {
     int reference;
+    const char *module_name = NULL;
     Script *script = NULL;
 
     luaL_checktype(L, 1, LUA_TTABLE);
@@ -33,11 +35,26 @@ lua_script_new (lua_State *L)
     lua_setfield(L, -2, "construct");
     luaL_unref(L, LUA_REGISTRYINDEX, reference);
 
-    /* t["module"] = require(t["construct"][1]) */
+    /* module_name = t["construct"][1] */
     lua_getfield(L, -1, "construct");
     lua_rawgeti(L, -1, 1);
-    lua_setfield(L, -3, "module");
+    module_name = lua_tostring(L, -1);
+    lua_pop(L, 2);
 
+    /* t.module = require(module_name) */
+    lua_getglobal(L, "require");
+    lua_pushstring(L, module_name);
+    if (lua_pcall(L, 1, 2, 0)) /* returns 2 things, status and module table */
+        printf("Error loading script: %s\n", lua_tostring(L, -1));
+    lua_pop(L, 1); /* pop the status with no checks to module on top */
+    lua_setfield(L, -2, "module");
+
+    /* t.object = t.module.new() */
+    lua_getfield(L, -1, "module");
+    lua_getfield(L, -1, "new");
+    if (lua_pcall(L, 0, 1, 0)) 
+        printf("Error loading script: %s\n", lua_tostring(L, -1));
+    lua_setfield(L, -3, "object");
     lua_pop(L, 1);
 
     /* reference & pop our created table so we can push our object */
