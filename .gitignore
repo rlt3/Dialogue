@@ -1,0 +1,8 @@
+.gitignore
+dialogue
+*.o
+*.so
+*.a
+*.dylib
+*.swp
+*.swo
