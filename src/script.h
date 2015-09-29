@@ -22,11 +22,7 @@
 struct Script;
 typedef struct Script Script;
 
-/*
- * Create a new Script from a module and return it.
- * Script("collision") => script{module = "collision"}
- */
-int
-lua_script_new (lua_State *L);
+int 
+luaopen_Script (lua_State *L);
 
 #endif
