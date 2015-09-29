@@ -68,6 +68,24 @@ lua_script_new (lua_State *L)
 }
 
 static int
+lua_script_send (lua_State *L)
+{
+    Script *script = lua_check_script(L, 1);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, script->table_reference);
+    
+    /* object:message() */
+    lua_getfield(L, -1, "object");
+    lua_pushvalue(L, 2);
+    lua_gettable(L, -2);
+    lua_getfield(L, -3, "object"); /* object methods get `self` from this */
+    
+    if (lua_pcall(L, 1, 0, 0)) 
+        printf("Error loading script: %s\n", lua_tostring(L, -1));
+
+    return 0;
+}
+
+static int
 lua_script_table (lua_State *L)
 {
     Script *script = lua_check_script(L, 1);
@@ -85,6 +103,7 @@ lua_script_gc (lua_State *L)
 
 static const luaL_Reg script_methods[] = {
     {"table", lua_script_table},
+    {"send",  lua_script_send},
     {"__gc",  lua_script_gc},
     { NULL, NULL }
 };
