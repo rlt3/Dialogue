@@ -15,65 +15,6 @@ lua_check_script (lua_State *L, int index)
 }
 
 /*
- * Create a script from a table.
- * Script{ "collision", 20, 40 }
- * Script{ "weapon", "longsword" }
- */
-static int
-lua_script_new (lua_State *L)
-{
-    int len;
-    int table_ref, object_ref;
-    const char *module_name = NULL;
-    Script *script = NULL;
-
-    luaL_checktype(L, 1, LUA_TTABLE);
-    len = luaL_len(L, 1);
-    luaL_argcheck(L, len > 0, 1, "Script needs to have a module name!");
-
-    /* Push new table and then swap positions with table on top. */
-    table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_newtable(L);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, table_ref);
-
-    /* t["construct"] = { "draw", "player.jpg", 200, 400 } */
-    lua_setfield(L, -2, "construct");
-    luaL_unref(L, LUA_REGISTRYINDEX, table_ref);
-
-    /* module_name = t["construct"][1] */
-    lua_getfield(L, -1, "construct");
-    lua_rawgeti(L, -1, 1);
-    module_name = lua_tostring(L, -1);
-    lua_pop(L, 2);
-
-    /* t.module = require(module_name) */
-    lua_getglobal(L, "require");
-    lua_pushstring(L, module_name);
-    if (lua_pcall(L, 1, 2, 0)) /* returns 2 things, status and module table */
-        printf("Error loading script: %s\n", lua_tostring(L, -1));
-    lua_pop(L, 1); /* pop the status with no checks to module on top */
-    lua_setfield(L, -2, "module");
-
-    /* t.object = t.module.new() */
-    lua_getfield(L, -1, "module");
-    lua_getfield(L, -1, "new");
-    if (lua_pcall(L, 0, 1, 0)) 
-        printf("Error loading script: %s\n", lua_tostring(L, -1));
-    object_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 1);
-
-    /* reference & pop our created table so we can push our object */
-    table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-
-    script = lua_newuserdata(L, sizeof(Script));
-    script->table_reference = table_ref;
-    script->object_reference = object_ref;
-    luaL_getmetatable(L, SCRIPT_LIB);
-    lua_setmetatable(L, -2);
-    return 1;
-}
-
-/*
  * Checks for a Script at index.
  * Push the script's object onto the stack.
  */
@@ -82,6 +23,56 @@ script_push_object (lua_State *L, int index)
 {
     Script *script = lua_check_script(L, index);
     lua_rawgeti(L, LUA_REGISTRYINDEX, script->object_reference);
+}
+
+/*
+ * Create a script from a table.
+ * Script{ "collision", 20, 40 }
+ * Script{ "weapon", "longsword" }
+ */
+static int
+lua_script_new (lua_State *L)
+{
+    int len, table_ref, object_ref, error;
+    const char *module_name = NULL;
+    Script *script = NULL;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    len = luaL_len(L, 1);
+    luaL_argcheck(L, len > 0, 1, "Script needs to have a module name!");
+
+    lua_rawgeti(L, 1, 1);
+    module_name = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    /* pop the table given to us so we can reference it later */
+    table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    /* status, module = require(module_name) */
+    lua_getglobal(L, "require");
+    lua_pushstring(L, module_name);
+    if (lua_pcall(L, 1, 2, 0))
+        luaL_error(L, "Require failed for module: %s", module_name);
+
+    error = lua_toboolean(L, -1);
+    if (error)
+        luaL_error(L, "%s module failed to load: %s", module_name);
+    lua_pop(L, 1); 
+
+    /* module.new() */
+    lua_getfield(L, -1, "new");
+    if (lua_pcall(L, 0, 1, 0)) 
+        luaL_error(L, "`new' failed for module: %s", module_name);
+
+    object_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pop(L, 1);
+
+    script = lua_newuserdata(L, sizeof(Script));
+    script->table_reference = table_ref;
+    script->object_reference = object_ref;
+    luaL_getmetatable(L, SCRIPT_LIB);
+    lua_setmetatable(L, -2);
+    return 1;
 }
 
 static int

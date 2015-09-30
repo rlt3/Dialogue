@@ -22,6 +22,13 @@
 struct Script;
 typedef struct Script Script;
 
+/*
+ * Checks for a Script at index.
+ * Push the script's object onto the stack.
+ */
+void
+script_push_object (lua_State *L, int index);
+
 int 
 luaopen_Script (lua_State *L);
 
