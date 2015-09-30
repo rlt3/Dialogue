@@ -8,6 +8,9 @@ struct Script {
     int object_reference;
 };
 
+/*
+ * Check for a Script at index. Errors if it isn't a Script.
+ */
 Script *
 lua_check_script (lua_State *L, int index)
 {
@@ -15,14 +18,73 @@ lua_check_script (lua_State *L, int index)
 }
 
 /*
- * Checks for a Script at index.
- * Push the script's object onto the stack.
+ * Push the object of a Script at index.
  */
 void
 script_push_object (lua_State *L, int index)
 {
     Script *script = lua_check_script(L, index);
     lua_rawgeti(L, LUA_REGISTRYINDEX, script->object_reference);
+}
+
+/*
+ * Push a table of a Script at index.
+ */
+void
+script_push_table (lua_State *L, int index)
+{
+    Script *script = lua_check_script(L, index);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, script->table_reference);
+}
+
+/*
+ * Expects a Script table at index. Return the module name from the table.
+ * Doesn't push to the stack.
+ */
+const char *
+script_module_string (lua_State *L, int index)
+{
+    const char *module = NULL;
+    lua_rawgeti(L, index, 1);
+    module = lua_tostring(L, -1);
+    lua_pop(L, 1);
+    return module;
+}
+
+/*
+ * Get the module's name and load it. Doesn't push to the stack.
+ */
+void
+script_module_load (lua_State *L, int index)
+{
+    int ref, error;
+    Script *script = NULL;
+    const char* module =  NULL;
+
+    script = lua_check_script(L, index);
+    script_push_table(L, index);
+    module = script_module_string(L, -1);
+
+    /* status, module = require(module_name) */
+    lua_getglobal(L, "require");
+    lua_pushstring(L, module);
+    if (lua_pcall(L, 1, 2, 0))
+        luaL_error(L, "Require failed for module: %s", module);
+
+    error = lua_toboolean(L, -1);
+    if (error)
+        luaL_error(L, "%s module failed to load: %s", module);
+    lua_pop(L, 1); /* pop status we just checked */
+
+    /* module.new() */
+    lua_getfield(L, -1, "new");
+    if (lua_pcall(L, 0, 1, 0)) 
+        luaL_error(L, "`new' failed for module: %s", module);
+
+    ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pop(L, 2); /* pop module and script table */
+
+    script->object_reference = ref;
 }
 
 /*
@@ -33,45 +95,22 @@ script_push_object (lua_State *L, int index)
 static int
 lua_script_new (lua_State *L)
 {
-    int len, table_ref, object_ref, error;
-    const char *module_name = NULL;
+    int len, table_ref;
     Script *script = NULL;
 
     luaL_checktype(L, 1, LUA_TTABLE);
     len = luaL_len(L, 1);
     luaL_argcheck(L, len > 0, 1, "Script needs to have a module name!");
 
-    lua_rawgeti(L, 1, 1);
-    module_name = lua_tostring(L, -1);
-    lua_pop(L, 1);
-
-    /* pop the table given to us so we can reference it later */
     table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    /* status, module = require(module_name) */
-    lua_getglobal(L, "require");
-    lua_pushstring(L, module_name);
-    if (lua_pcall(L, 1, 2, 0))
-        luaL_error(L, "Require failed for module: %s", module_name);
-
-    error = lua_toboolean(L, -1);
-    if (error)
-        luaL_error(L, "%s module failed to load: %s", module_name);
-    lua_pop(L, 1); 
-
-    /* module.new() */
-    lua_getfield(L, -1, "new");
-    if (lua_pcall(L, 0, 1, 0)) 
-        luaL_error(L, "`new' failed for module: %s", module_name);
-
-    object_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 1);
-
     script = lua_newuserdata(L, sizeof(Script));
-    script->table_reference = table_ref;
-    script->object_reference = object_ref;
     luaL_getmetatable(L, SCRIPT_LIB);
     lua_setmetatable(L, -2);
+
+    script->table_reference = table_ref;
+    script_module_load(L, -1);
+
     return 1;
 }
 
@@ -109,8 +148,7 @@ lua_script_send (lua_State *L)
 static int
 lua_script_table (lua_State *L)
 {
-    Script *script = lua_check_script(L, 1);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, script->table_reference);
+    script_push_table(L, 1);
     return 1;
 }
 

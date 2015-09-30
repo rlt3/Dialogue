@@ -30,21 +30,20 @@ lua_envelope_new (lua_State *L)
     len = luaL_len(L, 1);
     luaL_argcheck(L, len > 0, 1, "Message needs to have a title!");
 
-    /* pop and reference the table given to us */
     reference = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    /* create and push our envelope */
     envelope = lua_newuserdata(L, sizeof(Envelope));
-    envelope->table_reference = reference;
-    envelope->length = len;
     luaL_getmetatable(L, ENVELOPE_LIB);
     lua_setmetatable(L, -2);
+
+    envelope->table_reference = reference;
+    envelope->length = len;
+
     return 1;
 }
 
 /*
- * Checks for an Envelope at index.
- * Push an envelope's table onto the stack.
+ * Push the table of an Envelope at index.
  */
 void
 envelope_push_table (lua_State *L, int index)
@@ -54,7 +53,7 @@ envelope_push_table (lua_State *L, int index)
 }
 
 /*
- * Push the title of an envelope at index onto the top of the stack.
+ * Expects an Envelope table at index. Push the title of an envelope.
  */
 void
 envelope_push_title (lua_State *L, int index)
@@ -63,8 +62,8 @@ envelope_push_title (lua_State *L, int index)
 }
 
 /*
- * Push the envelope (at index) data sequentially onto the stack.
- * Returns the number of args pushed.
+ * Expects an Envelope table at index. Pushes all data onto the stack. Returns 
+ * the number of args pushed.
  */
 int
 envelope_push_data (lua_State *L, int index)
@@ -84,8 +83,7 @@ envelope_push_data (lua_State *L, int index)
 static int
 lua_envelope_table (lua_State *L)
 {
-    Envelope *envelope = lua_check_envelope(L, 1);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->table_reference);
+    envelope_push_table(L, 1);
     return 1;
 }
 
@@ -95,9 +93,8 @@ lua_envelope_table (lua_State *L)
 static int
 lua_envelope_title (lua_State *L)
 {
-    Envelope *envelope = lua_check_envelope(L, 1);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->table_reference);
-    lua_rawgeti(L, -1, 1);
+    envelope_push_table(L, 1);
+    envelope_push_title(L, -1);
     return 1;
 }
 
@@ -107,22 +104,8 @@ lua_envelope_title (lua_State *L)
 static int
 lua_envelope_data (lua_State *L)
 {
-    int i, len;
-    Envelope *envelope = lua_check_envelope(L, 1);
-
-    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->table_reference);
-    len = luaL_len(L, 2);
-
-    /* t = {} */
-    lua_newtable(L);
-
-    for (i = 2; i <= len; i++) {
-        /* t[i-1] = envelope[i] */
-        lua_rawgeti(L, 2, i);
-        lua_rawseti(L, 3, i - 1);
-    }
-
-    return 1;
+    envelope_push_table(L, 1);
+    return envelope_push_data(L, -1);
 }
 
 /*

@@ -7,31 +7,30 @@
 
 #define ENVELOPE_LIB "Dialogue.Envelope"
 
-/*
- * The Envelope is a reference to a table (array) where the first element is
- * the title of a message (the method name) and is required. Anything after the
- * first is data (arguments to a method).
- */
-
 struct Envelope;
 typedef struct Envelope Envelope;
 
 /*
- * Checks for an Envelope at index.
- * Push an envelope's table onto the stack.
+ * Check for a Envelope at index. Errors if it isn't an Envelope.
+ */
+Envelope *
+lua_check_envelope (lua_State *L, int index);
+
+/*
+ * Push the table of an Envelope at index.
  */
 void
 envelope_push_table (lua_State *L, int index);
 
 /*
- * Push the title of an envelope at index onto the top of the stack.
+ * Expects an Envelope table at index. Push the title of an envelope.
  */
 void
 envelope_push_title (lua_State *L, int index);
 
 /*
- * Push the envelope (at index) data sequentially onto the stack.
- * Returns the number of args pushed.
+ * Expects an Envelope table at index. Pushes all data onto the stack. Returns 
+ * the number of args pushed.
  */
 int
 envelope_push_data (lua_State *L, int index);
