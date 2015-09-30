@@ -75,6 +75,9 @@ lua_script_new (lua_State *L)
     return 1;
 }
 
+/*
+ * Send a script a message from an envelope.
+ */
 static int
 lua_script_send (lua_State *L)
 {
@@ -86,6 +89,10 @@ lua_script_send (lua_State *L)
     /* function = object:message_title */
     envelope_push_title(L, 3);
     lua_gettable(L, 4);
+
+    /* it's not an error if the function doesn't exist */
+    if (!lua_isfunction(L, -1))
+        return 0;
 
     /* push again to reference 'self' */
     script_push_object(L, 1);
@@ -112,6 +119,7 @@ lua_script_gc (lua_State *L)
 {
     Script *script = lua_check_script(L, 1);
     luaL_unref(L, LUA_REGISTRYINDEX, script->table_reference);
+    luaL_unref(L, LUA_REGISTRYINDEX, script->object_reference);
     return 0;
 }
 
