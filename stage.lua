@@ -1,6 +1,7 @@
-Dialogue = require 'Dialogue'
-s = Dialogue.Script{"draw", 400, 200}
+E = require 'Dialogue.Envelope'
+S = require 'Dialogue.Script'
 
---E = Dialogue.Envelope
---e = E("draw", 10, 20)
---d = Draw.new()
+script = S{"draw", 400, 200}
+
+up = E{"update"};
+cons = E{"construct", 20, 40};

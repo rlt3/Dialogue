@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "envelope.h"
 #include "script.h"
 
@@ -10,13 +11,6 @@
 int
 luaopen_Dialogue (lua_State *L)
 {
-    lua_newtable(L);
-
-    luaopen_Envelope(L);
-    lua_setfield(L, -2, "Envelope");
-
-    luaopen_Script(L);
-    lua_setfield(L, -2, "Script");
-
+    lua_pushboolean(L, 1);
     return 1;
 }
