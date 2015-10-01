@@ -7,8 +7,11 @@
 
 #define SCRIPT_LIB "Dialogue.Actor.Script"
 
-struct Script;
-typedef struct Script Script;
+typedef struct Script {
+    int table_reference;
+    int object_reference;
+    struct Script *next;
+} Script;
 
 /*
  * Check for a Script at index. Errors if it isn't a Script.
@@ -42,6 +45,6 @@ void
 script_module_load (lua_State *L, int index);
 
 int 
-luaopen_Script (lua_State *L);
+luaopen_Dialogue_Actor_Script (lua_State *L);
 
 #endif

@@ -1,12 +1,7 @@
 #include <stdio.h>
-#include "envelope.h"
 #include "script.h"
+#include "envelope.h"
 #include "utils.h"
-
-struct Script {
-    int table_reference;
-    int object_reference;
-};
 
 /*
  * Check for a Script at index. Errors if it isn't a Script.
@@ -38,17 +33,29 @@ script_push_table (lua_State *L, int index)
 }
 
 /*
- * Expects a Script table at index. Return the module name from the table.
- * Doesn't push to the stack.
+ * Expects a Script table at index. Pushes the module onto the stack.
  */
-const char *
-script_module_string (lua_State *L, int index)
+void
+script_push_module (lua_State *L, int index)
 {
-    const char *module = NULL;
     lua_rawgeti(L, index, 1);
-    module = lua_tostring(L, -1);
-    lua_pop(L, 1);
-    return module;
+}
+
+/*
+ * Expects a Script table at index. Pushes all data onto the stack. Returns
+ * the number of args pushed.
+ */
+int
+script_push_data (lua_State *L, int index)
+{
+    luaL_checktype(L, index, LUA_TTABLE);
+    int i, len = luaL_len(L, index);
+
+    /* first element in an script table is the module */
+    for (i = 2; i <= len; i++)
+        lua_rawgeti(L, index, i);
+
+    return len - 1;
 }
 
 /*
@@ -57,29 +64,25 @@ script_module_string (lua_State *L, int index)
 void
 script_module_load (lua_State *L, int index)
 {
-    int ref, error;
+    int ref, args;
     Script *script = NULL;
-    const char* module =  NULL;
+    const char* module = NULL;
 
     script = lua_check_script(L, index);
-    script_push_table(L, index);
-    module = script_module_string(L, -1);
+    script_push_table(L, index); /* -1 */
 
-    /* status, module = require(module_name) */
     lua_getglobal(L, "require");
-    lua_pushstring(L, module);
-    if (lua_pcall(L, 1, 2, 0))
-        luaL_error(L, "Require failed for module: %s", module);
-
-    error = lua_toboolean(L, -1);
-    if (error)
-        luaL_error(L, "%s module failed to load: %s", module);
-    lua_pop(L, 1); /* pop status we just checked */
+    script_push_module(L, -2);
+    module = lua_tostring(L, -1);
+    if (lua_pcall(L, 1, 1, 0))
+        luaL_error(L, "Require failed for module %s", module);
 
     /* module.new() */
     lua_getfield(L, -1, "new");
-    if (lua_pcall(L, 0, 1, 0)) 
-        luaL_error(L, "`new' failed for module: %s", module);
+    args = script_push_data(L, -3);
+    printf("args: %d\n", args);
+    if (lua_pcall(L, args, 1, 0)) 
+        luaL_error(L, "%s.new() failed: %s", module, lua_tostring(L, -1));
 
     ref = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_pop(L, 2); /* pop module and script table */
@@ -109,6 +112,7 @@ lua_script_new (lua_State *L)
     lua_setmetatable(L, -2);
 
     script->table_reference = table_ref;
+    script->next = NULL;
     script_module_load(L, -1);
 
     return 1;
@@ -140,7 +144,7 @@ lua_script_send (lua_State *L)
     argc = envelope_push_data(L, 3);
     
     if (lua_pcall(L, argc + 1, 0, 0)) 
-        printf("Error sending message: %s\n", lua_tostring(L, -1));
+        luaL_error(L, "Error sending message: %s\n", lua_tostring(L, -1));
 
     return 0;
 }
@@ -169,7 +173,7 @@ static const luaL_Reg script_methods[] = {
 };
 
 int 
-luaopen_Dialogue_Script (lua_State *L)
+luaopen_Dialogue_Actor_Script (lua_State *L)
 {
     return lua_meta_open(L, SCRIPT_LIB, script_methods, lua_script_new);
 }

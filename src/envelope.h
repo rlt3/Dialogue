@@ -7,8 +7,9 @@
 
 #define ENVELOPE_LIB "Dialogue.Envelope"
 
-struct Envelope;
-typedef struct Envelope Envelope;
+typedef struct Envelope {
+    int table_reference;
+} Envelope;
 
 /*
  * Check for a Envelope at index. Errors if it isn't an Envelope.

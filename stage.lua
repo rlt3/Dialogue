@@ -1,10 +1,11 @@
-E = require 'Dialogue.Envelope'
-S = require 'Dialogue.Script'
+Envelope = require 'Dialogue.Envelope'
+Actor = require 'Dialogue.Actor'
+Script = require 'Dialogue.Actor.Script'
 
-script = S{"draw", 400, 200}
+draw = Script{"draw", 400, 200}
 
-up = E{"update"};
-cons = E{"construct", 20, 40};
+update = Envelope{"update"};
+make = Envelope{"construct", 20, 40};
 
 -- An actor with two scripts.
 -- Actor{ {"draw", 400, 200}, {"weapon", "longsword"} };

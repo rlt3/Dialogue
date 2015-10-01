@@ -1,11 +1,6 @@
 #include "envelope.h"
 #include "utils.h"
 
-struct Envelope {
-    int table_reference;
-    int length;
-};
-
 /*
  * Make sure userdata at index N is an Envelope.
  */
@@ -13,33 +8,6 @@ Envelope *
 lua_check_envelope (lua_State *L, int index)
 {
     return (Envelope *) luaL_checkudata(L, index, ENVELOPE_LIB);
-}
-
-/*
- * Create a new envelope with the given message.
- * Envelope{ "update", 20 }
- * Envelope{ "location", 1, 2 }
- */
-static int
-lua_envelope_new (lua_State *L)
-{
-    int len, reference;
-    Envelope *envelope;
-
-    luaL_checktype(L, 1, LUA_TTABLE);
-    len = luaL_len(L, 1);
-    luaL_argcheck(L, len > 0, 1, "Message needs to have a title!");
-
-    reference = luaL_ref(L, LUA_REGISTRYINDEX);
-
-    envelope = lua_newuserdata(L, sizeof(Envelope));
-    luaL_getmetatable(L, ENVELOPE_LIB);
-    lua_setmetatable(L, -2);
-
-    envelope->table_reference = reference;
-    envelope->length = len;
-
-    return 1;
 }
 
 /*
@@ -75,6 +43,32 @@ envelope_push_data (lua_State *L, int index)
         lua_rawgeti(L, index, i);
 
     return len - 1;
+}
+
+/*
+ * Create a new envelope with the given message.
+ * Envelope{ "update", 20 }
+ * Envelope{ "location", 1, 2 }
+ */
+static int
+lua_envelope_new (lua_State *L)
+{
+    int len, reference;
+    Envelope *envelope;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    len = luaL_len(L, 1);
+    luaL_argcheck(L, len > 0, 1, "Message needs to have a title!");
+
+    reference = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    envelope = lua_newuserdata(L, sizeof(Envelope));
+    luaL_getmetatable(L, ENVELOPE_LIB);
+    lua_setmetatable(L, -2);
+
+    envelope->table_reference = reference;
+
+    return 1;
 }
 
 /*

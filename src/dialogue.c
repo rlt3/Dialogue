@@ -3,10 +3,9 @@
 #include "script.h"
 
 /*
- * Dialogue = {
- *     "Envelope" : function_new_envelope()
- *     "Script" : function_new_script()
- * }
+ * Dialogue = require 'Dialogue'
+ * Dialogue.Envelope
+ * Dialogue.Actor.Script
  */
 int
 luaopen_Dialogue (lua_State *L)

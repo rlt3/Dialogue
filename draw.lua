@@ -1,17 +1,12 @@
 Draw = {}
 Draw.__index = Draw
 
-function Draw.new()
+function Draw.new(x, y)
    local table = {}
    setmetatable(table, Draw)
-   table.x = 0
-   table.y = 0
+   table.x = x or 0
+   table.y = y or 0
    return table
-end
-
-function Draw:construct (x, y)
-    self.x = x
-    self.y = y
 end
 
 function Draw:update ()
