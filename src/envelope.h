@@ -37,6 +37,6 @@ int
 envelope_push_data (lua_State *L, int index);
 
 int 
-luaopen_Envelope (lua_State *L);
+luaopen_Dialogue_Envelope (lua_State *L);
 
 #endif

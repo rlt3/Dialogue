@@ -33,17 +33,17 @@ void
 script_push_table (lua_State *L, int index);
 
 /*
- * Expects a Script table at index. Return the module name from the table.
- * Doesn't push to the stack.
- */
-const char *
-script_module_string (lua_State *L, int index);
-
-/*
- * Get the module's name and load it. Doesn't push to the stack.
+ * Expects a Script table at index. Pushes the module onto the stack.
  */
 void
-script_module_load (lua_State *L, int index);
+script_push_module (lua_State *L, int index);
+
+/*
+ * Expects a Script table at index. Pushes all data onto the stack. Returns
+ * the number of args pushed.
+ */
+int
+script_push_data (lua_State *L, int index);
 
 int 
 luaopen_Dialogue_Actor_Script (lua_State *L);

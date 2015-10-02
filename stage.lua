@@ -1,11 +1,10 @@
-Envelope = require 'Dialogue.Envelope'
-Actor = require 'Dialogue.Actor'
-Script = require 'Dialogue.Actor.Script'
+Dialogue = require 'Dialogue'
 
-draw = Script{"draw", 400, 200}
+draw = Dialogue.Script{"draw", 400, 200}
+update = Dialogue.Envelope{"update"}
 
-update = Envelope{"update"};
-make = Envelope{"construct", 20, 40};
+hanks = Dialogue.Actor();
+hanks:give{ "draw", 400, 200 }
 
 -- An actor with two scripts.
 -- Actor{ {"draw", 400, 200}, {"weapon", "longsword"} };
