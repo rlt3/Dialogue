@@ -101,12 +101,14 @@ lua_script_load (lua_State *L)
     script = lua_check_script(L, 1);
     script_push_table(L, 1);         /* 2 */
 
+    /* module = require 'module-name' */
     lua_getglobal(L, "require");
     script_push_module(L, 2);
     module = lua_tostring(L, -1);
     if (lua_pcall(L, 1, 1, 0))       /* 3 */
         luaL_error(L, "Require failed for module %s", module);
 
+    /* object = module.new(...) */
     lua_getfield(L, 3, "new");
     args = script_push_data(L, 2);
     if (lua_pcall(L, args, 1, 0)) 
@@ -130,7 +132,7 @@ lua_script_send (lua_State *L)
     envelope_push_table(L, 2); /* 3 */
     script_push_object(L, 1);  /* 4 */
     
-    /* function = object:message_title */
+    /* object:message_title(...) */
     envelope_push_title(L, 3);
     lua_gettable(L, 4);
 
@@ -140,21 +142,11 @@ lua_script_send (lua_State *L)
 
     /* push again to reference 'self' */
     script_push_object(L, 1);
-
-    /* function (message_data) */
     argc = envelope_push_data(L, 3);
-    
     if (lua_pcall(L, argc + 1, 0, 0)) 
         luaL_error(L, "Error sending message: %s\n", lua_tostring(L, -1));
 
     return 0;
-}
-
-static int
-lua_script_table (lua_State *L)
-{
-    script_push_table(L, 1);
-    return 1;
 }
 
 static int
@@ -167,7 +159,6 @@ lua_script_gc (lua_State *L)
 }
 
 static const luaL_Reg script_methods[] = {
-    {"table", lua_script_table},
     {"send",  lua_script_send},
     {"load",  lua_script_load},
     {"__gc",  lua_script_gc},
