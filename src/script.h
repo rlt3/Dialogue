@@ -10,6 +10,7 @@
 typedef struct Script {
     int table_reference;
     int object_reference;
+    int is_loaded;
     struct Script *next;
 } Script;
 

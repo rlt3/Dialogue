@@ -13,12 +13,14 @@ lua_check_script (lua_State *L, int index)
 }
 
 /*
- * Push the object of a Script at index.
+ * Push the object of a Script at index. If object isn't loaded, throws error.
  */
 void
 script_push_object (lua_State *L, int index)
 {
     Script *script = lua_check_script(L, index);
+    if (!script->is_loaded)
+        luaL_error(L, "Script isn't loaded!");
     lua_rawgeti(L, LUA_REGISTRYINDEX, script->object_reference);
 }
 
@@ -59,38 +61,6 @@ script_push_data (lua_State *L, int index)
 }
 
 /*
- * Get the module's name and load it. Doesn't push to the stack.
- */
-void
-script_module_load (lua_State *L, int index)
-{
-    int ref, args;
-    Script *script = NULL;
-    const char* module = NULL;
-
-    script = lua_check_script(L, index);
-    script_push_table(L, index); /* -1 */
-
-    lua_getglobal(L, "require");
-    script_push_module(L, -2);
-    module = lua_tostring(L, -1);
-    if (lua_pcall(L, 1, 1, 0))
-        luaL_error(L, "Require failed for module %s", module);
-
-    /* module.new() */
-    lua_getfield(L, -1, "new");
-    args = script_push_data(L, -3);
-    printf("args: %d\n", args);
-    if (lua_pcall(L, args, 1, 0)) 
-        luaL_error(L, "%s.new() failed: %s", module, lua_tostring(L, -1));
-
-    ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 2); /* pop module and script table */
-
-    script->object_reference = ref;
-}
-
-/*
  * Create a script from a table.
  * Script{ "collision", 20, 40 }
  * Script{ "weapon", "longsword" }
@@ -113,10 +83,41 @@ lua_script_new (lua_State *L)
 
     script->table_reference = table_ref;
     script->next = NULL;
-    script_module_load(L, -1);
+    script->is_loaded = 0;
 
     return 1;
 }
+
+/*
+ * Load (or reload) a script's module with the data given.
+ */
+static int
+lua_script_load (lua_State *L)
+{
+    int args;
+    const char *module = NULL;
+    Script *script = NULL;
+
+    script = lua_check_script(L, 1);
+    script_push_table(L, 1);         /* 2 */
+
+    lua_getglobal(L, "require");
+    script_push_module(L, 2);
+    module = lua_tostring(L, -1);
+    if (lua_pcall(L, 1, 1, 0))       /* 3 */
+        luaL_error(L, "Require failed for module %s", module);
+
+    lua_getfield(L, 3, "new");
+    args = script_push_data(L, 2);
+    if (lua_pcall(L, args, 1, 0)) 
+        luaL_error(L, "%s.new() failed: %s", module, lua_tostring(L, -1));
+
+    script->object_reference = luaL_ref(L, LUA_REGISTRYINDEX);
+    script->is_loaded = 1;
+
+    return 0;
+}
+
 
 /*
  * Send a script a message from an envelope.
@@ -168,6 +169,7 @@ lua_script_gc (lua_State *L)
 static const luaL_Reg script_methods[] = {
     {"table", lua_script_table},
     {"send",  lua_script_send},
+    {"load",  lua_script_load},
     {"__gc",  lua_script_gc},
     { NULL, NULL }
 };
