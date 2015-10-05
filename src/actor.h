@@ -4,11 +4,15 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <pthread.h>
 
 #define ACTOR_LIB "Dialogue.Actor"
 
-struct Actor;
-typedef struct Actor Actor;
+typedef struct Actor {
+    lua_State *L;
+    struct Script *script;
+    pthread_mutex_t mutex;
+} Actor;
 
 /*
  * Check for an Actor at index. Errors if it isn't an Actor.

@@ -6,11 +6,16 @@
 #include <lualib.h>
 
 /*
- * Set an array (table) at index to given string. Expects table at top of stack.
- * array[index] = string
+ * Push a pointer and associate a metatable with it.
  */
 void
-lua_array_set_index (lua_State *L, int index, const char *string);
+lua_object_push (lua_State *L, void *object_ptr, const char *metatable);
+
+/*
+ * Expects a table at the top of the 'from' stack. Pushes table onto 'to' stack.
+ */
+void
+lua_table_copy (lua_State *from, lua_State *to);
 
 /*
  * To be used with luaopen_ModuleName.

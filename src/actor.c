@@ -1,15 +1,8 @@
-#include <pthread.h>
 #include "dialogue.h"
 #include "envelope.h"
 #include "actor.h"
 #include "script.h"
 #include "utils.h"
-
-struct Actor {
-    lua_State *L;
-    Script *script;
-    pthread_mutex_t mutex;
-};
 
 /*
  * Add a script to the given actor, always at the front.
@@ -35,11 +28,13 @@ lua_check_actor (lua_State *L, int index)
 
 /*
  * Create an Actor, which is a glorified lua_State that holds specific scripts.
+ * Actor{ {"draw", 400, 200}, {"weapon", "longsword"} };
  */
 static int
 lua_actor_new (lua_State *L)
 {
-    Actor *actor = lua_newuserdata(L, sizeof(Actor));
+    luaL_checktype(L, 1, LUA_TTABLE);  /* 1 */
+    Actor *actor = lua_newuserdata(L, sizeof(Actor)); /* 2 */
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
 
@@ -54,10 +49,22 @@ lua_actor_new (lua_State *L)
     lua_pop(actor->L, 1);
 
     /* push Actor so Scripts can reference the Actor it belongs to. */
-    lua_pushlightuserdata(actor->L, actor);
-    luaL_getmetatable(actor->L, ACTOR_LIB);
-    lua_setmetatable(actor->L, -2);
+    lua_object_push(actor->L, actor, ACTOR_LIB);
     lua_setglobal(actor->L, "actor");
+
+    /* call actor:give on each sub-table in this table of tables */
+    lua_pushnil(L);
+    while (lua_next(L, 1)) {
+        luaL_checktype(L, -1, LUA_TTABLE);
+
+        lua_getfield(L, 2, "give");
+        lua_object_push(L, actor, ACTOR_LIB);
+        lua_pushvalue(L, -3);
+        if (lua_pcall(L, 2, 0, 0))
+            luaL_error(L, "Creating Actor failed: %s", lua_tostring(L, -1));
+
+        lua_pop(L, 1);
+    }
 
     return 1;
 }
@@ -69,8 +76,26 @@ lua_actor_new (lua_State *L)
 static int
 lua_actor_give (lua_State *L)
 {
+    Script *script = NULL;
     Actor* actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
+
+    /* Dialogue.Script{ } */
+    lua_getglobal(actor->L, "Dialogue");
+    lua_getfield(actor->L, -1, "Script");
+    lua_table_copy(L, actor->L);
+    if (lua_pcall(actor->L, 1, 1, 0))
+        luaL_error(L, "Giving script failed: %s", lua_tostring(actor->L, -1));
+
+    script = lua_check_script(actor->L, -1);
+    actor_add_script(actor, script);
+
+    /* script:load() */
+    lua_getfield(actor->L, -1, "load");
+    lua_object_push(actor->L, script, SCRIPT_LIB);
+    if (lua_pcall(actor->L, 1, 0, 0))
+        luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
+
     return 0;
 }
 
@@ -81,6 +106,32 @@ lua_actor_give (lua_State *L)
 static int
 lua_actor_send (lua_State *L)
 {
+    int envelope_ref;
+    Script *script = NULL;
+    Actor* actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    /* Dialogue.Envelope{ } */
+    lua_getglobal(actor->L, "Dialogue");
+    lua_getfield(actor->L, -1, "Envelope");
+    lua_table_copy(L, actor->L);
+    if (lua_pcall(actor->L, 1, 1, 0))
+        luaL_error(L, "Loading envelope failed: %s", lua_tostring(actor->L, -1));
+
+    envelope_ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
+
+    /* Use the envelope and send it to each of the Scripts */
+    for (script = actor->script; script != NULL; script = script->next) {
+        lua_object_push(actor->L, script, SCRIPT_LIB);
+        lua_getfield(actor->L, -1, "send");
+        lua_object_push(actor->L, script, SCRIPT_LIB);
+        lua_rawgeti(actor->L, LUA_REGISTRYINDEX, envelope_ref);
+        if (lua_pcall(actor->L, 2, 0, 0))
+            luaL_error(L, "Sending message failed: %s", lua_tostring(actor->L, -1));
+    }
+
+    luaL_unref(actor->L, LUA_REGISTRYINDEX, envelope_ref);
+
     return 0;
 }
 
