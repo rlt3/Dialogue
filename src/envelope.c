@@ -67,6 +67,7 @@ lua_envelope_new (lua_State *L)
     lua_setmetatable(L, -2);
 
     envelope->table_reference = reference;
+    envelope->L = L;
 
     return 1;
 }

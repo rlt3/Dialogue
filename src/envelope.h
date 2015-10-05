@@ -9,6 +9,7 @@
 
 typedef struct Envelope {
     int table_reference;
+    lua_State *L;
 } Envelope;
 
 /*

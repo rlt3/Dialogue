@@ -1,15 +1,8 @@
-#include <pthread.h>
 #include "dialogue.h"
 #include "envelope.h"
 #include "actor.h"
 #include "script.h"
 #include "utils.h"
-
-struct Actor {
-    lua_State *L;
-    Script *script;
-    pthread_mutex_t mutex;
-};
 
 /*
  * Add a script to the given actor, always at the front.
@@ -81,6 +74,8 @@ lua_actor_give (lua_State *L)
 static int
 lua_actor_send (lua_State *L)
 {
+    Actor* actor = lua_check_actor(L, 1);
+    envelope_copy(envelope, actor->L);
     return 0;
 }
 
