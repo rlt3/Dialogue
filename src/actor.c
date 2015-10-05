@@ -62,8 +62,35 @@ lua_actor_new (lua_State *L)
 static int
 lua_actor_give (lua_State *L)
 {
+    int i;
+    Script *script = NULL;
     Actor* actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
+
+    /* Dialogue.Script{ } */
+    lua_getglobal(actor->L, "Dialogue");
+    lua_getfield(actor->L, -1, "Script");
+    lua_newtable(actor->L);
+
+    lua_pushnil(L);
+    /* notice we are looping through a table in L, to be put into actor->L */
+    for (i = 1; lua_next(L, 2); i++) {
+        lua_pushstring(actor->L, lua_tostring(L, -1));
+        lua_rawseti(actor->L, -2, i);
+        lua_pop(L, 1);
+    }
+    
+    if (lua_pcall(actor->L, 1, 1, 0))
+        luaL_error(L, "Giving script failed: %s", lua_tostring(actor->L, -1));
+
+    script = lua_check_script(actor->L, -1);
+    actor_add_script(actor, script);
+
+    lua_getfield(actor->L, -1, "load");
+    script_push(actor->L, script);
+    if (lua_pcall(actor->L, 1, 0, 0))
+        luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
+
     return 0;
 }
 
@@ -74,8 +101,41 @@ lua_actor_give (lua_State *L)
 static int
 lua_actor_send (lua_State *L)
 {
+    int i, envelope_ref;
+    Script *script = NULL;
     Actor* actor = lua_check_actor(L, 1);
-    envelope_copy(envelope, actor->L);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    /* Dialogue.Envelope{ } */
+    lua_getglobal(actor->L, "Dialogue");
+    lua_getfield(actor->L, -1, "Envelope");
+    lua_newtable(actor->L);
+
+    lua_pushnil(L);
+    /* notice we are looping through a table in L, to be put into actor->L */
+    for (i = 1; lua_next(L, 2); i++) {
+        lua_pushstring(actor->L, lua_tostring(L, -1));
+        lua_rawseti(actor->L, -2, i);
+        lua_pop(L, 1);
+    }
+
+    if (lua_pcall(actor->L, 1, 1, 0))
+        luaL_error(L, "Loading envelope failed: %s", lua_tostring(actor->L, -1));
+
+    envelope_ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
+
+    /* Use the envelope and send it to each of the Scripts */
+    for (script = actor->script; script != NULL; script = script->next) {
+        script_push(actor->L, script);
+        lua_getfield(actor->L, -1, "send");
+        script_push(actor->L, script);
+        lua_rawgeti(actor->L, LUA_REGISTRYINDEX, envelope_ref);
+        if (lua_pcall(actor->L, 2, 0, 0))
+            luaL_error(L, "Sending message failed: %s", lua_tostring(actor->L, -1));
+    }
+
+    luaL_unref(actor->L, LUA_REGISTRYINDEX, envelope_ref);
+
     return 0;
 }
 

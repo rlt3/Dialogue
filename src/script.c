@@ -13,6 +13,17 @@ lua_check_script (lua_State *L, int index)
 }
 
 /*
+ * Push a Script to the lua_State 
+ */
+void
+script_push (lua_State *L, Script *script)
+{
+    lua_pushlightuserdata(L, script);
+    luaL_getmetatable(L, SCRIPT_LIB);
+    lua_setmetatable(L, -2);
+}
+
+/*
  * Push the object of a Script at index. If object isn't loaded, throws error.
  */
 void

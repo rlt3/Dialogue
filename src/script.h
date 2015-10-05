@@ -21,6 +21,12 @@ Script *
 lua_check_script (lua_State *L, int index);
 
 /*
+ * Push a Script to the lua_State 
+ */
+void
+script_push (lua_State *L, Script *script);
+
+/*
  * Push the object of a Script at index.
  */
 void
