@@ -83,7 +83,7 @@ lua_actor_give (lua_State *L)
     /* Dialogue.Script{ } */
     lua_getglobal(actor->L, "Dialogue");
     lua_getfield(actor->L, -1, "Script");
-    lua_table_copy(L, actor->L);
+    table_push_copy(L, actor->L, 2);
     if (lua_pcall(actor->L, 1, 1, 0))
         luaL_error(L, "Giving script failed: %s", lua_tostring(actor->L, -1));
 
@@ -106,31 +106,30 @@ lua_actor_give (lua_State *L)
 static int
 lua_actor_send (lua_State *L)
 {
-    int envelope_ref;
+    int message_ref;
     Script *script = NULL;
     Actor* actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    /* Dialogue.Envelope{ } */
-    lua_getglobal(actor->L, "Dialogue");
-    lua_getfield(actor->L, -1, "Envelope");
-    lua_table_copy(L, actor->L);
-    if (lua_pcall(actor->L, 1, 1, 0))
-        luaL_error(L, "Loading envelope failed: %s", lua_tostring(actor->L, -1));
+    pthread_mutex_lock(&actor->mutex);
 
-    envelope_ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
+    table_push_copy(L, actor->L, 2);
+    message_ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
+    
+    lua_object_push(actor->L, actor, ACTOR_LIB);
 
-    /* Use the envelope and send it to each of the Scripts */
     for (script = actor->script; script != NULL; script = script->next) {
-        lua_object_push(actor->L, script, SCRIPT_LIB);
         lua_getfield(actor->L, -1, "send");
-        lua_object_push(actor->L, script, SCRIPT_LIB);
-        lua_rawgeti(actor->L, LUA_REGISTRYINDEX, envelope_ref);
+        lua_object_push(actor->L, actor, ACTOR_LIB);
+        lua_rawgeti(actor->L, LUA_REGISTRYINDEX, message_ref);
         if (lua_pcall(actor->L, 2, 0, 0))
             luaL_error(L, "Sending message failed: %s", lua_tostring(actor->L, -1));
     }
 
-    luaL_unref(actor->L, LUA_REGISTRYINDEX, envelope_ref);
+    luaL_unref(actor->L, LUA_REGISTRYINDEX, message_ref);
+
+    /* TODO: error conditions affect this how? */
+    pthread_mutex_unlock(&actor->mutex);
 
     return 0;
 }

@@ -35,32 +35,6 @@ script_push_table (lua_State *L, int index)
 }
 
 /*
- * Expects a Script table at index. Pushes the module onto the stack.
- */
-void
-script_push_module (lua_State *L, int index)
-{
-    lua_rawgeti(L, index, 1);
-}
-
-/*
- * Expects a Script table at index. Pushes all data onto the stack. Returns
- * the number of args pushed.
- */
-int
-script_push_data (lua_State *L, int index)
-{
-    luaL_checktype(L, index, LUA_TTABLE);
-    int i, len = luaL_len(L, index);
-
-    /* first element in an script table is the module */
-    for (i = 2; i <= len; i++)
-        lua_rawgeti(L, index, i);
-
-    return len - 1;
-}
-
-/*
  * Create a script from a table.
  * Script{ "collision", 20, 40 }
  * Script{ "weapon", "longsword" }
@@ -103,14 +77,14 @@ lua_script_load (lua_State *L)
 
     /* module = require 'module-name' */
     lua_getglobal(L, "require");
-    script_push_module(L, 2);
+    table_push_head(L, 2);
     module = lua_tostring(L, -1);
     if (lua_pcall(L, 1, 1, 0))       /* 3 */
         luaL_error(L, "Require failed for module %s", module);
 
     /* object = module.new(...) */
     lua_getfield(L, 3, "new");
-    args = script_push_data(L, 2);
+    args = table_push_data(L, 2);
     if (lua_pcall(L, args, 1, 0)) 
         luaL_error(L, "%s.new() failed: %s", module, lua_tostring(L, -1));
 
@@ -122,19 +96,19 @@ lua_script_load (lua_State *L)
 
 
 /*
- * Send a script a message from an envelope.
+ * Send a script a message from a table.
+ * script:send{ "update" }
  */
 static int
 lua_script_send (lua_State *L)
 {
     int argc;
 
-    envelope_push_table(L, 2); /* 3 */
-    script_push_object(L, 1);  /* 4 */
-    
     /* object:message_title(...) */
-    envelope_push_title(L, 3);
-    lua_gettable(L, 4);
+    script_push_object(L, 1);  /* 3 */
+    luaL_checktype(L, 2, LUA_TTABLE);
+    table_push_head(L, 2);
+    lua_gettable(L, 3);
 
     /* it's not an error if the function doesn't exist */
     if (!lua_isfunction(L, -1))
@@ -142,7 +116,7 @@ lua_script_send (lua_State *L)
 
     /* push again to reference 'self' */
     script_push_object(L, 1);
-    argc = envelope_push_data(L, 3);
+    argc = table_push_data(L, 2);
     if (lua_pcall(L, argc + 1, 0, 0)) 
         luaL_error(L, "Error sending message: %s\n", lua_tostring(L, -1));
 

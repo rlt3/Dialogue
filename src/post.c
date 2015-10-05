@@ -17,8 +17,7 @@ post (Envelope envelope)
 void
 post_actor (Actor *actor, Envelope envelope)
 {
-    /* copy the envelope from the global state into the actor's state */
-    envelope_copy(&envelope, actor->L);
+    envelope_push_table(envelope->L,
 }
 
 /*

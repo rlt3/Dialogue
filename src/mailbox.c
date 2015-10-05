@@ -90,7 +90,7 @@ mailbox_next (Mailbox *box)
  * Make sure the argument at index N is a Mailbox and return it if it is.
  */
 Mailbox *
-lua_checkmailbox (lua_State *L, int index)
+lua_check_mailbox (lua_State *L, int index)
 {
     return (Mailbox*) luaL_checkudata(L, index, MAILBOX_LIB);
 }

@@ -12,15 +12,40 @@ lua_object_push (lua_State *L, void *object_ptr, const char *metatable)
 }
 
 /*
- * Expects a table at the top of the 'from' stack. Pushes table onto 'to' stack.
+ * Push the first element of a table at index.
  */
 void
-lua_table_copy (lua_State *from, lua_State *to)
+table_push_head (lua_State *L, int index)
+{
+    lua_rawgeti(L, index, 1);
+}
+
+/*
+ * Push N elements after first of a table at index. Returns elements pushed.
+ */
+int
+table_push_data (lua_State *L, int index)
+{
+    luaL_checktype(L, index, LUA_TTABLE);
+    int i, len = luaL_len(L, index);
+
+    /* first element in an envelope table is the title */
+    for (i = 2; i <= len; i++)
+        lua_rawgeti(L, index, i);
+
+    return len - 1;
+}
+
+/*
+ * Pushes table onto 'to' stack that's a copy of table in 'from' at index.
+ */
+void
+table_push_copy (lua_State *from, lua_State *to, int index)
 {
     int i;
     lua_newtable(to);
     lua_pushnil(from);
-    for (i = 1; lua_next(from, -2); i++) {
+    for (i = 1; lua_next(from, index); i++) {
         lua_pushstring(to, lua_tostring(from, -1));
         lua_rawseti(to, -2, i);
         lua_pop(from, 1);

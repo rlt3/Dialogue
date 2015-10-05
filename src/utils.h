@@ -12,10 +12,22 @@ void
 lua_object_push (lua_State *L, void *object_ptr, const char *metatable);
 
 /*
+ * Push the first element of a table at index.
+ */
+void
+table_push_head (lua_State *L, int index);
+
+/*
+ * Push N elements after first of a table at index. Returns elements pushed.
+ */
+int
+table_push_data (lua_State *L, int index);
+
+/*
  * Expects a table at the top of the 'from' stack. Pushes table onto 'to' stack.
  */
 void
-lua_table_copy (lua_State *from, lua_State *to);
+table_push_copy (lua_State *from, lua_State *to, int index);
 
 /*
  * To be used with luaopen_ModuleName.

@@ -7,6 +7,12 @@
 
 #define ENVELOPE_LIB "Dialogue.Envelope"
 
+/*
+ * The Envelope is what holds an individual message in a stream while the 
+ * system is processing other messages. It is the C representation of a
+ * table for us to easily pass around.
+ */
+
 typedef struct Envelope {
     int table_reference;
     lua_State *L;
