@@ -1,14 +1,8 @@
 Dialogue = require 'Dialogue'
 
-draw = Dialogue.Script{"draw", 400, 200}
-update = Dialogue.Envelope{"update"}
+update = {"update"}
+hanks = Dialogue.Actor{ {"draw", 400, 200} }
 
-hanks = Dialogue.Actor();
-hanks:give{ "draw", 400, 200 }
-
--- An actor with two scripts.
--- Actor{ {"draw", 400, 200}, {"weapon", "longsword"} };
--- 
 -- A dialogue with two child Actors which have two scripts.
 -- Dialogue{
 --     { },
