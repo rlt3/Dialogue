@@ -18,6 +18,19 @@ set_actor_script:
 }
 
 /*
+ * Add a child to the given actor, always at the front.
+ */
+void
+actor_add_child (Actor *actor, Actor *child)
+{
+    if (actor->child == NULL)
+        goto set_actor_child;
+    child->next = actor->child;
+set_actor_child:
+    actor->child = child;
+}
+
+/*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
 Actor *
@@ -97,6 +110,32 @@ lua_actor_give (lua_State *L)
         luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
 
     return 0;
+}
+
+/*
+ * Create actor from table and add it as a child. Returns the child created.
+ * player:child{ {"draw", 2, 4}, { "weapon", "knife" } }
+ */
+static int
+lua_actor_child (lua_State *L)
+{
+    int table_ref;
+    Actor *child, *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    /* Dialogue.Actor{ } */
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Actor");
+    lua_rawgeti(L, LUA_REGISTRYINDEX, table_ref);
+    if (lua_pcall(actor->L, 1, 1, 0))
+        luaL_error(L, "Creating child failed: %s", lua_tostring(actor->L, -1));
+
+    child = lua_check_actor(L, -1);
+    actor_add_child(actor, child);
+
+    return 1;
 }
 
 /*

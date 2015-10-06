@@ -10,8 +10,16 @@
 
 typedef struct Actor {
     lua_State *L;
-    struct Script *script;
     pthread_mutex_t mutex;
+
+    struct Actor *parent;
+    struct Actor *next;
+    struct Actor *child;
+
+    struct Script *script;
+
+    struct Actor *dialogue;
+    struct Mailbox *mailbox;
 } Actor;
 
 /*
