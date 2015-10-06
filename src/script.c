@@ -124,6 +124,14 @@ lua_script_send (lua_State *L)
 }
 
 static int
+lua_script_tostring (lua_State *L)
+{
+    Script* script = lua_check_script(L, 1);
+    lua_pushfstring(L, "%s %p", SCRIPT_LIB, script);
+    return 1;
+}
+
+static int
 lua_script_gc (lua_State *L)
 {
     Script *script = lua_check_script(L, 1);
@@ -136,6 +144,7 @@ static const luaL_Reg script_methods[] = {
     {"send",  lua_script_send},
     {"load",  lua_script_load},
     {"__gc",  lua_script_gc},
+    {"__tostring", lua_script_tostring},
     { NULL, NULL }
 };
 

@@ -1,6 +1,9 @@
 Dialogue = require 'Dialogue'
 
 update = {"update"}
+
+tim_t = { {"draw", 2, 4} }
+
 hanks = Dialogue.Actor{ {"draw", 400, 200} }
 
 -- A dialogue with two child Actors which have two scripts.
