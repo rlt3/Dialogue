@@ -12,6 +12,15 @@ void
 lua_object_push (lua_State *L, void *object_ptr, const char *metatable);
 
 /*
+ * Push an object's method and also the object to reference `self`
+ */
+void
+lua_method_push (lua_State *L, 
+        void *object_ptr, 
+        const char *metatable, 
+        const char *method);
+
+/*
  * Push the first element of a table at index.
  */
 void

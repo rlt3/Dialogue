@@ -113,14 +113,12 @@ lua_actor_send (lua_State *L)
 
     pthread_mutex_lock(&actor->mutex);
 
+    /* copy and immediately pop into a ref so we can continually use it */
     table_push_copy(L, actor->L, 2);
     message_ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
     
-    lua_object_push(actor->L, actor, ACTOR_LIB);
-
     for (script = actor->script; script != NULL; script = script->next) {
-        lua_getfield(actor->L, -1, "send");
-        lua_object_push(actor->L, actor, ACTOR_LIB);
+        lua_method_push(actor->L, script, SCRIPT_LIB, "send");
         lua_rawgeti(actor->L, LUA_REGISTRYINDEX, message_ref);
         if (lua_pcall(actor->L, 2, 0, 0))
             luaL_error(L, "Sending message failed: %s", lua_tostring(actor->L, -1));
