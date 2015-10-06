@@ -15,6 +15,7 @@
 
 typedef struct Envelope {
     int table_reference;
+    struct Envelope *next;
     lua_State *L;
 } Envelope;
 
@@ -29,19 +30,6 @@ lua_check_envelope (lua_State *L, int index);
  */
 void
 envelope_push_table (lua_State *L, int index);
-
-/*
- * Expects an Envelope table at index. Push the title of an envelope.
- */
-void
-envelope_push_title (lua_State *L, int index);
-
-/*
- * Expects an Envelope table at index. Pushes all data onto the stack. Returns 
- * the number of args pushed.
- */
-int
-envelope_push_data (lua_State *L, int index);
 
 int 
 luaopen_Dialogue_Envelope (lua_State *L);
