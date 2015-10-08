@@ -23,6 +23,18 @@ typedef struct Actor {
 } Actor;
 
 /*
+ * Add a script to the given actor, always at the front.
+ */
+void
+actor_add_script (Actor *actor, struct Script *script);
+
+/*
+ * Add a child to the given actor, always at the front.
+ */
+void
+actor_add_child (Actor *actor, Actor *child);
+
+/*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
 Actor *
