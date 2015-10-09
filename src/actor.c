@@ -18,6 +18,19 @@ set_actor_script:
 }
 
 /*
+ * Add a child to the given actor, always at the front.
+ */
+void
+actor_add_child (Actor *actor, Actor *child)
+{
+    if (actor->child == NULL)
+        goto set_actor_child;
+    child->next = actor->child;
+set_actor_child:
+    actor->child = child;
+}
+
+/*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
 Actor *
@@ -38,7 +51,11 @@ lua_actor_new (lua_State *L)
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
 
+    actor->parent = NULL;
+    actor->next = NULL;
+    actor->child = NULL;
     actor->script = NULL;
+
     actor->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
 
     actor->L = luaL_newstate();
@@ -100,6 +117,71 @@ lua_actor_give (lua_State *L)
 }
 
 /*
+ * Create actor from table and add it as a child. Returns the child created.
+ * player:child{ {"draw", 2, 4}, { "weapon", "knife" } }
+ */
+static int
+lua_actor_child (lua_State *L)
+{
+    int table_ref;
+    Actor *child, *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    /* Dialogue.Actor{ } */
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Actor");
+    lua_rawgeti(L, LUA_REGISTRYINDEX, table_ref);
+    if (lua_pcall(L, 1, 1, 0))
+        luaL_error(L, "Creating child failed: %s", lua_tostring(L, -1));
+
+    child = lua_check_actor(L, -1);
+    actor_add_child(actor, child);
+
+    return 1;
+}
+
+/*
+ * Return an array of children an Actor owns.
+ */
+static int
+lua_actor_children (lua_State *L)
+{
+    int i;
+    Actor *child, *actor = lua_check_actor(L, 1);
+
+    lua_newtable(L);
+
+    for (i = 1, child = actor->child; child != NULL; child = child->next, i++) {
+        lua_object_push(L, child, ACTOR_LIB);
+        lua_rawseti(L, -2, i);
+    }
+
+    return 1;
+}
+
+/*
+ * Return an array of scripts an Actor owns.
+ */
+static int
+lua_actor_scripts (lua_State *L)
+{
+    int i;
+    Script *scpt;
+    Actor *actor = lua_check_actor(L, 1);
+
+    lua_newtable(L);
+
+    for (i = 1, scpt = actor->script; scpt != NULL; scpt = scpt->next, i++) {
+        lua_object_push(L, scpt, SCRIPT_LIB);
+        lua_rawseti(L, -2, i);
+    }
+
+    return 1;
+}
+
+/*
  * Create an Envelope from a given table and send it to all the Actor's Scripts.
  * player:send{ "move", 0, 1 }
  */
@@ -133,6 +215,14 @@ lua_actor_send (lua_State *L)
 }
 
 static int
+lua_actor_tostring (lua_State *L)
+{
+    Actor* actor = lua_check_actor(L, 1);
+    lua_pushfstring(L, "%s %p", ACTOR_LIB, actor);
+    return 1;
+}
+
+static int
 lua_actor_gc (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
@@ -141,9 +231,13 @@ lua_actor_gc (lua_State *L)
 }
 
 static const luaL_Reg actor_methods[] = {
-    {"give", lua_actor_give},
-    {"send", lua_actor_send},
-    {"__gc", lua_actor_gc},
+    {"child",      lua_actor_child},
+    {"children",   lua_actor_children},
+    {"give",       lua_actor_give},
+    {"scripts",    lua_actor_scripts},
+    {"send",       lua_actor_send},
+    {"__tostring", lua_actor_tostring},
+    {"__gc",       lua_actor_gc},
     { NULL, NULL }
 };
 
