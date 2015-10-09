@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "actor.h"
 #include "script.h"
 #include "envelope.h"
@@ -23,30 +24,31 @@ lua_dialogue_new (lua_State *L)
     luaL_checktype(L, 1, LUA_TTABLE);  /* 1 */
 
     /* push the Scripts part of the table to create an Actor */
-    lua_getglobal(L, "Dialogue");      /* 2 */
-    lua_getfield(L, 2, "Actor");
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Actor");
     table_push_head(L, 1);
     lua_call(L, 1, 1);
+    actor = lua_check_actor(L, -1);
+    lua_pop(L, 2); /* pop the actor and Dialogue table to reset the stack */
 
-    actor = lua_check_actor(L, 3);     /* 3 */
-
-    /* push the second part of/ the table -- the children */
-    lua_rawgeti(L, 1, 2);  /* 4 */
-
-    /* Every table in the children section is a Dialogue table */
+    /* push the children part of the table and recurse */
+    lua_rawgeti(L, 1, 2);
     lua_pushnil(L);
-    while (lua_next(L, 4)) { /* table @ 7, key @ 6 */
-        lua_getfield(L, 2, "new");
-        lua_pushvalue(L, 7);
+    while (lua_next(L, 2)) {
+        lua_getglobal(L, "Dialogue");
+        lua_getfield(L, -1, "new");
+        lua_pushvalue(L, -3);
         lua_call(L, 1, 1);
 
         child = lua_check_actor(L, -1);
         actor_add_child(actor, child);
 
-        lua_pop(L, 2); /* pop return value and table */
+        lua_pop(L, 3); /* pop child, Dialogue table, and table value */
     }
 
-    lua_pop(L, 2); /* pop nil and table */
+    lua_pop(L, 1); /* pop table */
+
+    lua_object_push(L, actor, ACTOR_LIB);
 
     return 1;
 }
