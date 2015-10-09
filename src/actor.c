@@ -31,6 +31,24 @@ set_actor_child:
 }
 
 /*
+ * From an envelope, send a message to each Script an actor owns.
+ */
+void
+actor_send_envelope (Actor *actor, Envelope *envelope)
+{
+    Script *script;
+    pthread_mutex_lock(&actor->mutex);
+
+    for (script = actor->script; script != NULL; script = script->next) {
+        lua_method_push(actor->L, script, SCRIPT_LIB, "send");
+        envelope_push_table(actor->L, envelope);
+        lua_call(actor->L, 2, 0);
+    }
+
+    pthread_mutex_unlock(&actor->mutex);
+}
+
+/*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
 Actor *
@@ -188,28 +206,17 @@ lua_actor_scripts (lua_State *L)
 static int
 lua_actor_send (lua_State *L)
 {
-    int message_ref;
-    Script *script = NULL;
+    Envelope *envelope;
     Actor* actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    pthread_mutex_lock(&actor->mutex);
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Envelope");
+    lua_pushvalue(L, 2);
+    lua_call(L, 1, 1);
 
-    /* copy and immediately pop into a ref so we can continually use it */
-    table_push_copy(L, actor->L, 2);
-    message_ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
-    
-    for (script = actor->script; script != NULL; script = script->next) {
-        lua_method_push(actor->L, script, SCRIPT_LIB, "send");
-        lua_rawgeti(actor->L, LUA_REGISTRYINDEX, message_ref);
-        if (lua_pcall(actor->L, 2, 0, 0))
-            luaL_error(L, "Sending message failed: %s", lua_tostring(actor->L, -1));
-    }
-
-    luaL_unref(actor->L, LUA_REGISTRYINDEX, message_ref);
-
-    /* TODO: error conditions affect this how? */
-    pthread_mutex_unlock(&actor->mutex);
+    envelope = lua_check_envelope(L, -1);
+    actor_send_envelope(actor, envelope);
 
     return 0;
 }

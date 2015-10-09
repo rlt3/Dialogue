@@ -27,19 +27,19 @@ mailbox_stream_allocate (Envelope envelope);
  * Free an envelope from the stream and return it. If the stream pointer given
  * is NULL, this returns an empty envelope that will fail a bind call.
  */
-Envelope
+Envelope *
 mailbox_stream_retrieve (Envelope *envelope);
 
 /*
  * Add an envelope to our mailbox.
  */
 void
-mailbox_add (Mailbox *box, Envelope envelope);
+mailbox_add (Mailbox *box, Envelope *envelope);
 
 /*
  * Return the next Envelope.
  */
-Envelope
+Envelope *
 mailbox_next (Mailbox *box);
 
 /*

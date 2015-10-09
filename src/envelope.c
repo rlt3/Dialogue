@@ -2,7 +2,7 @@
 #include "utils.h"
 
 /*
- * Make sure userdata at index N is an Envelope.
+ * Check for a Envelope at index. Errors if it isn't an Envelope.
  */
 Envelope *
 lua_check_envelope (lua_State *L, int index)
@@ -11,13 +11,40 @@ lua_check_envelope (lua_State *L, int index)
 }
 
 /*
- * Push the table of an Envelope at index.
+ * Create an envelope that will fail a bind call.
+ */
+Envelope *
+envelope_create_empty()
+{
+    static Envelope envelope;
+    envelope.next = NULL;
+    envelope.data = NULL;
+    envelope.data_len = 0;
+    return &envelope;
+}
+
+/*
+ * Determine if an envelope should be called like f(envelope) or not.
  */
 void
-envelope_push_table (lua_State *L, int index)
+envelope_bind(Envelope *envelope, void (*f) (Envelope *))
 {
-    Envelope *envelope = lua_check_envelope(L, index);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->table_reference);
+    if (envelope->data_len > 0)
+        f(envelope);
+}
+
+/*
+ * Push the table of an Envelope onto given lua_State.
+ */
+void
+envelope_push_table (lua_State *L, Envelope *envelope)
+{
+    int i;
+    lua_newtable(L);
+    for (i = 0; i < envelope->data_len; i++) {
+        lua_pushstring(L, envelope->data[0]);
+        lua_rawseti(L, -2, i + 1);
+    }
 }
 
 /*
@@ -28,21 +55,25 @@ envelope_push_table (lua_State *L, int index)
 static int
 lua_envelope_new (lua_State *L)
 {
-    int len, reference;
+    int len, i, bytes;
     Envelope *envelope;
 
     luaL_checktype(L, 1, LUA_TTABLE);
     len = luaL_len(L, 1);
     luaL_argcheck(L, len > 0, 1, "Message needs to have a title!");
 
-    reference = luaL_ref(L, LUA_REGISTRYINDEX);
-
-    envelope = lua_newuserdata(L, sizeof(Envelope));
+    bytes = sizeof(Envelope) + (len - 1) * sizeof(const char*);
+    envelope = lua_newuserdata(L, bytes);
     luaL_getmetatable(L, ENVELOPE_LIB);
     lua_setmetatable(L, -2);
 
-    envelope->table_reference = reference;
-    envelope->L = L;
+    envelope->next = NULL;
+    envelope->data_len = len - 1;
+
+    lua_pushnil(L);
+    for (i = 0; lua_next(L, 1); i++, lua_pop(L, 1)) {
+        envelope->data[i] = lua_tostring(L, -1);
+    }
 
     return 1;
 }
@@ -53,24 +84,13 @@ lua_envelope_new (lua_State *L)
 static int
 lua_envelope_table (lua_State *L)
 {
-    envelope_push_table(L, 1);
-    return 1;
-}
-
-/*
- * Clear our references when getting garbage collected.
- */
-static int
-lua_envelope_gc (lua_State *L)
-{
     Envelope *envelope = lua_check_envelope(L, 1);
-    luaL_unref(L, LUA_REGISTRYINDEX, envelope->table_reference);
-    return 0;
+    envelope_push_table(L, envelope);
+    return 1;
 }
 
 static const luaL_Reg envelope_methods[] = {
     {"table", lua_envelope_table},
-    {"__gc",  lua_envelope_gc},
     { NULL, NULL }
 };
 

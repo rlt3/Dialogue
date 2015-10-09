@@ -14,9 +14,9 @@
  */
 
 typedef struct Envelope {
-    int table_reference;
     struct Envelope *next;
-    lua_State *L;
+    const char **data;
+    int data_len;
 } Envelope;
 
 /*
@@ -26,10 +26,22 @@ Envelope *
 lua_check_envelope (lua_State *L, int index);
 
 /*
- * Push the table of an Envelope at index.
+ * Create an envelope that will fail a bind call.
+ */
+Envelope *
+envelope_create_empty();
+
+/*
+ * Determine if an envelope should be called like f(envelope) or not.
  */
 void
-envelope_push_table (lua_State *L, int index);
+envelope_bind(Envelope *, void (*f) (Envelope *));
+
+/*
+ * Push the table of an Envelope onto given lua_State.
+ */
+void
+envelope_push_table (lua_State *L, Envelope *envelope);
 
 int 
 luaopen_Dialogue_Envelope (lua_State *L);
