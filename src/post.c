@@ -3,4 +3,7 @@
 #include <pthread.h>
 
 void
-post (Envelope *envelope);
+post (Envelope envelope)
+{
+    return;
+}

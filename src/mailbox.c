@@ -27,11 +27,16 @@ mailbox_thread (void *arg)
  * Free an envelope from the stream and return it. If the stream pointer given
  * is NULL, this returns an empty envelope that will fail a bind call.
  */
-Envelope *
-mailbox_stream_retrieve (Envelope *envelope)
+Envelope
+mailbox_stream_retrieve (Envelope *stream)
 {
-    if (envelope == NULL)
+    Envelope envelope;
+
+    if (stream == NULL)
         return envelope_create_empty();
+
+    envelope = *stream;
+    free(stream);
 
     return envelope;
 }
@@ -40,25 +45,29 @@ mailbox_stream_retrieve (Envelope *envelope)
  * Add an envelope to our mailbox.
  */
 void
-mailbox_add (Mailbox *box, Envelope *envelope)
+mailbox_add (Mailbox *box, Envelope envelope)
 {
+    Envelope *stream = malloc(sizeof(Envelope));
+    *stream = envelope;
+
     if (box->head == NULL) {
-        box->head = envelope;
-        box->tail = envelope;
+        box->head = stream;
+        box->tail = stream;
     } else {
-        box->tail->next = envelope;
+        box->tail->next = stream;
+        box->tail = stream;
     }
 }
 
 /*
  * Return the next Envelope.
  */
-Envelope *
+Envelope
 mailbox_next (Mailbox *box)
 {
-    Envelope *envelope = mailbox_stream_retrieve(box->head);
-    box->head = envelope->next;
-    envelope->next = NULL;
+    Envelope envelope = mailbox_stream_retrieve(box->head);
+    box->head = envelope.next;
+    envelope.next = NULL;
     return envelope;
 }
 

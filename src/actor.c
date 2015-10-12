@@ -42,7 +42,8 @@ actor_send_envelope (Actor *actor, Envelope *envelope)
     for (script = actor->script; script != NULL; script = script->next) {
         lua_method_push(actor->L, script, SCRIPT_LIB, "send");
         envelope_push_table(actor->L, envelope);
-        lua_call(actor->L, 2, 0);
+        if (lua_pcall(actor->L, 2, 0, 0))
+            luaL_error(actor->L, "Error sending: %s", lua_tostring(actor->L, -1));
     }
 
     pthread_mutex_unlock(&actor->mutex);

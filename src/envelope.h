@@ -28,14 +28,14 @@ lua_check_envelope (lua_State *L, int index);
 /*
  * Create an envelope that will fail a bind call.
  */
-Envelope *
+Envelope
 envelope_create_empty();
 
 /*
  * Determine if an envelope should be called like f(envelope) or not.
  */
 void
-envelope_bind(Envelope *, void (*f) (Envelope *));
+envelope_bind(Envelope, void (*f) (Envelope));
 
 /*
  * Push the table of an Envelope onto given lua_State.

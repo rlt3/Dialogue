@@ -4,9 +4,6 @@
 #include "envelope.h"
 
 void
-post (Envelope *envelope)
-{
-    return;
-}
+post (Envelope envelope);
 
 #endif
