@@ -29,4 +29,7 @@ mailbox_next (Mailbox *box);
 Mailbox *
 lua_check_mailbox (lua_State *L, int index);
 
+int 
+luaopen_Dialogue_Mailbox (lua_State * L);
+
 #endif

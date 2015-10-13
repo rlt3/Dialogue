@@ -28,6 +28,9 @@ actor_add_child (Actor *actor, Actor *child)
     child->next = actor->child;
 set_actor_child:
     actor->child = child;
+    child->parent = actor;
+    child->dialogue = actor->dialogue;
+    child->mailbox = actor->mailbox;
 }
 
 /*

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "actor.h"
 #include "script.h"
-#include "envelope.h"
+#include "mailbox.h"
 #include "utils.h"
 
 /* 
@@ -20,7 +20,8 @@
 int
 lua_dialogue_new (lua_State *L)
 {
-    Actor *actor, *child;
+    int args = lua_gettop(L);
+    Actor *actor, *dialogue, *child;
     luaL_checktype(L, 1, LUA_TTABLE);  /* 1 */
 
     /* push the Scripts part of the table to create an Actor */
@@ -31,6 +32,11 @@ lua_dialogue_new (lua_State *L)
     actor = lua_check_actor(L, -1);
     lua_pop(L, 2); /* pop the actor and Dialogue table to reset the stack */
 
+    dialogue = (args == 2) ? lua_check_actor(L, 2) : actor;
+
+    //actor->mailbox = dialogue->mailbox;
+    actor->dialogue = dialogue;
+
     /* push the children part of the table and recurse */
     lua_rawgeti(L, 1, 2);
     lua_pushnil(L);
@@ -38,7 +44,8 @@ lua_dialogue_new (lua_State *L)
         lua_getglobal(L, "Dialogue");
         lua_getfield(L, -1, "new");
         lua_pushvalue(L, -3);
-        lua_call(L, 1, 1);
+        lua_object_push(L, dialogue, ACTOR_LIB);
+        lua_call(L, 2, 1);
 
         child = lua_check_actor(L, -1);
         actor_add_child(actor, child);
@@ -63,6 +70,9 @@ luaopen_Dialogue (lua_State *L)
 
     luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor, 1);
     lua_setfield(L, -2, "Actor");
+    
+    luaL_requiref(L, MAILBOX_LIB, luaopen_Dialogue_Mailbox, 1);
+    lua_setfield(L, -2, "Mailbox");
 
     luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);
     lua_setfield(L, -2, "Script");
