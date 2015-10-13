@@ -7,6 +7,10 @@
 
 #define ENVELOPE_LIB "Dialogue.Envelope"
 
+struct Envelope;
+struct Actor;
+typedef void (*Tone) (struct Envelope*);
+
 /*
  * The Envelope is what holds an individual message in a stream while the 
  * system is processing other messages. It is the C representation of a
@@ -15,6 +19,9 @@
 
 typedef struct Envelope {
     struct Envelope *next;
+    struct Actor *author;
+    struct Actor *recipient;
+    Tone tone;
     const char **data;
     int data_len;
 } Envelope;
@@ -42,6 +49,9 @@ envelope_bind(Envelope, void (*f) (Envelope));
  */
 void
 envelope_push_table (lua_State *L, Envelope *envelope);
+
+void
+envelope_free (Envelope *envelope);
 
 int 
 luaopen_Dialogue_Envelope (lua_State *L);

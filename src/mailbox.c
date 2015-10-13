@@ -35,6 +35,7 @@ mailbox_stream_retrieve (Envelope *stream)
     if (stream == NULL)
         return envelope_create_empty();
 
+    /* free the envelope, but not the malloc'd data array inside */
     envelope = *stream;
     free(stream);
 
@@ -42,20 +43,17 @@ mailbox_stream_retrieve (Envelope *stream)
 }
 
 /*
- * Add an envelope to our mailbox.
+ * Take ownership of the Envelope pointer and add it to the Stream.
  */
 void
-mailbox_add (Mailbox *box, Envelope envelope)
+mailbox_add (Mailbox *box, Envelope *envelope)
 {
-    Envelope *stream = malloc(sizeof(Envelope));
-    *stream = envelope;
-
     if (box->head == NULL) {
-        box->head = stream;
-        box->tail = stream;
+        box->head = envelope;
+        box->tail = envelope;
     } else {
-        box->tail->next = stream;
-        box->tail = stream;
+        box->tail->next = envelope;
+        box->tail = envelope;
     }
 }
 

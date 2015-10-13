@@ -218,6 +218,7 @@ lua_actor_send (lua_State *L)
 
     envelope = lua_check_envelope(L, -1);
     actor_send_envelope(actor, envelope);
+    envelope_free(envelope);
 
     return 0;
 }

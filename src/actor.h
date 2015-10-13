@@ -8,6 +8,8 @@
 
 #define ACTOR_LIB "Dialogue.Actor"
 
+struct Envelope;
+
 typedef struct Actor {
     lua_State *L;
     pthread_mutex_t mutex;
@@ -33,6 +35,12 @@ actor_add_script (Actor *actor, struct Script *script);
  */
 void
 actor_add_child (Actor *actor, Actor *child);
+
+/*
+ * From an envelope, send a message to each Script an actor owns.
+ */
+void
+actor_send_envelope (Actor *actor, struct Envelope *envelope);
 
 /*
  * Check for an Actor at index. Errors if it isn't an Actor.

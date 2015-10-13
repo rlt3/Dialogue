@@ -15,7 +15,7 @@ typedef struct Mailbox {
  * Add an envelope to our mailbox.
  */
 void
-mailbox_add (Mailbox *box, Envelope envelope);
+mailbox_add (Mailbox *box, Envelope *envelope);
 
 /*
  * Return the next Envelope.

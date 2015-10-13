@@ -63,7 +63,12 @@ lua_envelope_new (lua_State *L)
     len = luaL_len(L, 1);
     luaL_argcheck(L, len > 0, 1, "Message needs to have a title!");
 
-    envelope = lua_newuserdata(L, sizeof(Envelope));
+    /* 
+     * Instead of Lua handling this memory, we need to. This also commits us to
+     * use all lightuserdata as Envelopes (bindings between actors).
+     */
+    envelope = malloc(sizeof(Envelope));
+    lua_pushlightuserdata(L, envelope);
     luaL_getmetatable(L, ENVELOPE_LIB);
     lua_setmetatable(L, -2);
 
@@ -76,6 +81,13 @@ lua_envelope_new (lua_State *L)
         envelope->data[i] = lua_tostring(L, -1);
 
     return 1;
+}
+
+void
+envelope_free (Envelope *envelope)
+{
+    free(envelope->data);
+    free(envelope);
 }
 
 /*
