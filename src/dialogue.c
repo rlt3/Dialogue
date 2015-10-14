@@ -20,8 +20,7 @@
 int
 lua_dialogue_new (lua_State *L)
 {
-    int args = lua_gettop(L);
-    Actor *actor, *dialogue, *child;
+    Actor *actor, *child;
     luaL_checktype(L, 1, LUA_TTABLE);  /* 1 */
 
     /* push the Scripts part of the table to create an Actor */
@@ -32,10 +31,17 @@ lua_dialogue_new (lua_State *L)
     actor = lua_check_actor(L, -1);
     lua_pop(L, 2); /* pop the actor and Dialogue table to reset the stack */
 
-    dialogue = (args == 2) ? lua_check_actor(L, 2) : actor;
-
-    //actor->mailbox = dialogue->mailbox;
-    actor->dialogue = dialogue;
+    /*
+     * The recursion relies on sending the first created Actor (the head) to
+     * all the descendants as a second parameter. So, every Dialogue.new call
+     * past the first will be called like Dialogue.new(table, head).
+     */
+    if (lua_gettop(L) == 1) {
+        actor->dialogue = actor;
+    } else {
+        actor->dialogue = lua_check_actor(L, 2);
+        lua_pop(L, 1);
+    }
 
     /* push the children part of the table and recurse */
     lua_rawgeti(L, 1, 2);
@@ -44,7 +50,7 @@ lua_dialogue_new (lua_State *L)
         lua_getglobal(L, "Dialogue");
         lua_getfield(L, -1, "new");
         lua_pushvalue(L, -3);
-        lua_object_push(L, dialogue, ACTOR_LIB);
+        lua_object_push(L, actor->dialogue, ACTOR_LIB);
         lua_call(L, 2, 1);
 
         child = lua_check_actor(L, -1);
