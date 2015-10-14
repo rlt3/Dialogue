@@ -33,6 +33,12 @@ Envelope *
 lua_check_envelope (lua_State *L, int index);
 
 /*
+ * Create an Envelope inside a lua_State and return a pointer to it.
+ */
+Envelope *
+envelope_create (lua_State *, struct Actor *, Tone, struct Actor *);
+
+/*
  * Create an envelope that will fail a bind call.
  */
 Envelope

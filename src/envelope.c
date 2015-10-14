@@ -51,6 +51,25 @@ envelope_push_table (lua_State *L, Envelope *envelope)
 }
 
 /*
+ * Create an Envelope inside a lua_State and return a pointer to it.
+ */
+Envelope *
+envelope_create (lua_State *L, Actor *author, Tone tone, Actor *recipient)
+{
+    Envelope *envelope;
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Envelope");
+    lua_pushvalue(L, 2);
+    lua_object_push(L, author, ACTOR_LIB);
+    lua_pushlightuserdata(L, tone);
+    lua_object_push(L, recipient, ACTOR_LIB);
+    lua_call(L, 4, 1);
+    envelope = lua_check_envelope(L, -1);
+    lua_pop(L, 1);
+    return envelope;
+}
+
+/*
  * Create a new envelope with the given message.
  * Envelope{ "update", 20 }
  * Envelope{ "location", 1, 2 }

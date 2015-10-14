@@ -35,6 +35,23 @@ set_actor_child:
 }
 
 /*
+ * Get the actor from the lua_State and craft an envelope.
+ */
+int
+actor_envelope_create (lua_State *L, Tone tone, Actor *recipient)
+{
+    Envelope *envelope;
+    Actor* actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    envelope = envelope_create(L, actor, tone, NULL);
+    post(envelope);
+    envelope_free(envelope);
+    
+    return 0;
+}
+
+/*
  * From an envelope, send a message to each Script an actor owns.
  */
 void
@@ -204,30 +221,16 @@ lua_actor_scripts (lua_State *L)
     return 1;
 }
 
-/*
- * Create an Envelope from a given table and send it to all the Actor's Scripts.
- * player:send{ "move", 0, 1 }
- */
 static int
-lua_actor_send (lua_State *L)
+lua_actor_think (lua_State *L)
 {
-    Envelope *envelope;
-    Actor* actor = lua_check_actor(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
+    return actor_envelope_create(L, post_tone_think, NULL);
+}
 
-    lua_getglobal(L, "Dialogue");
-    lua_getfield(L, -1, "Envelope");
-    lua_pushvalue(L, 2);
-    lua_object_push(L, actor, ACTOR_LIB);
-    lua_pushlightuserdata(L, post_tone_yell);
-    lua_call(L, 3, 1);
-
-    envelope = lua_check_envelope(L, -1);
-    post(envelope);
-    envelope_free(envelope);
-    //actor_send_envelope(actor, envelope);
-
-    return 0;
+static int
+lua_actor_yell (lua_State *L)
+{
+    return actor_envelope_create(L, post_tone_yell, NULL);
 }
 
 static int
@@ -241,6 +244,7 @@ lua_actor_tostring (lua_State *L)
 static int
 lua_actor_gc (lua_State *L)
 {
+    printf("gcing...\n");
     Actor* actor = lua_check_actor(L, 1);
     lua_close(actor->L);
     return 0;
@@ -251,7 +255,9 @@ static const luaL_Reg actor_methods[] = {
     {"children",   lua_actor_children},
     {"give",       lua_actor_give},
     {"scripts",    lua_actor_scripts},
-    {"send",       lua_actor_send},
+    {"send",       lua_actor_think},
+    {"think",      lua_actor_think},
+    {"yell",       lua_actor_yell},
     {"__tostring", lua_actor_tostring},
     {"__gc",       lua_actor_gc},
     { NULL, NULL }
