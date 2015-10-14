@@ -65,7 +65,7 @@ envelope_create (lua_State *L, Actor *author, Tone tone, Actor *recipient)
     lua_object_push(L, recipient, ACTOR_LIB);
     lua_call(L, 4, 1);
     envelope = lua_check_envelope(L, -1);
-    lua_pop(L, 1);
+    lua_pop(L, 2);
     return envelope;
 }
 
@@ -135,17 +135,8 @@ lua_envelope_table (lua_State *L)
     return 1;
 }
 
-static int
-lua_envelope_gc (lua_State *L)
-{
-    Envelope *envelope = lua_check_envelope(L, 1);
-    free(envelope->data);
-    return 0;
-}
-
 static const luaL_Reg envelope_methods[] = {
     {"table", lua_envelope_table},
-    {"__gc", lua_envelope_gc},
     { NULL, NULL }
 };
 

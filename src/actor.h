@@ -22,6 +22,8 @@ typedef struct Actor {
 
     struct Actor *dialogue;
     struct Mailbox *mailbox;
+
+    int ref;
 } Actor;
 
 /*

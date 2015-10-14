@@ -37,7 +37,7 @@ set_actor_child:
 /*
  * Get the actor from the lua_State and craft an envelope.
  */
-int
+void
 actor_envelope_create (lua_State *L, Tone tone, Actor *recipient)
 {
     Envelope *envelope;
@@ -47,8 +47,6 @@ actor_envelope_create (lua_State *L, Tone tone, Actor *recipient)
     envelope = envelope_create(L, actor, tone, NULL);
     post(envelope);
     envelope_free(envelope);
-    
-    return 0;
 }
 
 /*
@@ -65,6 +63,7 @@ actor_send_envelope (Actor *actor, Envelope *envelope)
         envelope_push_table(actor->L, envelope);
         if (lua_pcall(actor->L, 2, 0, 0))
             luaL_error(actor->L, "Error sending: %s", lua_tostring(actor->L, -1));
+        lua_pop(actor->L, lua_gettop(actor->L));
     }
 
     pthread_mutex_unlock(&actor->mutex);
@@ -224,13 +223,15 @@ lua_actor_scripts (lua_State *L)
 static int
 lua_actor_think (lua_State *L)
 {
-    return actor_envelope_create(L, post_tone_think, NULL);
+    actor_envelope_create(L, post_tone_think, NULL);
+    return 0;
 }
 
 static int
 lua_actor_yell (lua_State *L)
 {
-    return actor_envelope_create(L, post_tone_yell, NULL);
+    actor_envelope_create(L, post_tone_yell, NULL);
+    return 0;
 }
 
 static int

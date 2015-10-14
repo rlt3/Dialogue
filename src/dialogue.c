@@ -29,7 +29,9 @@ lua_dialogue_new (lua_State *L)
     table_push_head(L, 1);
     lua_call(L, 1, 1);
     actor = lua_check_actor(L, -1);
-    lua_pop(L, 2); /* pop the actor and Dialogue table to reset the stack */
+    /* pull reference to entire userdata to push later */
+    actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pop(L, 1); /* pop Dialogue table to reset the stack */
 
     /*
      * The recursion relies on sending the first created Actor (the head) to
@@ -56,12 +58,12 @@ lua_dialogue_new (lua_State *L)
         child = lua_check_actor(L, -1);
         actor_add_child(actor, child);
 
-        lua_pop(L, 3); /* pop child, Dialogue table, and table value */
+        lua_pop(L, 3); /* child, Dialogue table, and table value */
     }
-
     lua_pop(L, 1); /* pop table */
 
-    lua_object_push(L, actor, ACTOR_LIB);
+    /* push the reference to the userdata (instead of pushing light userdata) */
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
 
     return 1;
 }
