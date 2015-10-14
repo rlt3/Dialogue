@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include "envelope.h"
+#include "post.h"
+#include "actor.h"
 #include "utils.h"
 
 /*
@@ -58,10 +60,20 @@ lua_envelope_new (lua_State *L)
 {
     int len, i;
     Envelope *envelope;
+    Actor *actor = NULL;
+    Actor *recipient = NULL;
+    Tone tone = post_tone_think;
 
     luaL_checktype(L, 1, LUA_TTABLE);
     len = luaL_len(L, 1);
     luaL_argcheck(L, len > 0, 1, "Message needs to have a title!");
+
+    actor = lua_check_actor(L, 2);
+    tone = lua_touserdata(L, 3);
+
+    if (lua_gettop(L) == 4) {
+        recipient = lua_check_actor(L, 3);
+    }
 
     /* 
      * Instead of Lua handling this memory, we need to. This also commits us to
@@ -72,6 +84,9 @@ lua_envelope_new (lua_State *L)
     luaL_getmetatable(L, ENVELOPE_LIB);
     lua_setmetatable(L, -2);
 
+    envelope->tone = tone;
+    envelope->author = actor;
+    envelope->recipient = recipient;
     envelope->next = NULL;
     envelope->data_len = len;
     envelope->data = malloc(envelope->data_len * sizeof(const char*));

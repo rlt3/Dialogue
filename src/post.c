@@ -36,11 +36,11 @@ post_tone_whisper (Envelope *envelope)
 void
 post_tone_yell (Envelope *envelope)
 {
-    post_actor(envelope->author->dialogue, envelope);
+    post_dialogue(envelope->author->dialogue, envelope);
 }
 
 void
-post (Envelope envelope)
+post (Envelope *envelope)
 {
-    envelope.tone(&envelope);
+    envelope->tone(envelope);
 }

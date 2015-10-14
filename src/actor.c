@@ -1,5 +1,6 @@
 #include "dialogue.h"
 #include "envelope.h"
+#include "post.h"
 #include "actor.h"
 #include "script.h"
 #include "utils.h"
@@ -217,11 +218,14 @@ lua_actor_send (lua_State *L)
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Envelope");
     lua_pushvalue(L, 2);
-    lua_call(L, 1, 1);
+    lua_object_push(L, actor, ACTOR_LIB);
+    lua_pushlightuserdata(L, post_tone_yell);
+    lua_call(L, 3, 1);
 
     envelope = lua_check_envelope(L, -1);
-    actor_send_envelope(actor, envelope);
+    post(envelope);
     envelope_free(envelope);
+    //actor_send_envelope(actor, envelope);
 
     return 0;
 }

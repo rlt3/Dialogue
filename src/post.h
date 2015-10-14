@@ -21,6 +21,6 @@ void
 post_tone_yell (Envelope *envelope);
 
 void
-post (Envelope envelope);
+post (Envelope *envelope);
 
 #endif
