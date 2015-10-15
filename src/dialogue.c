@@ -31,7 +31,7 @@ lua_dialogue_new (lua_State *L)
     actor = lua_check_actor(L, -1);
     /* pull reference to entire userdata to push later */
     actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 1); /* pop Dialogue table to reset the stack */
+    lua_pop(L, 1);
 
     /*
      * The recursion relies on sending the first created Actor (the head) to
@@ -40,6 +40,12 @@ lua_dialogue_new (lua_State *L)
      */
     if (lua_gettop(L) == 1) {
         actor->dialogue = actor;
+        lua_getglobal(L, "Dialogue");
+        lua_getfield(L, -1, "Mailbox");
+        lua_call(L, 0, 1);
+        actor->mailbox = lua_check_mailbox(L, -1);
+        actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        lua_pop(L, 1);
     } else {
         actor->dialogue = lua_check_actor(L, 2);
         lua_pop(L, 1);
@@ -60,7 +66,7 @@ lua_dialogue_new (lua_State *L)
 
         lua_pop(L, 3); /* child, Dialogue table, and table value */
     }
-    lua_pop(L, 1); /* pop table */
+    lua_pop(L, 1);
 
     /* push the reference to the userdata (instead of pushing light userdata) */
     lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);

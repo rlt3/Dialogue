@@ -125,6 +125,8 @@ lua_mailbox_gc (lua_State *L)
     while (box->head != NULL)
         mailbox_next(box);
 
+    luaL_unref(L, LUA_REGISTRYINDEX, box->ref);
+
     return 0;
 }
 

@@ -9,6 +9,7 @@ typedef struct Mailbox {
     Envelope *head;
     Envelope *tail;
     int processing;
+    int ref;
 } Mailbox;
 
 /*

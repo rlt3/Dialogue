@@ -245,9 +245,9 @@ lua_actor_tostring (lua_State *L)
 static int
 lua_actor_gc (lua_State *L)
 {
-    printf("gcing...\n");
     Actor* actor = lua_check_actor(L, 1);
     lua_close(actor->L);
+    luaL_unref(L, LUA_REGISTRYINDEX, actor->ref);
     return 0;
 }
 
