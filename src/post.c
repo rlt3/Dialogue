@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
 #include "post.h"
 #include "actor.h"
@@ -6,7 +6,8 @@
 void
 post_actor (Actor *actor, Envelope *envelope)
 {
-    actor_send_envelope(actor, envelope);
+    Envelope e = *envelope;
+    actor_send_envelope(actor, &e);
 }
 
 void
@@ -40,7 +41,8 @@ post_tone_yell (Envelope *envelope)
 }
 
 void
-post (Envelope *envelope)
+post (Envelope envelope)
 {
-    envelope->tone(envelope);
+    envelope.tone(&envelope);
+    free(envelope.data);
 }

@@ -1,5 +1,6 @@
 #include "dialogue.h"
 #include "envelope.h"
+#include "mailbox.h"
 #include "post.h"
 #include "actor.h"
 #include "script.h"
@@ -37,16 +38,12 @@ set_actor_child:
 /*
  * Get the actor from the lua_State and craft an envelope.
  */
-void
+Envelope *
 actor_envelope_create (lua_State *L, Tone tone, Actor *recipient)
 {
-    Envelope *envelope;
     Actor* actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
-
-    envelope = envelope_create(L, actor, tone, NULL);
-    post(envelope);
-    envelope_free(envelope);
+    return envelope_create(L, actor, tone, NULL);
 }
 
 /*
@@ -223,14 +220,18 @@ lua_actor_scripts (lua_State *L)
 static int
 lua_actor_think (lua_State *L)
 {
-    actor_envelope_create(L, post_tone_think, NULL);
+    Actor* actor = lua_check_actor(L, 1);
+    Envelope *envelope = actor_envelope_create(L, post_tone_think, NULL);
+    mailbox_add(actor->mailbox, envelope);
     return 0;
 }
 
 static int
 lua_actor_yell (lua_State *L)
 {
-    actor_envelope_create(L, post_tone_yell, NULL);
+    Actor* actor = lua_check_actor(L, 1);
+    Envelope *envelope = actor_envelope_create(L, post_tone_yell, NULL);
+    mailbox_add(actor->mailbox, envelope);
     return 0;
 }
 

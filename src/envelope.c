@@ -30,7 +30,7 @@ envelope_create_empty()
  * Determine if an envelope should be called like f(envelope) or not.
  */
 void
-envelope_bind(Envelope envelope, void (*f) (Envelope))
+envelope_bind (Envelope envelope, void (*f) (Envelope))
 {
     if (envelope.data_len > 0)
         f(envelope);
