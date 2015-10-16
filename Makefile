@@ -18,7 +18,7 @@ dialogue: $(SOURCES)
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS) -llua5.2 -lpthread
 
 check:
-	valgrind --leak-check=full -v ./$(EXECUTABLE)
+	valgrind --leak-check=full -v lua -i stage.lua
 
 clean:
 	rm -f $(EXECUTABLE) *.so src/*o
