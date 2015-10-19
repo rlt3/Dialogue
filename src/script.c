@@ -125,47 +125,24 @@ lua_script_send (lua_State *L)
 }
 
 /*
- * A method for querying the Script between lua states. This isn't threadsafe
- * and should only be used for debugging.
+ * A method for querying the Script's object between lua states. This isn't
+ * threadsafe and should only be used for debugging.
  *
- * script:probe("x") => 6
- * object["x"] => 6
+ * script:probe("x") => object["x"] => 6
  */
 static int
 lua_script_probe (lua_State *L)
 {
     Script* script = lua_check_script(L, 1);
-    const char *ret, *query = luaL_checkstring(L, 2);
+    const char *element = luaL_checkstring(L, 2);
     lua_State *A = script->actor->L;
 
     lua_pop(A, lua_gettop(A));
-
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_reference);
-    lua_setglobal(A, "object");
-
-    lua_getglobal(A, "loadstring");
-    lua_pushstring(A, query);
-    lua_call(A, 1, 1);
-
-    if (!lua_isfunction(A, -1)) {
-        printf("not a function\n");
-        goto error;
-    }
-
-    if (lua_pcall(A, 0, 1, 0)) {
-        printf("lambda failed\n");
-        goto error;
-    }
-
-    ret = lua_tostring(A, -1);
-    printf("%s => %s\n", query, ret);
-    lua_pushstring(L, ret);
-    goto exit;
-
-error: /* balance the Actor's stack and return false on an error */
-    lua_pushboolean(L, 0);
-exit:
+    lua_getfield(A, -1, element);
+    lua_pushinteger(L, lua_tointeger(A, -1));
     lua_pop(A, lua_gettop(A));
+
     return 1;
 }
 
