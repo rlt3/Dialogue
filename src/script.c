@@ -133,7 +133,6 @@ lua_script_send (lua_State *L)
 static int
 lua_script_probe (lua_State *L)
 {
-    int type;
     Script* script = lua_check_script(L, 1);
     const char *element = luaL_checkstring(L, 2);
     lua_State *A = script->actor->L;
@@ -141,31 +140,7 @@ lua_script_probe (lua_State *L)
     lua_pop(A, lua_gettop(A));
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_reference);
     lua_getfield(A, -1, element);
-
-    type = lua_type(A, -1);
-    switch(type)
-    {
-    case LUA_TNUMBER: /* assume integer always */
-        lua_pushnumber(L, lua_tonumber(A, -1));
-        break;
-        
-    case LUA_TSTRING:
-        lua_pushstring(L, lua_tostring(A, -1));
-        break;
-
-    case LUA_TBOOLEAN:
-        lua_pushinteger(L, lua_tointeger(A, -1));
-        break;
-
-    case LUA_TTABLE:
-        lua_pushstring(L, "Table");
-        break;
-
-    default:
-        lua_pushnil(L);
-        break;
-    }
-        
+    lua_copy_top(A, L);
     lua_pop(A, lua_gettop(A));
 
     return 1;

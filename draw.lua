@@ -1,11 +1,10 @@
 Draw = {}
 Draw.__index = Draw
 
-function Draw.new(x, y)
+function Draw.new(coords)
    local table = {}
    setmetatable(table, Draw)
-   table.x = x or 0
-   table.y = y or 0
+   table.coordinates = coords or {0, 0}
    return table
 end
 

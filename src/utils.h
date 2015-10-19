@@ -39,6 +39,12 @@ void
 table_push_copy (lua_State *from, lua_State *to, int index);
 
 /*
+ * Copies the value at the top of 'from' to 'to'.
+ */
+void
+lua_copy_top (lua_State *from, lua_State *to);
+
+/*
  * To be used with luaopen_ModuleName.
  *
  * Creates a new metatable, registers methods, and returns a function to 

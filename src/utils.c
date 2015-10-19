@@ -60,9 +60,40 @@ table_push_copy (lua_State *from, lua_State *to, int index)
     lua_newtable(to);
     lua_pushnil(from);
     for (i = 1; lua_next(from, index); i++) {
-        lua_pushstring(to, lua_tostring(from, -1));
+        lua_copy_top(from, to);
         lua_rawseti(to, -2, i);
         lua_pop(from, 1);
+    }
+}
+
+/*
+ * Copies the value at the top of 'from' to 'to'.
+ */
+void
+lua_copy_top (lua_State *from, lua_State *to)
+{
+    int type = lua_type(from, -1);
+    switch(type)
+    {
+    case LUA_TNUMBER:
+        lua_pushnumber(to, lua_tonumber(from, -1));
+        break;
+        
+    case LUA_TSTRING:
+        lua_pushstring(to, lua_tostring(from, -1));
+        break;
+
+    case LUA_TBOOLEAN:
+        lua_pushinteger(to, lua_tointeger(from, -1));
+        break;
+
+    case LUA_TTABLE:
+        table_push_copy(from, to, lua_gettop(from));
+        break;
+
+    default:
+        lua_pushnil(to);
+        break;
     }
 }
 
