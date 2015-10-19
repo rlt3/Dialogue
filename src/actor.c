@@ -16,6 +16,7 @@ actor_add_script (Actor *actor, Script *script)
         goto set_actor_script;
     script->next = actor->script;
 set_actor_script:
+    script->actor = actor;
     actor->script = script;
 }
 

@@ -12,6 +12,7 @@ typedef struct Script {
     int object_reference;
     int is_loaded;
     struct Script *next;
+    struct Actor *actor;
 } Script;
 
 /*

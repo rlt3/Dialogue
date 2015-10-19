@@ -94,7 +94,7 @@ lua_envelope_new (lua_State *L)
         recipient = lua_check_actor(L, 3);
     }
 
-    envelope = lua_newuserdata(sizeof(Envelope));
+    envelope = lua_newuserdata(L, sizeof(Envelope));
     luaL_getmetatable(L, ENVELOPE_LIB);
     lua_setmetatable(L, -2);
 
@@ -123,7 +123,7 @@ lua_envelope_new (lua_State *L)
 void
 envelope_free (Envelope *envelope)
 {
-    luaL_unref(L, LUA_REGISTRYINDEX, envelope->ref);
+    //luaL_unref(L, LUA_REGISTRYINDEX, envelope->ref);
 }
 
 /*
