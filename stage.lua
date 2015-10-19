@@ -6,3 +6,5 @@ game = Dialogue.new{ { {"draw", 6, 8 } }, { { { {"draw", 400, 200} }, {} }, { { 
 tim = Dialogue.Actor{ {"draw", 6, 8} }
 
 s = tim:scripts()[1]
+x = tonumber(s:probe("x"))
+y = tonumber(s:probe("y"))
