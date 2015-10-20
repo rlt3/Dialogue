@@ -1,9 +1,13 @@
 Dialogue = require 'Dialogue'
 
 update = {"update"}
-game = Dialogue.new{ { {"draw", 6, 8 } }, { { { {"draw", 400, 200} }, {} }, { { {"draw", 2, 4} }, {} } } }
 
-tim = Dialogue.Actor{ {"draw", {2, 4} } }
+tim = Dialogue.Actor{ {"draw", 0, 0 } }
 
-s = tim:scripts()[1]
-v = s:probe("coordinates")
+tree = Dialogue.new{ 
+    { {"draw", 0, 0 } }, 
+    { 
+        { { {"draw", 50, 100 }, {"weapon", "axe", "down" } }, {} }, 
+        { { {"draw", 2, 4 }, {"weapon", "longsword", "up"} }, {} } 
+    }
+}

@@ -1,3 +1,4 @@
+#include "stdio.h"
 #include "utils.h"
 
 /*
@@ -59,10 +60,9 @@ table_push_copy (lua_State *from, lua_State *to, int index)
     int i;
     lua_newtable(to);
     lua_pushnil(from);
-    for (i = 1; lua_next(from, index); i++) {
+    for (i = 1; lua_next(from, index); i++, lua_pop(from, 1)) {
         lua_copy_top(from, to);
         lua_rawseti(to, -2, i);
-        lua_pop(from, 1);
     }
 }
 

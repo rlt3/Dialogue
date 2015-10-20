@@ -94,12 +94,14 @@ lua_envelope_new (lua_State *L)
         recipient = lua_check_actor(L, 3);
     }
 
-    envelope = lua_newuserdata(L, sizeof(Envelope));
+    /* 
+     * Instead of Lua handling this memory, we need to. This also commits us to
+     * use all lightuserdata as Envelopes (bindings between actors).
+     */
+    envelope = malloc(sizeof(Envelope));
+    lua_pushlightuserdata(L, envelope);
     luaL_getmetatable(L, ENVELOPE_LIB);
     lua_setmetatable(L, -2);
-
-    /* save reference immediately so we can control when envelope is gc'd */
-    envelope->ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
     envelope->tone = tone;
     envelope->author = actor;
@@ -112,18 +114,14 @@ lua_envelope_new (lua_State *L)
     for (i = 0; lua_next(L, 1); i++, lua_pop(L, 1))
         envelope->data[i] = lua_tostring(L, -1);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->ref);
-
     return 1;
 }
 
-/*
- * Force Lua to garbage collect our Envelope by removing the reference.
- */
 void
 envelope_free (Envelope *envelope)
 {
-    //luaL_unref(L, LUA_REGISTRYINDEX, envelope->ref);
+    free(envelope->data);
+    free(envelope);
 }
 
 /*
@@ -137,17 +135,8 @@ lua_envelope_table (lua_State *L)
     return 1;
 }
 
-static int
-lua_envelope_gc (lua_State *L)
-{
-    Envelope *envelope = lua_check_envelope(L, 1);
-    free(envelope->data);
-    return 0;
-}
-
 static const luaL_Reg envelope_methods[] = {
     {"table", lua_envelope_table},
-    {"__gc",  lua_envelope_gc},
     { NULL, NULL }
 };
 

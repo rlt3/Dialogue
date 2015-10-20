@@ -150,6 +150,8 @@ lua_actor_give (lua_State *L)
     if (lua_pcall(actor->L, 1, 0, 0))
         luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
 
+    lua_pop(actor->L, lua_gettop(actor->L));
+
     return 0;
 }
 

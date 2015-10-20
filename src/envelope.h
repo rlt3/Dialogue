@@ -24,7 +24,6 @@ typedef struct Envelope {
     Tone tone;
     const char **data;
     int data_len;
-    int ref;
 } Envelope;
 
 /*
