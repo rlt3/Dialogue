@@ -11,6 +11,7 @@ typedef struct Script {
     int table_reference;
     int object_reference;
     int is_loaded;
+    int is_owned;
     struct Script *next;
     struct Actor *actor;
 } Script;

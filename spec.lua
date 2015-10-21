@@ -10,7 +10,7 @@ describe("a Script", function()
         assert.has_error(errfn, "Script isn't loaded!")
     end)
 
-    it("holds internal state", function()
+    it("holds private, internal state responding only to and by messages", function()
         script:load()
         script:send{ "attack" }
         assert.is_equal(script:probe("durability"), 9)

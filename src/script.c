@@ -59,6 +59,7 @@ lua_script_new (lua_State *L)
     script->table_reference = table_ref;
     script->next = NULL;
     script->is_loaded = 0;
+    script->is_owned = 0;
 
     return 1;
 }
@@ -79,8 +80,8 @@ lua_script_load (lua_State *L)
     /* if they pass in a table, use that as the reference for the module */
     if (args == 2) {
         luaL_unref(L, LUA_REGISTRYINDEX, script->table_reference);
-        luaL_checktype(L, 1, LUA_TTABLE);
-        len = luaL_len(L, 1);
+        luaL_checktype(L, 2, LUA_TTABLE);
+        len = luaL_len(L, 2);
         luaL_argcheck(L, len > 0, 1, "Table needs to have a module name!");
         script->table_reference = luaL_ref(L, LUA_REGISTRYINDEX);
     }
@@ -142,9 +143,19 @@ lua_script_probe (lua_State *L)
 {
     Script* script = lua_check_script(L, 1);
     const char *element = luaL_checkstring(L, 2);
+    lua_State *A = NULL;
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, script->object_reference);
-    lua_getfield(L, -1, element);
+    if (script->is_owned) {
+        A = script->actor->L;
+        lua_pop(A, lua_gettop(A));
+        lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_reference);
+        lua_getfield(A, -1, element);
+        lua_copy_top(A, L);
+        lua_pop(A, lua_gettop(A));
+    } else {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script->object_reference);
+        lua_getfield(L, -1, element);
+    }
 
     return 1;
 }
