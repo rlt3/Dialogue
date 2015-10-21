@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "dialogue.h"
 #include "envelope.h"
 #include "mailbox.h"
@@ -134,9 +135,10 @@ lua_actor_give (lua_State *L)
     Actor* actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    /* Dialogue.Script{ } */
     lua_getglobal(actor->L, "Dialogue");
+    lua_getfield(actor->L, -1, "Actor");
     lua_getfield(actor->L, -1, "Script");
+    lua_getfield(actor->L, -1, "new");
     table_push_copy(L, actor->L, 2);
     if (lua_pcall(actor->L, 1, 1, 0))
         luaL_error(L, "Giving script failed: %s", lua_tostring(actor->L, -1));
@@ -144,7 +146,6 @@ lua_actor_give (lua_State *L)
     script = lua_check_script(actor->L, -1);
     actor_add_script(actor, script);
 
-    /* script:load() */
     lua_getfield(actor->L, -1, "load");
     lua_object_push(actor->L, script, SCRIPT_LIB);
     if (lua_pcall(actor->L, 1, 0, 0))
@@ -271,8 +272,5 @@ static const luaL_Reg actor_methods[] = {
 int 
 luaopen_Dialogue_Actor (lua_State *L)
 {
-    utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
-    luaopen_Dialogue_Actor_Script(L);
-    lua_setfield(L, -2, "Script");
-    return 1;
+    return utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
 }

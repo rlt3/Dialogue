@@ -77,19 +77,27 @@ lua_dialogue_new (lua_State *L)
 int
 luaopen_Dialogue (lua_State *L)
 {
+    int t_index;
+
     lua_newtable(L);
+    t_index = lua_gettop(L);
 
     luaL_requiref(L, ENVELOPE_LIB, luaopen_Dialogue_Envelope, 1);
-    lua_setfield(L, -2, "Envelope");
+    lua_setfield(L, t_index, "Envelope");
 
     luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor, 1);
-    lua_setfield(L, -2, "Actor");
+    lua_setfield(L, t_index, "Actor");
+
+    lua_getfield(L, t_index, "Actor");
+    luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor_Script, 1);
+    lua_setfield(L, -2, "Script");
+    lua_pop(L, 1);
     
     luaL_requiref(L, MAILBOX_LIB, luaopen_Dialogue_Mailbox, 1);
-    lua_setfield(L, -2, "Mailbox");
+    lua_setfield(L, t_index, "Mailbox");
 
     lua_pushcfunction(L, lua_dialogue_new);
-    lua_setfield(L, -2, "new");
+    lua_setfield(L, t_index, "new");
 
     return 1;
 }

@@ -1,3 +1,3 @@
 Dialogue = require 'Dialogue'
 
-script = Dialogue.Actor.Script.new{ "weapon", "axe", "down" }
+--script = Dialogue.Actor.new{ {"weapon", "axe", "down"} }

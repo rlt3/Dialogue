@@ -43,3 +43,17 @@ describe("a Script", function()
         assert.is_equal(script:probe("weapon"), "sword")
     end)
 end)
+
+describe("an Actor", function()
+    local actor = actor
+
+    it("can have any number of scripts", function()
+        actor = Dialogue.Actor.new{ {"draw", 0, 2}, {"weapon", "sword", "up"} }
+        actor = Dialogue.Actor.new{ {"weapon", "sword", "up"} }
+        actor = Dialogue.Actor.new{}
+    end)
+
+    it("can be given a script", function()
+        actor:give{"weapon", "scimitar", "north"}
+    end)
+end)
