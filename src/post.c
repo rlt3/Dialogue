@@ -1,37 +1,48 @@
-#include "post.h"
-#include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
+#include "post.h"
+#include "actor.h"
 
-/*
- * Send an envelope based on its tone.
- */
+void
+post_actor (Actor *actor, Envelope *envelope)
+{
+    Envelope e = *envelope;
+    actor_send_envelope(actor, &e);
+}
+
+void
+post_dialogue (Actor *dialogue, Envelope *envelope)
+{
+    post_actor(dialogue, envelope);
+
+    if (dialogue->next != NULL)
+        post_dialogue(dialogue->next, envelope);
+
+    if (dialogue->child != NULL)
+        post_dialogue(dialogue->child, envelope);
+}
+
+void
+post_tone_think (Envelope *envelope)
+{
+    post_actor(envelope->author, envelope);
+}
+
+void
+post_tone_whisper (Envelope *envelope)
+{
+    post_actor(envelope->recipient, envelope);
+}
+
+void
+post_tone_yell (Envelope *envelope)
+{
+    post_dialogue(envelope->author->dialogue, envelope);
+}
+
 void
 post (Envelope envelope)
 {
-    envelope.tone(envelope);
-}
-
-/*
- * Send an Envelope to an Actor.
- */
-void
-post_actor (Actor *actor, Envelope envelope)
-{
-    /* copy the envelope from the global state into the actor's state */
-    envelope_copy(&envelope, actor->L);
-}
-
-/*
- * Recursively send a message to all the actors in a dialogue.
- */
-void
-post_dialogue (Actor *actor, Envelope envelope)
-{
-    post_actor(actor, envelope);
-
-    if (actor->next != NULL)
-        post_dialogue(actor->next, envelope);
-
-    if (actor->child != NULL)
-        post_dialogue(actor->child, envelope);
+    envelope.tone(&envelope);
+    free(envelope.data);
 }

@@ -1,8 +1,11 @@
+#include <stdlib.h>
 #include "envelope.h"
+#include "post.h"
+#include "actor.h"
 #include "utils.h"
 
 /*
- * Make sure userdata at index N is an Envelope.
+ * Check for a Envelope at index. Errors if it isn't an Envelope.
  */
 Envelope *
 lua_check_envelope (lua_State *L, int index)
@@ -11,38 +14,59 @@ lua_check_envelope (lua_State *L, int index)
 }
 
 /*
- * Push the table of an Envelope at index.
+ * Create an envelope that will fail a bind call.
  */
-void
-envelope_push_table (lua_State *L, int index)
+Envelope
+envelope_create_empty()
 {
-    Envelope *envelope = lua_check_envelope(L, index);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->table_reference);
+    Envelope envelope;
+    envelope.next = NULL;
+    envelope.data = NULL;
+    envelope.data_len = 0;
+    return envelope;
 }
 
 /*
- * Expects an Envelope table at index. Push the title of an envelope.
+ * Determine if an envelope should be called like f(envelope) or not.
  */
 void
-envelope_push_title (lua_State *L, int index)
+envelope_bind (Envelope envelope, void (*f) (Envelope))
 {
-    lua_rawgeti(L, index, 1);
+    if (envelope.data_len > 0)
+        f(envelope);
 }
 
 /*
- * Expects an Envelope table at index. Pushes all data onto the stack. Returns 
- * the number of args pushed.
+ * Push the table of an Envelope onto given lua_State.
  */
-int
-envelope_push_data (lua_State *L, int index)
+void
+envelope_push_table (lua_State *L, Envelope *envelope)
 {
-    int i, len = luaL_len(L, index);
+    int i;
+    lua_newtable(L);
+    for (i = 0; i < envelope->data_len; i++) {
+        lua_pushstring(L, envelope->data[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+}
 
-    /* first element in an envelope table is the title */
-    for (i = 2; i <= len; i++)
-        lua_rawgeti(L, index, i);
-
-    return len - 1;
+/*
+ * Create an Envelope inside a lua_State and return a pointer to it.
+ */
+Envelope *
+envelope_create (lua_State *L, Actor *author, Tone tone, Actor *recipient)
+{
+    Envelope *envelope;
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Envelope");
+    lua_pushvalue(L, 2);
+    lua_object_push(L, author, ACTOR_LIB);
+    lua_pushlightuserdata(L, tone);
+    lua_object_push(L, recipient, ACTOR_LIB);
+    lua_call(L, 4, 1);
+    envelope = lua_check_envelope(L, -1);
+    lua_pop(L, 2);
+    return envelope;
 }
 
 /*
@@ -53,23 +77,51 @@ envelope_push_data (lua_State *L, int index)
 static int
 lua_envelope_new (lua_State *L)
 {
-    int len, reference;
+    int len, i;
     Envelope *envelope;
+    Actor *actor = NULL;
+    Actor *recipient = NULL;
+    Tone tone = post_tone_think;
 
     luaL_checktype(L, 1, LUA_TTABLE);
     len = luaL_len(L, 1);
     luaL_argcheck(L, len > 0, 1, "Message needs to have a title!");
 
-    reference = luaL_ref(L, LUA_REGISTRYINDEX);
+    actor = lua_check_actor(L, 2);
+    tone = lua_touserdata(L, 3);
 
-    envelope = lua_newuserdata(L, sizeof(Envelope));
+    if (lua_gettop(L) == 4) {
+        recipient = lua_check_actor(L, 3);
+    }
+
+    /* 
+     * Instead of Lua handling this memory, we need to. This also commits us to
+     * use all lightuserdata as Envelopes (bindings between actors).
+     */
+    envelope = malloc(sizeof(Envelope));
+    lua_pushlightuserdata(L, envelope);
     luaL_getmetatable(L, ENVELOPE_LIB);
     lua_setmetatable(L, -2);
 
-    envelope->table_reference = reference;
-    envelope->L = L;
+    envelope->tone = tone;
+    envelope->author = actor;
+    envelope->recipient = recipient;
+    envelope->next = NULL;
+    envelope->data_len = len;
+    envelope->data = malloc(envelope->data_len * sizeof(const char*));
+
+    lua_pushnil(L);
+    for (i = 0; lua_next(L, 1); i++, lua_pop(L, 1))
+        envelope->data[i] = lua_tostring(L, -1);
 
     return 1;
+}
+
+void
+envelope_free (Envelope *envelope)
+{
+    free(envelope->data);
+    free(envelope);
 }
 
 /*
@@ -78,52 +130,18 @@ lua_envelope_new (lua_State *L)
 static int
 lua_envelope_table (lua_State *L)
 {
-    envelope_push_table(L, 1);
-    return 1;
-}
-
-/*
- * Get the title of the message inside the envelope.
- */
-static int
-lua_envelope_title (lua_State *L)
-{
-    envelope_push_table(L, 1);
-    envelope_push_title(L, -1);
-    return 1;
-}
-
-/*
- * Get the data for the message.
- */
-static int
-lua_envelope_data (lua_State *L)
-{
-    envelope_push_table(L, 1);
-    return envelope_push_data(L, -1);
-}
-
-/*
- * Clear our references when getting garbage collected.
- */
-static int
-lua_envelope_gc (lua_State *L)
-{
     Envelope *envelope = lua_check_envelope(L, 1);
-    luaL_unref(L, LUA_REGISTRYINDEX, envelope->table_reference);
-    return 0;
+    envelope_push_table(L, envelope);
+    return 1;
 }
 
 static const luaL_Reg envelope_methods[] = {
-    {"title", lua_envelope_title},
-    {"data",  lua_envelope_data},
     {"table", lua_envelope_table},
-    {"__gc",  lua_envelope_gc},
     { NULL, NULL }
 };
 
 int 
 luaopen_Dialogue_Envelope (lua_State *L)
 {
-    return lua_meta_open(L, ENVELOPE_LIB, envelope_methods, lua_envelope_new);
+    return utils_lua_meta_open(L, ENVELOPE_LIB, envelope_methods, lua_envelope_new);
 }

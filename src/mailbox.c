@@ -23,54 +23,37 @@ mailbox_thread (void *arg)
     return NULL;
 }
 
-/* 
- * Allocate space for the envelope in the stream.
- */
-Envelope *
-mailbox_stream_allocate (Envelope envelope)
-{
-    Envelope *stream = malloc(sizeof(Envelope));
-
-    if (stream == NULL)
-        goto exit;
-
-    *stream = envelope;
-
-exit:
-    return stream;
-}
-
 /*
  * Free an envelope from the stream and return it. If the stream pointer given
  * is NULL, this returns an empty envelope that will fail a bind call.
  */
 Envelope
-mailbox_stream_retrieve (Envelope *envelope)
+mailbox_stream_retrieve (Envelope *stream)
 {
-    Envelope stream;
+    Envelope envelope;
 
-    if (envelope == NULL)
+    if (stream == NULL)
         return envelope_create_empty();
 
-    stream = *envelope;
-    free(envelope);
-    return stream;
+    /* free the envelope, but not the malloc'd data array inside */
+    envelope = *stream;
+    free(stream);
+
+    return envelope;
 }
 
 /*
- * Add an envelope to our mailbox.
+ * Take ownership of the Envelope pointer and add it to the Stream.
  */
 void
-mailbox_add (Mailbox *box, Envelope envelope)
+mailbox_add (Mailbox *box, Envelope *envelope)
 {
-    Envelope *stream = mailbox_stream_allocate(envelope);
-
     if (box->head == NULL) {
-        box->head = stream;
-        box->tail = stream;
+        box->head = envelope;
+        box->tail = envelope;
     } else {
-        box->tail->next = stream;
-        box->tail = box->tail->next;
+        box->tail->next = envelope;
+        box->tail = envelope;
     }
 }
 
@@ -90,7 +73,7 @@ mailbox_next (Mailbox *box)
  * Make sure the argument at index N is a Mailbox and return it if it is.
  */
 Mailbox *
-lua_checkmailbox (lua_State *L, int index)
+lua_check_mailbox (lua_State *L, int index)
 {
     return (Mailbox*) luaL_checkudata(L, index, MAILBOX_LIB);
 }
@@ -121,7 +104,7 @@ lua_mailbox_new (lua_State *L)
 static int
 lua_mailbox_print (lua_State *L)
 {
-    Mailbox *box = lua_checkmailbox(L, 1);
+    Mailbox *box = lua_check_mailbox(L, 1);
     lua_pushfstring(L, "%s %p", MAILBOX_LIB, box);
     return 1;
 }
@@ -132,7 +115,7 @@ lua_mailbox_print (lua_State *L)
 static int
 lua_mailbox_gc (lua_State *L)
 {
-    Mailbox *box = lua_checkmailbox(L, 1);
+    Mailbox *box = lua_check_mailbox(L, 1);
     box->processing = 0;
 
     /* wait for thread to destruct */
@@ -141,6 +124,8 @@ lua_mailbox_gc (lua_State *L)
     /* `mailbox_next` frees the stream objects as it gets to them. */
     while (box->head != NULL)
         mailbox_next(box);
+
+    luaL_unref(L, LUA_REGISTRYINDEX, box->ref);
 
     return 0;
 }
@@ -154,5 +139,5 @@ static const luaL_Reg mailbox_methods[] = {
 int 
 luaopen_Dialogue_Mailbox (lua_State * L)
 {
-    return lua_meta_open(L, MAILBOX_LIB, mailbox_methods, lua_mailbox_new);
+    return utils_lua_meta_open(L, MAILBOX_LIB, mailbox_methods, lua_mailbox_new);
 }

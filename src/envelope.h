@@ -7,9 +7,23 @@
 
 #define ENVELOPE_LIB "Dialogue.Envelope"
 
+struct Envelope;
+struct Actor;
+typedef void (*Tone) (struct Envelope*);
+
+/*
+ * The Envelope is what holds an individual message in a stream while the 
+ * system is processing other messages. It is the C representation of a
+ * table for us to easily pass around.
+ */
+
 typedef struct Envelope {
-    int table_reference;
-    lua_State *L;
+    struct Envelope *next;
+    struct Actor *author;
+    struct Actor *recipient;
+    Tone tone;
+    const char **data;
+    int data_len;
 } Envelope;
 
 /*
@@ -19,23 +33,31 @@ Envelope *
 lua_check_envelope (lua_State *L, int index);
 
 /*
- * Push the table of an Envelope at index.
+ * Create an Envelope inside a lua_State and return a pointer to it.
  */
-void
-envelope_push_table (lua_State *L, int index);
+Envelope *
+envelope_create (lua_State *, struct Actor *, Tone, struct Actor *);
 
 /*
- * Expects an Envelope table at index. Push the title of an envelope.
+ * Create an envelope that will fail a bind call.
  */
-void
-envelope_push_title (lua_State *L, int index);
+Envelope
+envelope_create_empty();
 
 /*
- * Expects an Envelope table at index. Pushes all data onto the stack. Returns 
- * the number of args pushed.
+ * Determine if an envelope should be called like f(envelope) or not.
  */
-int
-envelope_push_data (lua_State *L, int index);
+void
+envelope_bind(Envelope, void (*f) (Envelope));
+
+/*
+ * Push the table of an Envelope onto given lua_State.
+ */
+void
+envelope_push_table (lua_State *L, Envelope *envelope);
+
+void
+envelope_free (Envelope *envelope);
 
 int 
 luaopen_Dialogue_Envelope (lua_State *L);

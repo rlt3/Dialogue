@@ -1,5 +1,8 @@
+#include <stdio.h>
 #include "dialogue.h"
 #include "envelope.h"
+#include "mailbox.h"
+#include "post.h"
 #include "actor.h"
 #include "script.h"
 #include "utils.h"
@@ -14,7 +17,55 @@ actor_add_script (Actor *actor, Script *script)
         goto set_actor_script;
     script->next = actor->script;
 set_actor_script:
+    script->actor = actor;
     actor->script = script;
+}
+
+/*
+ * Add a child to the given actor, always at the front.
+ */
+void
+actor_add_child (Actor *actor, Actor *child)
+{
+    if (actor->child == NULL)
+        goto set_actor_child;
+    child->next = actor->child;
+set_actor_child:
+    actor->child = child;
+    child->parent = actor;
+    child->dialogue = actor->dialogue;
+    child->mailbox = actor->mailbox;
+}
+
+/*
+ * Get the actor from the lua_State and craft an envelope.
+ */
+Envelope *
+actor_envelope_create (lua_State *L, Tone tone, Actor *recipient)
+{
+    Actor* actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    return envelope_create(L, actor, tone, NULL);
+}
+
+/*
+ * From an envelope, send a message to each Script an actor owns.
+ */
+void
+actor_send_envelope (Actor *actor, Envelope *envelope)
+{
+    Script *script;
+    pthread_mutex_lock(&actor->mutex);
+
+    for (script = actor->script; script != NULL; script = script->next) {
+        lua_method_push(actor->L, script, SCRIPT_LIB, "send");
+        envelope_push_table(actor->L, envelope);
+        if (lua_pcall(actor->L, 2, 0, 0))
+            luaL_error(actor->L, "Error sending: %s", lua_tostring(actor->L, -1));
+        lua_pop(actor->L, lua_gettop(actor->L));
+    }
+
+    pthread_mutex_unlock(&actor->mutex);
 }
 
 /*
@@ -38,7 +89,11 @@ lua_actor_new (lua_State *L)
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
 
+    actor->parent = NULL;
+    actor->next = NULL;
+    actor->child = NULL;
     actor->script = NULL;
+
     actor->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
 
     actor->L = luaL_newstate();
@@ -80,59 +135,116 @@ lua_actor_give (lua_State *L)
     Actor* actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    /* Dialogue.Script{ } */
     lua_getglobal(actor->L, "Dialogue");
+    lua_getfield(actor->L, -1, "Actor");
     lua_getfield(actor->L, -1, "Script");
-    lua_table_copy(L, actor->L);
+    lua_getfield(actor->L, -1, "new");
+    table_push_copy(L, actor->L, 2);
     if (lua_pcall(actor->L, 1, 1, 0))
         luaL_error(L, "Giving script failed: %s", lua_tostring(actor->L, -1));
 
     script = lua_check_script(actor->L, -1);
     actor_add_script(actor, script);
 
-    /* script:load() */
     lua_getfield(actor->L, -1, "load");
     lua_object_push(actor->L, script, SCRIPT_LIB);
     if (lua_pcall(actor->L, 1, 0, 0))
         luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
 
+    lua_pop(actor->L, lua_gettop(actor->L));
+
     return 0;
 }
 
 /*
- * Create an Envelope from a given table and send it to all the Actor's Scripts.
- * player:send{ "move", 0, 1 }
+ * Create actor from table and add it as a child. Returns the child created.
+ * player:child{ {"draw", 2, 4}, { "weapon", "knife" } }
  */
 static int
-lua_actor_send (lua_State *L)
+lua_actor_child (lua_State *L)
 {
-    int envelope_ref;
-    Script *script = NULL;
-    Actor* actor = lua_check_actor(L, 1);
+    int table_ref;
+    Actor *child, *actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    /* Dialogue.Envelope{ } */
-    lua_getglobal(actor->L, "Dialogue");
-    lua_getfield(actor->L, -1, "Envelope");
-    lua_table_copy(L, actor->L);
-    if (lua_pcall(actor->L, 1, 1, 0))
-        luaL_error(L, "Loading envelope failed: %s", lua_tostring(actor->L, -1));
+    table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    envelope_ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
+    /* Dialogue.Actor{ } */
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Actor");
+    lua_rawgeti(L, LUA_REGISTRYINDEX, table_ref);
+    if (lua_pcall(L, 1, 1, 0))
+        luaL_error(L, "Creating child failed: %s", lua_tostring(L, -1));
 
-    /* Use the envelope and send it to each of the Scripts */
-    for (script = actor->script; script != NULL; script = script->next) {
-        lua_object_push(actor->L, script, SCRIPT_LIB);
-        lua_getfield(actor->L, -1, "send");
-        lua_object_push(actor->L, script, SCRIPT_LIB);
-        lua_rawgeti(actor->L, LUA_REGISTRYINDEX, envelope_ref);
-        if (lua_pcall(actor->L, 2, 0, 0))
-            luaL_error(L, "Sending message failed: %s", lua_tostring(actor->L, -1));
+    child = lua_check_actor(L, -1);
+    actor_add_child(actor, child);
+
+    return 1;
+}
+
+/*
+ * Return an array of children an Actor owns.
+ */
+static int
+lua_actor_children (lua_State *L)
+{
+    int i;
+    Actor *child, *actor = lua_check_actor(L, 1);
+
+    lua_newtable(L);
+
+    for (i = 1, child = actor->child; child != NULL; child = child->next, i++) {
+        lua_object_push(L, child, ACTOR_LIB);
+        lua_rawseti(L, -2, i);
     }
 
-    luaL_unref(actor->L, LUA_REGISTRYINDEX, envelope_ref);
+    return 1;
+}
 
+/*
+ * Return an array of scripts an Actor owns.
+ */
+static int
+lua_actor_scripts (lua_State *L)
+{
+    int i;
+    Script *scpt;
+    Actor *actor = lua_check_actor(L, 1);
+
+    lua_newtable(L);
+
+    for (i = 1, scpt = actor->script; scpt != NULL; scpt = scpt->next, i++) {
+        lua_object_push(L, scpt, SCRIPT_LIB);
+        lua_rawseti(L, -2, i);
+    }
+
+    return 1;
+}
+
+static int
+lua_actor_think (lua_State *L)
+{
+    Actor* actor = lua_check_actor(L, 1);
+    Envelope *envelope = actor_envelope_create(L, post_tone_think, NULL);
+    mailbox_add(actor->mailbox, envelope);
     return 0;
+}
+
+static int
+lua_actor_yell (lua_State *L)
+{
+    Actor* actor = lua_check_actor(L, 1);
+    Envelope *envelope = actor_envelope_create(L, post_tone_yell, NULL);
+    mailbox_add(actor->mailbox, envelope);
+    return 0;
+}
+
+static int
+lua_actor_tostring (lua_State *L)
+{
+    Actor* actor = lua_check_actor(L, 1);
+    lua_pushfstring(L, "%s %p", ACTOR_LIB, actor);
+    return 1;
 }
 
 static int
@@ -140,18 +252,25 @@ lua_actor_gc (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
     lua_close(actor->L);
+    luaL_unref(L, LUA_REGISTRYINDEX, actor->ref);
     return 0;
 }
 
 static const luaL_Reg actor_methods[] = {
-    {"give", lua_actor_give},
-    {"send", lua_actor_send},
-    {"__gc", lua_actor_gc},
+    {"child",      lua_actor_child},
+    {"children",   lua_actor_children},
+    {"give",       lua_actor_give},
+    {"scripts",    lua_actor_scripts},
+    {"send",       lua_actor_think},
+    {"think",      lua_actor_think},
+    {"yell",       lua_actor_yell},
+    {"__tostring", lua_actor_tostring},
+    {"__gc",       lua_actor_gc},
     { NULL, NULL }
 };
 
 int 
 luaopen_Dialogue_Actor (lua_State *L)
 {
-    return lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
+    return utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
 }
