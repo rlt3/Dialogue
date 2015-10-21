@@ -271,5 +271,8 @@ static const luaL_Reg actor_methods[] = {
 int 
 luaopen_Dialogue_Actor (lua_State *L)
 {
-    return lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
+    utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
+    luaopen_Dialogue_Actor_Script(L);
+    lua_setfield(L, -2, "Script");
+    return 1;
 }

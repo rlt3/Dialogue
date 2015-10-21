@@ -48,7 +48,7 @@ lua_script_new (lua_State *L)
 
     luaL_checktype(L, 1, LUA_TTABLE);
     len = luaL_len(L, 1);
-    luaL_argcheck(L, len > 0, 1, "Script needs to have a module name!");
+    luaL_argcheck(L, len > 0, 1, "Table needs to have a module name!");
 
     table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
@@ -69,24 +69,34 @@ lua_script_new (lua_State *L)
 static int
 lua_script_load (lua_State *L)
 {
-    int args;
+    int len = 0, args = lua_gettop(L);
     const char *module = NULL;
-    Script *script = NULL;
+    Script *script = lua_check_script(L, 1);
 
-    script = lua_check_script(L, 1);
-    script_push_table(L, 1);         /* 2 */
+    if (script->is_loaded)
+        luaL_unref(L, LUA_REGISTRYINDEX, script->object_reference);
+    
+    /* if they pass in a table, use that as the reference for the module */
+    if (args == 2) {
+        luaL_unref(L, LUA_REGISTRYINDEX, script->table_reference);
+        luaL_checktype(L, 1, LUA_TTABLE);
+        len = luaL_len(L, 1);
+        luaL_argcheck(L, len > 0, 1, "Table needs to have a module name!");
+        script->table_reference = luaL_ref(L, LUA_REGISTRYINDEX);
+    }
+
+    script_push_table(L, 1); /* 2 */
 
     /* module = require 'module-name' */
     lua_getglobal(L, "require");
     table_push_head(L, 2);
     module = lua_tostring(L, -1);
-    if (lua_pcall(L, 1, 1, 0))       /* 3 */
+    if (lua_pcall(L, 1, 1, 0)) /* 3 */
         luaL_error(L, "Require failed for module %s", module);
 
     /* object = module.new(...) */
     lua_getfield(L, 3, "new");
-    args = table_push_data(L, 2);
-    if (lua_pcall(L, args, 1, 0)) 
+    if (lua_pcall(L, table_push_data(L, 2), 1, 0)) 
         luaL_error(L, "%s.new() failed: %s", module, lua_tostring(L, -1));
 
     script->object_reference = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -125,23 +135,16 @@ lua_script_send (lua_State *L)
 }
 
 /*
- * A method for querying the Script's object between lua states. This isn't
- * threadsafe and should only be used for debugging.
- *
- * script:probe("x") => object["x"] => 6
+ * A method for querying the Script's object between lua states.
  */
 static int
 lua_script_probe (lua_State *L)
 {
     Script* script = lua_check_script(L, 1);
     const char *element = luaL_checkstring(L, 2);
-    lua_State *A = script->actor->L;
 
-    lua_pop(A, lua_gettop(A));
-    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_reference);
-    lua_getfield(A, -1, element);
-    lua_copy_top(A, L);
-    lua_pop(A, lua_gettop(A));
+    lua_rawgeti(L, LUA_REGISTRYINDEX, script->object_reference);
+    lua_getfield(L, -1, element);
 
     return 1;
 }
@@ -164,10 +167,10 @@ lua_script_gc (lua_State *L)
 }
 
 static const luaL_Reg script_methods[] = {
-    {"send",  lua_script_send},
-    {"load",  lua_script_load},
+    {"send", lua_script_send},
+    {"load", lua_script_load},
     {"probe", lua_script_probe},
-    {"__gc",  lua_script_gc},
+    {"__gc", lua_script_gc},
     {"__tostring", lua_script_tostring},
     { NULL, NULL }
 };
@@ -175,5 +178,5 @@ static const luaL_Reg script_methods[] = {
 int 
 luaopen_Dialogue_Actor_Script (lua_State *L)
 {
-    return lua_meta_open(L, SCRIPT_LIB, script_methods, lua_script_new);
+    return utils_lua_meta_open(L, SCRIPT_LIB, script_methods, lua_script_new);
 }

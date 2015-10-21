@@ -88,9 +88,6 @@ luaopen_Dialogue (lua_State *L)
     luaL_requiref(L, MAILBOX_LIB, luaopen_Dialogue_Mailbox, 1);
     lua_setfield(L, -2, "Mailbox");
 
-    luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);
-    lua_setfield(L, -2, "Script");
-
     lua_pushcfunction(L, lua_dialogue_new);
     lua_setfield(L, -2, "new");
 

@@ -143,5 +143,5 @@ static const luaL_Reg envelope_methods[] = {
 int 
 luaopen_Dialogue_Envelope (lua_State *L)
 {
-    return lua_meta_open(L, ENVELOPE_LIB, envelope_methods, lua_envelope_new);
+    return utils_lua_meta_open(L, ENVELOPE_LIB, envelope_methods, lua_envelope_new);
 }

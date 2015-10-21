@@ -51,7 +51,7 @@ lua_copy_top (lua_State *from, lua_State *to);
  * create objects of the metatable type.
  */
 int 
-lua_meta_open (lua_State *L, 
+utils_lua_meta_open (lua_State *L, 
         const char *metatable, 
         const luaL_Reg *methods, 
         lua_CFunction function);

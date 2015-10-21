@@ -139,5 +139,5 @@ static const luaL_Reg mailbox_methods[] = {
 int 
 luaopen_Dialogue_Mailbox (lua_State * L)
 {
-    return lua_meta_open(L, MAILBOX_LIB, mailbox_methods, lua_mailbox_new);
+    return utils_lua_meta_open(L, MAILBOX_LIB, mailbox_methods, lua_mailbox_new);
 }
