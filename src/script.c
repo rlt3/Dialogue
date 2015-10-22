@@ -93,19 +93,18 @@ lua_script_load (lua_State *L)
     table_push_head(L, 2);
     module = lua_tostring(L, -1);
     if (lua_pcall(L, 1, 1, 0)) /* 3 */
-        luaL_error(L, "Require failed for module %s", module);
+        luaL_error(L, "Require failed for module '%s'", module);
 
     /* object = module.new(...) */
     lua_getfield(L, 3, "new");
     if (lua_pcall(L, table_push_data(L, 2), 1, 0)) 
-        luaL_error(L, "%s.new() failed: %s", module, lua_tostring(L, -1));
+        luaL_error(L, "%s.new() failed", module);
 
     script->object_reference = luaL_ref(L, LUA_REGISTRYINDEX);
     script->is_loaded = 1;
 
     return 0;
 }
-
 
 /*
  * Send a script a message from a table.

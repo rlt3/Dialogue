@@ -10,6 +10,22 @@ describe("a Script", function()
         assert.has_error(errfn, "bad argument #1 to 'new' (Table needs to have a module name!)")
     end)
 
+    it("needs that one element to be the name of a valid Lua module", function()
+        local errfn = function()
+            script = Dialogue.Actor.Script.new{ "invalid_module" }
+            script:load()
+        end
+        assert.has_error(errfn, "Require failed for module 'invalid_module'")
+    end)
+
+    it("needs that module to return a table with function element new", function()
+        local errfn = function()
+            script = Dialogue.Actor.Script.new{ "valid_module_no_new" }
+            script:load()
+        end
+        assert.has_error(errfn, "valid_module_no_new.new() failed")
+    end)
+
     it("fails sending if not loaded", function()
         local errfn = function()
             script = Dialogue.Actor.Script.new{ "weapon", "axe", "down" }
@@ -18,16 +34,7 @@ describe("a Script", function()
         assert.has_error(errfn, "Script isn't loaded!")
     end)
 
-    it("needs a valid lua object table with a new function to be loaded", function()
-        local errfn = function()
-            script = Dialogue.Actor.Script.new{ "collision" }
-            script:load()
-        end
-        assert.has_error(errfn, "Require failed for module collision")
-    end)
-
     it("holds private, internal state responding only to and by messages", function()
-        script = Dialogue.Actor.Script.new{ "weapon", "axe", "down" }
         script:load()
         script:send{ "attack" }
         assert.is_equal(script:probe("durability"), 9)
@@ -55,5 +62,18 @@ describe("an Actor", function()
 
     it("can be given a script", function()
         actor:give{"weapon", "scimitar", "north"}
+        assert.is_equal(#actor:scripts(), 1)
     end)
+    
+    it("can be given a list of scripts, which overwrite any previous scripts owned", function()
+        actor:give{ {"weapon", "scimitar", "north"}, {"draw", 2, 4}, {"collision", 2, 4} }
+        assert.is_equal(#actor:scripts(), 3)
+    end)
+
+    pending("can be given a child")
+    pending("can be given a list of children")
+    pending("automatically loads any scripts given")
+    pending("cannot recieve a message without a mailbox")
+    pending("cannot send a message without a mailbox")
+    pending("can be given a mailbox")
 end)
