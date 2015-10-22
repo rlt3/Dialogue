@@ -17,6 +17,9 @@ all: clean dialogue
 dialogue: $(SOURCES)
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS) -llua5.2 -lpthread
 
+test:
+	busted spec.lua
+
 check:
 	valgrind --leak-check=full -v ./$(EXECUTABLE)
 
