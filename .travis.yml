@@ -5,6 +5,7 @@ env:
   - LUA_VERSION=5.2
 
 before_install:
+  - chmod +x travis.sh
   - ./travis.sh
 
 install:
