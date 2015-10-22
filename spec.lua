@@ -65,10 +65,11 @@ describe("an Actor", function()
         assert.is_equal(#actor:scripts(), 1)
     end)
     
-    it("can be given a list of scripts, which overwrite any previous scripts owned", function()
-        actor:give{ {"weapon", "scimitar", "north"}, {"draw", 2, 4}, {"collision", 2, 4} }
-        assert.is_equal(#actor:scripts(), 3)
-    end)
+    pending("can be given a list of scripts, which overwrite any previous scripts owned")
+    --it("can be given a list of scripts, which overwrite any previous scripts owned", function()
+    --    actor:give{ {"weapon", "scimitar", "north"}, {"draw", 2, 4}, {"collision", 2, 4} }
+    --    assert.is_equal(#actor:scripts(), 3)
+    --end)
 
     pending("can be given a child")
     pending("can be given a list of children")
