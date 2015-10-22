@@ -2,11 +2,13 @@ language: c
 
 env:
   - LUA="Lua 5.2"
+  - LUA_VERSION=5.2
+
+before_install:
+  - ./travis.sh
 
 install:
-  - sudo apt-get install lua5.2
   - sudo apt-get install luarocks
-  - sudo luarocks install luafilesystem
   - sudo luarocks install busted
 
 script: make && make test
