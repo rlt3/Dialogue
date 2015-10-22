@@ -151,6 +151,7 @@ lua_actor_give (lua_State *L)
     if (lua_pcall(actor->L, 1, 0, 0))
         luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
 
+    script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_pop(actor->L, lua_gettop(actor->L));
 
     return 0;
@@ -202,19 +203,49 @@ lua_actor_children (lua_State *L)
 }
 
 /*
- * Return an array of scripts an Actor owns.
+ * If no argument is given, return list of scripts. Else purge currently owned
+ * scripts and create new ones from the given list of scripts.
+ *
+ * actor:scripts() => { script, ... }
+ * actor:script{ {"weapon", "axe", "up"}, {"draw", 2, 4}, {"collision", 2, 4} }
  */
 static int
 lua_actor_scripts (lua_State *L)
 {
-    int i;
-    Script *scpt;
+    int i, args = lua_gettop(L);
+    Script *s;
     Actor *actor = lua_check_actor(L, 1);
 
+    if (args == 1)
+        goto list;
+    else if (args == 2)
+        goto purge_and_create;
+
+purge_and_create:
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    for (s = actor->script; s != NULL; s = s->next)
+        luaL_unref(L, LUA_REGISTRYINDEX, s->ref);
+
+    actor->script = NULL;
+
+    lua_pushnil(L);
+    while (lua_next(L, 2)) {
+        luaL_checktype(L, -1, LUA_TTABLE);
+        lua_getfield(L, 1, "give");
+        lua_object_push(L, actor, ACTOR_LIB);
+        lua_pushvalue(L, -3);
+        lua_call(L, 2, 0);
+        lua_pop(L, 1);
+    }
+
+    return 0;
+
+list:
     lua_newtable(L);
 
-    for (i = 1, scpt = actor->script; scpt != NULL; scpt = scpt->next, i++) {
-        lua_object_push(L, scpt, SCRIPT_LIB);
+    for (i = 1, s = actor->script; s != NULL; s = s->next, i++) {
+        lua_object_push(L, s, SCRIPT_LIB);
         lua_rawseti(L, -2, i);
     }
 

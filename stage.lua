@@ -1,3 +1,5 @@
 Dialogue = require 'Dialogue'
 
---script = Dialogue.Actor.new{ {"weapon", "axe", "down"} }
+actor = Dialogue.Actor.new{}
+actor:give{"weapon", "scimitar", "north"}
+actor:give{"weapon", "flail", "north"}
