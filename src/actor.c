@@ -151,7 +151,7 @@ lua_actor_give (lua_State *L)
     if (lua_pcall(actor->L, 1, 0, 0))
         luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
 
-    script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    script->ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
     script->is_owned = 1;
 
     return 0;
@@ -225,7 +225,7 @@ purge_and_create:
     luaL_checktype(L, 2, LUA_TTABLE);
 
     for (s = actor->script; s != NULL; s = s->next)
-        luaL_unref(L, LUA_REGISTRYINDEX, s->ref);
+        luaL_unref(actor->L, LUA_REGISTRYINDEX, s->ref);
 
     actor->script = NULL;
 

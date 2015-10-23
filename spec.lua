@@ -65,11 +65,13 @@ describe("an Actor", function()
         assert.is_equal(#actor:scripts(), 1)
     end)
 
-    pending("prepends new scripts & children to its lists")
+    it("prepends new scripts & children to its lists", function()
+        actor:give{"weapon", "flail", "north"}
+        assert.is_equal(actor:scripts()[1]:probe("weapon"), "flail")
+        assert.is_equal(#actor:scripts(), 2)
+    end)
 
     it("has local state for each script", function()
-        actor:give{"weapon", "flail", "north"}
-        assert.is_equal(#actor:scripts(), 2)
         assert.is_equal(actor:scripts()[1]:probe("weapon"), "flail")
         assert.is_equal(actor:scripts()[2]:probe("weapon"), "scimitar")
     end)
@@ -77,6 +79,8 @@ describe("an Actor", function()
     it("can be given a list of scripts, which overwrite any previous scripts owned", function()
         actor:scripts{ {"weapon", "scimitar", "north"}, {"draw", 2, 4} }
         assert.is_equal(#actor:scripts(), 2)
+        assert.is_equal(actor:scripts()[2]:probe("weapon"), "scimitar")
+        assert.are.same(actor:scripts()[1]:probe("coordinates"), {2, 4})
     end)
 
     pending("can be given a child")
