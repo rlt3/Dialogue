@@ -146,11 +146,9 @@ lua_script_probe (lua_State *L)
 
     if (script->is_owned) {
         A = script->actor->L;
-        lua_pop(A, lua_gettop(A));
         lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_reference);
         lua_getfield(A, -1, element);
         lua_copy_top(A, L);
-        lua_pop(A, lua_gettop(A));
     } else {
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->object_reference);
         lua_getfield(L, -1, element);

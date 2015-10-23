@@ -152,7 +152,7 @@ lua_actor_give (lua_State *L)
         luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
 
     script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_pop(actor->L, lua_gettop(actor->L));
+    script->is_owned = 1;
 
     return 0;
 }
