@@ -45,6 +45,12 @@ void
 actor_send_envelope (Actor *actor, struct Envelope *envelope);
 
 /*
+ * Find and remove the Script from the Actor's linked-list of Scripts.
+ */
+void
+actor_remove_script (Actor *actor, struct Script *removed);
+
+/*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
 Actor *

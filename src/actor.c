@@ -38,6 +38,26 @@ set_actor_child:
 }
 
 /*
+ * Find and remove the Script from the Actor's linked-list of Scripts.
+ */
+void
+actor_remove_script (Actor *actor, Script *removing)
+{
+    Script *now, *previous = NULL;
+
+    if (actor->script == removing)
+        actor->script = NULL;
+    
+    for (now = actor->script; now != NULL; previous = now, now = now->next) {
+        if (now != removing)
+            continue;
+
+        previous->next = now->next;
+        break;
+    }
+}
+
+/*
  * Get the actor from the lua_State and craft an envelope.
  */
 Envelope *
@@ -84,8 +104,11 @@ lua_check_actor (lua_State *L, int index)
 static int
 lua_actor_new (lua_State *L)
 {
+    lua_State *A;
+    Actor *actor;
     luaL_checktype(L, 1, LUA_TTABLE);  /* 1 */
-    Actor *actor = lua_newuserdata(L, sizeof(Actor)); /* 2 */
+
+    actor = lua_newuserdata(L, sizeof(Actor)); /* 2 */
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
 
@@ -93,33 +116,19 @@ lua_actor_new (lua_State *L)
     actor->next = NULL;
     actor->child = NULL;
     actor->script = NULL;
-
     actor->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
-
     actor->L = luaL_newstate();
-    luaL_openlibs(actor->L);
+    A = actor->L;
+
+    luaL_openlibs(A);
 
     /* load this module (the one you're reading) into the Actor's state */
-    luaL_requiref(actor->L, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(actor->L, 1);
+    luaL_requiref(A, "Dialogue", luaopen_Dialogue, 1);
+    lua_pop(A, 1);
 
     /* push Actor so Scripts can reference the Actor it belongs to. */
-    lua_object_push(actor->L, actor, ACTOR_LIB);
-    lua_setglobal(actor->L, "actor");
-
-    /* call actor:give on each sub-table in this table of tables */
-    lua_pushnil(L);
-    while (lua_next(L, 1)) {
-        luaL_checktype(L, -1, LUA_TTABLE);
-
-        lua_getfield(L, 2, "give");
-        lua_object_push(L, actor, ACTOR_LIB);
-        lua_pushvalue(L, -3);
-        if (lua_pcall(L, 2, 0, 0))
-            luaL_error(L, "Creating Actor failed: %s", lua_tostring(L, -1));
-
-        lua_pop(L, 1);
-    }
+    utils_push_object(A, actor, ACTOR_LIB);
+    lua_setglobal(A, "actor");
 
     return 1;
 }
@@ -139,7 +148,7 @@ lua_actor_give (lua_State *L)
     lua_getfield(actor->L, -1, "Actor");
     lua_getfield(actor->L, -1, "Script");
     lua_getfield(actor->L, -1, "new");
-    table_push_copy(L, actor->L, 2);
+    utils_copy_table(actor->L, L, 2);
     if (lua_pcall(actor->L, 1, 1, 0))
         luaL_error(L, "Giving script failed: %s", lua_tostring(actor->L, -1));
 
@@ -147,14 +156,35 @@ lua_actor_give (lua_State *L)
     actor_add_script(actor, script);
 
     lua_getfield(actor->L, -1, "load");
-    lua_object_push(actor->L, script, SCRIPT_LIB);
+    utils_push_object(actor->L, script, SCRIPT_LIB);
     if (lua_pcall(actor->L, 1, 0, 0))
         luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
 
     script->ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
-    script->is_owned = 1;
 
     return 0;
+}
+
+static int
+lua_actor_probe (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    int ret = 0, args = lua_gettop(L);
+
+    if (args == 2) {
+        utils_copy_table(L, actor->L, 2);
+        lua_setglobal(actor->L, "n");
+
+        lua_getglobal(actor->L, "print");
+        lua_getglobal(actor->L, "n");
+        lua_call(actor->L, 1, 0);
+    } else {
+        lua_getglobal(actor->L, "n");
+        utils_copy_table(actor->L, L, lua_gettop(actor->L));
+        ret = 1;
+    }
+
+    return ret;
 }
 
 /*
@@ -195,7 +225,7 @@ lua_actor_children (lua_State *L)
     lua_newtable(L);
 
     for (i = 1, child = actor->child; child != NULL; child = child->next, i++) {
-        lua_object_push(L, child, ACTOR_LIB);
+        utils_push_object(L, child, ACTOR_LIB);
         lua_rawseti(L, -2, i);
     }
 
@@ -233,7 +263,7 @@ purge_and_create:
     while (lua_next(L, 2)) {
         luaL_checktype(L, -1, LUA_TTABLE);
         lua_getfield(L, 1, "give");
-        lua_object_push(L, actor, ACTOR_LIB);
+        utils_push_object(L, actor, ACTOR_LIB);
         lua_pushvalue(L, -3);
         lua_call(L, 2, 0);
         lua_pop(L, 1);
@@ -245,7 +275,7 @@ list:
     lua_newtable(L);
 
     for (i = 1, s = actor->script; s != NULL; s = s->next, i++) {
-        lua_object_push(L, s, SCRIPT_LIB);
+        utils_push_object(L, s, SCRIPT_LIB);
         lua_rawseti(L, -2, i);
     }
 
@@ -295,6 +325,7 @@ static const luaL_Reg actor_methods[] = {
     {"send",       lua_actor_think},
     {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},
+    {"probe",      lua_actor_probe},
     {"__tostring", lua_actor_tostring},
     {"__gc",       lua_actor_gc},
     { NULL, NULL }
