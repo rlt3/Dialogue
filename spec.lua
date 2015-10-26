@@ -60,8 +60,33 @@ describe("An Actor", function()
 
     it("can be given a script directly, which is automatically loaded", function()
         script = actor:give{ "draw", 2, 4 }
-        assert.is_equal(script:probe("coordinates")[1], 2)
-        assert.is_equal(script:probe("coordinates")[2], 4)
+        script:send{"move", 1, 1}
+        assert.is_equal(script:probe("coordinates")[1], 3)
+        assert.is_equal(script:probe("coordinates")[2], 5)
     end)
+
+    it("can have any number of any script", function()
+        actor:give{ "weapon", "axe", "up" }
+        actor:give{ "draw", 400, 600 }
+        assert.is_equal(#actor:scripts(), 3)
+    end)
+
+    it("keeps each script mutually exclusive", function()
+        assert.is_equal(actor:scripts()[1]:probe("coordinates")[1], 3)
+        assert.is_equal(actor:scripts()[1]:probe("coordinates")[2], 5)
+
+        assert.is_equal(actor:scripts()[2]:probe("weapon"), "axe")
+
+        assert.is_equal(actor:scripts()[3]:probe("coordinates")[1], 400)
+        assert.is_equal(actor:scripts()[3]:probe("coordinates")[2], 600)
+    end)
+
+    pending("can be given a list of scripts, which overwrite any previous scripts owned")
+    pending("can be given a child")
+    pending("can be given a list of children")
+    pending("automatically loads any scripts given")
+    pending("cannot recieve a message without a mailbox")
+    pending("cannot send a message without a mailbox")
+    pending("can be given a mailbox")
 
 end)

@@ -56,7 +56,7 @@ lua_script_new (lua_State *L)
 {
     Script *script = NULL;
     Actor *actor = lua_check_actor(L, 1);
-    lua_State *A = actor->L;
+    lua_State *A = actor_request_stack(actor);
     script_check_table(L, 2);
 
     lua_getglobal(A, "Dialogue");
@@ -71,6 +71,8 @@ lua_script_new (lua_State *L)
     script = lua_check_script(A, -1);
     actor_add_script(actor, script);
     utils_push_object(L, script, SCRIPT_LIB);
+
+    actor_return_stack(actor);
     return 1;
 }
 
@@ -96,19 +98,7 @@ lua_script_spawn (lua_State *L)
     script->table_reference = table_ref;
     script->next = NULL;
     script->is_loaded = 0;
-    return 1;
-}
 
-/*
- * Get the table that defines this script.
- */
-static int
-lua_script_table (lua_State *L)
-{
-    Script *script = lua_check_script(L, 1);
-    lua_State *A = script->actor->L;
-    script_push_table(A, script);
-    utils_copy_top(L, A);
     return 1;
 }
 
@@ -121,7 +111,7 @@ lua_script_load (lua_State *L)
     int table_index, args = lua_gettop(L);
     const char *module = NULL;
     Script *script = lua_check_script(L, 1);
-    lua_State *A = script->actor->L;
+    lua_State *A = actor_request_stack(script->actor);
 
     if (script->is_loaded)
         luaL_unref(A, LUA_REGISTRYINDEX, script->object_reference);
@@ -152,6 +142,7 @@ lua_script_load (lua_State *L)
     script->object_reference = luaL_ref(A, LUA_REGISTRYINDEX);
     script->is_loaded = 1;
 
+    actor_return_stack(script->actor);
     return 0;
 }
 
@@ -164,8 +155,10 @@ lua_script_send (lua_State *L)
 {
     int argc, envelope_index;
     Script *script = lua_check_script(L, 1);
-    lua_State *A = script->actor->L;
+    lua_State *A;
     luaL_checktype(L, 2, LUA_TTABLE);
+
+    A = actor_request_stack(script->actor);
 
     utils_copy_table(A, L, 2);
     envelope_index = lua_gettop(A);
@@ -185,6 +178,7 @@ lua_script_send (lua_State *L)
     if (lua_pcall(A, argc + 1, 0, 0)) 
         luaL_error(L, "Error sending message: %s\n", lua_tostring(L, -1));
 
+    actor_return_stack(script->actor);
     return 0;
 }
 
@@ -196,13 +190,28 @@ lua_script_probe (lua_State *L)
 {
     Script* script = lua_check_script(L, 1);
     const char *element = luaL_checkstring(L, 2);
-    lua_State *A = script->actor->L;
+    lua_State *A = actor_request_stack(script->actor);
 
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_reference);
     lua_getfield(A, -1, element);
     utils_copy_top(L, A);
     lua_pop(A, 2);
 
+    actor_return_stack(script->actor);
+    return 1;
+}
+
+/*
+ * Get the table that defines this script.
+ */
+static int
+lua_script_table (lua_State *L)
+{
+    Script *script = lua_check_script(L, 1);
+    lua_State *A = actor_request_stack(script->actor);
+    script_push_table(A, script);
+    utils_copy_top(L, A);
+    actor_return_stack(script->actor);
     return 1;
 }
 

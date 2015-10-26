@@ -8,6 +8,25 @@
 #include "utils.h"
 
 /*
+ * Request the stack from the given actor so that we can have thread-safe apis.
+ */
+lua_State*
+actor_request_stack (Actor *actor)
+{
+    //pthread_mutex_lock(&actor->stack_mutex);
+    return actor->L;
+}
+
+/*
+ * Return the stack back to the Actor who can give it out again.
+ */
+void
+actor_return_stack (Actor *actor)
+{
+    //pthread_mutex_unlock(&actor->stack_mutex);
+}
+
+/*
  * Add the Script to the end of the Actor's linked-list of Scripts.
  */
 void
@@ -134,6 +153,7 @@ lua_actor_new (lua_State *L)
     actor->child = NULL;
     actor->script = NULL;
     actor->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+    actor->stack_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     actor->L = luaL_newstate();
     A = actor->L;
 
@@ -191,30 +211,9 @@ lua_actor_drop (lua_State *L)
     for (script = actor->script; script != NULL; script = script->next, i++)
         luaL_unref(actor->L, LUA_REGISTRYINDEX, script->ref);
 
+    actor->script = NULL;
     lua_pushinteger(L, i);
     return 1;
-}
-
-static int
-lua_actor_probe (lua_State *L)
-{
-    Actor *actor = lua_check_actor(L, 1);
-    int ret = 0, args = lua_gettop(L);
-
-    if (args == 2) {
-        utils_copy_table(L, actor->L, 2);
-        lua_setglobal(actor->L, "n");
-
-        lua_getglobal(actor->L, "print");
-        lua_getglobal(actor->L, "n");
-        lua_call(actor->L, 1, 0);
-    } else {
-        lua_getglobal(actor->L, "n");
-        utils_copy_table(actor->L, L, lua_gettop(actor->L));
-        ret = 1;
-    }
-
-    return ret;
 }
 
 /*
@@ -357,7 +356,6 @@ static const luaL_Reg actor_methods[] = {
     {"send",       lua_actor_think},
     {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},
-    {"probe",      lua_actor_probe},
     {"give",       lua_actor_give},
     {"drop",       lua_actor_drop},
     {"__tostring", lua_actor_tostring},
