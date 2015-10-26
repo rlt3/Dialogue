@@ -47,7 +47,7 @@ script_check_table (lua_State *L, int index)
 }
 
 /*
- * Create a script for an actor from a table.
+ * Create a script for an Actor from a table. Returns an unloaded script.
  * Script.new(actor, { "collision", 20, 40 })
  * Script.new(actor, { "weapon", "longsword" })
  */
@@ -63,14 +63,13 @@ lua_script_new (lua_State *L)
     lua_getfield(A, -1, "Actor");
     lua_getfield(A, -1, "Script");
     lua_getfield(A, -1, "spawn");
-    utils_push_object(A, actor, ACTOR_LIB);
+    lua_getglobal(A, "actor");
     utils_copy_top(A, L);
     if (lua_pcall(A, 2, 1, 0))
         luaL_error(L, "%s", lua_tostring(A, -1));
 
     script = lua_check_script(A, -1);
     actor_add_script(actor, script);
-
     utils_push_object(L, script, SCRIPT_LIB);
     return 1;
 }

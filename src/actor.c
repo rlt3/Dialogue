@@ -8,30 +8,47 @@
 #include "utils.h"
 
 /*
- * Add a script to the given actor, always at the front.
+ * Add the Script to the end of the Actor's linked-list of Scripts.
  */
 void
-actor_add_script (Actor *actor, Script *script)
+actor_add_script (Actor *actor, Script *new_script)
 {
-    if (actor->script == NULL)
-        goto set_actor_script;
-    script->next = actor->script;
-set_actor_script:
-    script->actor = actor;
-    actor->script = script;
+    Script *script;
+
+    if (actor->script == NULL) {
+        actor->script = new_script;
+        return;
+    }
+
+    for (script = actor->script; script != NULL; script = script->next) {
+        if (script->next == NULL) {
+            script->next = new_script;
+            return;
+        }
+    }
 }
 
 /*
- * Add a child to the given actor, always at the front.
+ * Add a child to the end of the Actor's linked-list of children.
  */
 void
 actor_add_child (Actor *actor, Actor *child)
 {
-    if (actor->child == NULL)
+    Actor *sibling;
+
+    if (actor->child == NULL) {
+        actor->child = child;
         goto set_actor_child;
-    child->next = actor->child;
+    }
+
+    for (sibling = actor->child; child != NULL; sibling = sibling->next) {
+        if (sibling->next == NULL) {
+            sibling->next = child;
+            goto set_actor_child;
+        }
+    }
+
 set_actor_child:
-    actor->child = child;
     child->parent = actor;
     child->dialogue = actor->dialogue;
     child->mailbox = actor->mailbox;
@@ -78,7 +95,7 @@ actor_send_envelope (Actor *actor, Envelope *envelope)
     pthread_mutex_lock(&actor->mutex);
 
     for (script = actor->script; script != NULL; script = script->next) {
-        lua_method_push(actor->L, script, SCRIPT_LIB, "send");
+        utils_push_object_method(actor->L, script, SCRIPT_LIB, "send");
         envelope_push_table(actor->L, envelope);
         if (lua_pcall(actor->L, 2, 0, 0))
             luaL_error(actor->L, "Error sending: %s", lua_tostring(actor->L, -1));
@@ -134,35 +151,48 @@ lua_actor_new (lua_State *L)
 }
 
 /*
- * Create a Script from a given table and 'give' it to the actor.
+ * From a given table, create a Script, give it to the actor, then load it.
+ * Returns the loaded Script.
  * player:give{ "weapon", "gun" }
  */
 static int
 lua_actor_give (lua_State *L)
 {
-    Script *script = NULL;
-    Actor* actor = lua_check_actor(L, 1);
+    lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    lua_getglobal(actor->L, "Dialogue");
-    lua_getfield(actor->L, -1, "Actor");
-    lua_getfield(actor->L, -1, "Script");
-    lua_getfield(actor->L, -1, "new");
-    utils_copy_table(actor->L, L, 2);
-    if (lua_pcall(actor->L, 1, 1, 0))
-        luaL_error(L, "Giving script failed: %s", lua_tostring(actor->L, -1));
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Actor");
+    lua_getfield(L, -1, "Script");
+    lua_getfield(L, -1, "new");
+    lua_pushvalue(L, 1);
+    lua_pushvalue(L, 2);
+    if (lua_pcall(L, 2, 1, 0))
+        luaL_error(L, "Giving script failed: %s", lua_tostring(L, -1));
 
-    script = lua_check_script(actor->L, -1);
-    actor_add_script(actor, script);
+    lua_getfield(L, -1, "load");
+    lua_pushvalue(L, -2);
+    if (lua_pcall(L, 1, 0, 0))
+        luaL_error(L, "Script failed to load: %s", lua_tostring(L, -1));
 
-    lua_getfield(actor->L, -1, "load");
-    utils_push_object(actor->L, script, SCRIPT_LIB);
-    if (lua_pcall(actor->L, 1, 0, 0))
-        luaL_error(L, "Script failed to load: %s", lua_tostring(actor->L, -1));
+    return 1;
+}
 
-    script->ref = luaL_ref(actor->L, LUA_REGISTRYINDEX);
+/*
+ * Drop all of the scripts currently owned. Returns the number scripts dropped.
+ */
+static int
+lua_actor_drop (lua_State *L)
+{
+    int i = 0;
+    Actor *actor = lua_check_actor(L, 1);
+    Script *script;
+    
+    for (script = actor->script; script != NULL; script = script->next, i++)
+        luaL_unref(actor->L, LUA_REGISTRYINDEX, script->ref);
 
-    return 0;
+    lua_pushinteger(L, i);
+    return 1;
 }
 
 static int
@@ -312,6 +342,9 @@ static int
 lua_actor_gc (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
+    utils_push_object_method(L, actor, ACTOR_LIB, "drop");
+    lua_call(L, 1, 1);
+    lua_pop(L, 1);
     lua_close(actor->L);
     luaL_unref(L, LUA_REGISTRYINDEX, actor->ref);
     return 0;
@@ -320,12 +353,13 @@ lua_actor_gc (lua_State *L)
 static const luaL_Reg actor_methods[] = {
     {"child",      lua_actor_child},
     {"children",   lua_actor_children},
-    {"give",       lua_actor_give},
     {"scripts",    lua_actor_scripts},
     {"send",       lua_actor_think},
     {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},
     {"probe",      lua_actor_probe},
+    {"give",       lua_actor_give},
+    {"drop",       lua_actor_drop},
     {"__tostring", lua_actor_tostring},
     {"__gc",       lua_actor_gc},
     { NULL, NULL }

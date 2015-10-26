@@ -3,7 +3,7 @@ _G.Dialogue = require("Dialogue")
 describe("An Actor", function()
     local actor = Dialogue.Actor.new{}
 
-    describe("has scripts", function()
+    describe("can have scripts", function()
         local script = script
 
         it("that need at least one element in table given", function()
@@ -53,4 +53,15 @@ describe("An Actor", function()
             assert.is_equal(script:probe("weapon"), "sword")
         end)
     end)
+
+    it("can remove all the scripts it owns", function()
+        assert.is_equal(actor:drop(), 3)
+    end)
+
+    it("can be given a script directly, which is automatically loaded", function()
+        script = actor:give{ "draw", 2, 4 }
+        assert.is_equal(script:probe("coordinates")[1], 2)
+        assert.is_equal(script:probe("coordinates")[2], 4)
+    end)
+
 end)

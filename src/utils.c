@@ -15,7 +15,7 @@ utils_push_object (lua_State *L, void *object_ptr, const char *metatable)
  * Push an object's method and also the object to reference `self`.
  */
 void
-lua_method_push (lua_State *L, 
+utils_push_object_method (lua_State *L, 
         void *object_ptr, 
         const char *metatable, 
         const char *method)
