@@ -167,6 +167,13 @@ lua_actor_new (lua_State *L)
     utils_push_object(A, actor, ACTOR_LIB);
     lua_setglobal(A, "actor");
 
+    /* Set the scripts from the table passed in */
+    lua_getfield(L, 2, "scripts");
+    utils_push_object(L, actor, ACTOR_LIB);
+    lua_pushvalue(L, 1);
+    lua_call(L, 2, 1);
+    lua_pop(L, 1);
+
     return 1;
 }
 
@@ -217,6 +224,52 @@ lua_actor_drop (lua_State *L)
 }
 
 /*
+ * An optional table of Scripts (table of tables) can be given which tells the
+ * method to purge all current Scripts and replace them. Or the method can be
+ * called with no arguments. In either case, a list of Scripts is returned.
+ *
+ * actor:scripts() => { script, ... }
+ * actor:scripts{ {"weapon", "axe", "up"} } => { script }
+ */
+static int
+lua_actor_scripts (lua_State *L)
+{
+    int i, args = lua_gettop(L);
+    Script *s;
+    Actor *actor = lua_check_actor(L, 1);
+
+    if (args == 1)
+        goto list_return;
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    lua_getfield(L, 1, "drop");
+    utils_push_object(L, actor, ACTOR_LIB);
+    lua_call(L, 1, 1);
+    lua_pop(L, 1);
+
+    lua_pushnil(L);
+    while (lua_next(L, 2)) {
+        luaL_checktype(L, -1, LUA_TTABLE);
+        lua_getfield(L, 1, "give");
+        utils_push_object(L, actor, ACTOR_LIB);
+        lua_pushvalue(L, -3);
+        lua_call(L, 2, 1);
+        lua_pop(L, 2);
+    }
+
+list_return:
+    lua_newtable(L);
+
+    for (i = 1, s = actor->script; s != NULL; s = s->next, i++) {
+        utils_push_object(L, s, SCRIPT_LIB);
+        lua_rawseti(L, -2, i);
+    }
+
+    return 1;
+}
+
+/*
  * Create actor from table and add it as a child. Returns the child created.
  * player:child{ {"draw", 2, 4}, { "weapon", "knife" } }
  */
@@ -229,9 +282,9 @@ lua_actor_child (lua_State *L)
 
     table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    /* Dialogue.Actor{ } */
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Actor");
+    lua_getfield(L, -1, "new");
     lua_rawgeti(L, LUA_REGISTRYINDEX, table_ref);
     if (lua_pcall(L, 1, 1, 0))
         luaL_error(L, "Creating child failed: %s", lua_tostring(L, -1));
@@ -255,56 +308,6 @@ lua_actor_children (lua_State *L)
 
     for (i = 1, child = actor->child; child != NULL; child = child->next, i++) {
         utils_push_object(L, child, ACTOR_LIB);
-        lua_rawseti(L, -2, i);
-    }
-
-    return 1;
-}
-
-/*
- * If no argument is given, return list of scripts. Else purge currently owned
- * scripts and create new ones from the given list of scripts.
- *
- * actor:scripts() => { script, ... }
- * actor:script{ {"weapon", "axe", "up"}, {"draw", 2, 4}, {"collision", 2, 4} }
- */
-static int
-lua_actor_scripts (lua_State *L)
-{
-    int i, args = lua_gettop(L);
-    Script *s;
-    Actor *actor = lua_check_actor(L, 1);
-
-    if (args == 1)
-        goto list;
-    else if (args == 2)
-        goto purge_and_create;
-
-purge_and_create:
-    luaL_checktype(L, 2, LUA_TTABLE);
-
-    for (s = actor->script; s != NULL; s = s->next)
-        luaL_unref(actor->L, LUA_REGISTRYINDEX, s->ref);
-
-    actor->script = NULL;
-
-    lua_pushnil(L);
-    while (lua_next(L, 2)) {
-        luaL_checktype(L, -1, LUA_TTABLE);
-        lua_getfield(L, 1, "give");
-        utils_push_object(L, actor, ACTOR_LIB);
-        lua_pushvalue(L, -3);
-        lua_call(L, 2, 0);
-        lua_pop(L, 1);
-    }
-
-    return 0;
-
-list:
-    lua_newtable(L);
-
-    for (i = 1, s = actor->script; s != NULL; s = s->next, i++) {
-        utils_push_object(L, s, SCRIPT_LIB);
         lua_rawseti(L, -2, i);
     }
 
@@ -350,14 +353,14 @@ lua_actor_gc (lua_State *L)
 }
 
 static const luaL_Reg actor_methods[] = {
-    {"child",      lua_actor_child},
-    {"children",   lua_actor_children},
-    {"scripts",    lua_actor_scripts},
     {"send",       lua_actor_think},
-    {"think",      lua_actor_think},
-    {"yell",       lua_actor_yell},
     {"give",       lua_actor_give},
     {"drop",       lua_actor_drop},
+    {"scripts",    lua_actor_scripts},
+    {"child",      lua_actor_child},
+    {"children",   lua_actor_children},
+    {"think",      lua_actor_think},
+    {"yell",       lua_actor_yell},
     {"__tostring", lua_actor_tostring},
     {"__gc",       lua_actor_gc},
     { NULL, NULL }

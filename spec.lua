@@ -72,16 +72,34 @@ describe("An Actor", function()
     end)
 
     it("keeps each script mutually exclusive", function()
-        assert.is_equal(actor:scripts()[1]:probe("coordinates")[1], 3)
-        assert.is_equal(actor:scripts()[1]:probe("coordinates")[2], 5)
+        local scripts = actor:scripts()
+        assert.is_equal(scripts[1]:probe("coordinates")[1], 3)
+        assert.is_equal(scripts[1]:probe("coordinates")[2], 5)
 
-        assert.is_equal(actor:scripts()[2]:probe("weapon"), "axe")
+        assert.is_equal(scripts[2]:probe("weapon"), "axe")
 
-        assert.is_equal(actor:scripts()[3]:probe("coordinates")[1], 400)
-        assert.is_equal(actor:scripts()[3]:probe("coordinates")[2], 600)
+        assert.is_equal(scripts[3]:probe("coordinates")[1], 400)
+        assert.is_equal(scripts[3]:probe("coordinates")[2], 600)
     end)
 
-    pending("can be given a list of scripts, which overwrite any previous scripts owned")
+    it("can be given a list of scripts, which overwrite any previous scripts owned", function()
+        local scripts = actor:scripts{ {"weapon", "flail", "north"}, {"draw", 128, 256} }
+        assert.is_equal(#scripts, 2)
+        assert.is_equal(scripts[1]:probe("weapon"), "flail")
+        assert.is_equal(scripts[2]:probe("coordinates")[1], 128)
+        assert.is_equal(scripts[2]:probe("coordinates")[2], 256)
+    end)
+
+    it("can be created from a list of scripts", function()
+        actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon", "sword", "u"} }
+        local scripts = actor:scripts()
+        actor:send{"move", 2, 400}
+        assert.is_equal(#scripts, 2)
+        assert.is_equal(scripts[1]:probe("coordinates")[1], 3)
+        assert.is_equal(scripts[1]:probe("coordinates")[2], 401)
+        assert.is_equal(scripts[2]:probe("weapon"), "sword")
+    end)
+
     pending("can be given a child")
     pending("can be given a list of children")
     pending("automatically loads any scripts given")
