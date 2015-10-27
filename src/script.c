@@ -66,7 +66,7 @@ lua_script_new (lua_State *L)
     lua_getglobal(A, "actor");
     utils_copy_top(A, L);
     if (lua_pcall(A, 2, 1, 0))
-        luaL_error(L, "%s", lua_tostring(A, -1));
+        luaL_error(L, "Creating new script failed: %s", lua_tostring(A, -1));
 
     script = lua_check_script(A, -1);
     actor_add_script(actor, script);

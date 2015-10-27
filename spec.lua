@@ -91,13 +91,13 @@ describe("An Actor", function()
     end)
 
     it("can be created from a list of scripts", function()
-        actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon", "sword", "u"} }
+        actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
         local scripts = actor:scripts()
-        actor:send{"move", 2, 400}
         assert.is_equal(#scripts, 2)
-        assert.is_equal(scripts[1]:probe("coordinates")[1], 3)
-        assert.is_equal(scripts[1]:probe("coordinates")[2], 401)
-        assert.is_equal(scripts[2]:probe("weapon"), "sword")
+        assert.is_equal(scripts[1]:probe("coordinates")[1], 1)
+        assert.is_equal(scripts[1]:probe("coordinates")[2], 1)
+        assert.is_equal(scripts[2]:probe("weapon"), "dagger")
+        assert.is_equal(scripts[2]:probe("direction"), "down")
     end)
 
     pending("can be given a child")

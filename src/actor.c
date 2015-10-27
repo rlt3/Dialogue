@@ -140,11 +140,12 @@ lua_check_actor (lua_State *L, int index)
 static int
 lua_actor_new (lua_State *L)
 {
+    int actor_ref;
     lua_State *A;
     Actor *actor;
-    luaL_checktype(L, 1, LUA_TTABLE);  /* 1 */
+    luaL_checktype(L, 1, LUA_TTABLE);
 
-    actor = lua_newuserdata(L, sizeof(Actor)); /* 2 */
+    actor = lua_newuserdata(L, sizeof(Actor));
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
 
@@ -157,6 +158,9 @@ lua_actor_new (lua_State *L)
     actor->L = luaL_newstate();
     A = actor->L;
 
+    /* we create a reference so that our actor doesn't get gc'd during setup */
+    actor_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
     luaL_openlibs(A);
 
     /* load this module (the one you're reading) into the Actor's state */
@@ -168,11 +172,14 @@ lua_actor_new (lua_State *L)
     lua_setglobal(A, "actor");
 
     /* Set the scripts from the table passed in */
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor_ref);
     lua_getfield(L, 2, "scripts");
-    utils_push_object(L, actor, ACTOR_LIB);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor_ref);
     lua_pushvalue(L, 1);
     lua_call(L, 2, 1);
     lua_pop(L, 1);
+
+    luaL_unref(L, LUA_REGISTRYINDEX, actor_ref);
 
     return 1;
 }
@@ -254,7 +261,8 @@ lua_actor_scripts (lua_State *L)
         lua_getfield(L, 1, "give");
         utils_push_object(L, actor, ACTOR_LIB);
         lua_pushvalue(L, -3);
-        lua_call(L, 2, 1);
+        if (lua_pcall(L, 2, 1, 0))
+            luaL_error(L, "failed to give: %s", lua_tostring(L, -1));
         lua_pop(L, 2);
     }
 
