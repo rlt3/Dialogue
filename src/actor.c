@@ -213,24 +213,6 @@ lua_actor_give (lua_State *L)
 }
 
 /*
- * Drop all of the scripts currently owned. Returns the number scripts dropped.
- */
-static int
-lua_actor_drop (lua_State *L)
-{
-    int i = 0;
-    Actor *actor = lua_check_actor(L, 1);
-    Script *script;
-    
-    for (script = actor->script; script != NULL; script = script->next, i++)
-        luaL_unref(actor->L, LUA_REGISTRYINDEX, script->ref);
-
-    actor->script = NULL;
-    lua_pushinteger(L, i);
-    return 1;
-}
-
-/*
  * An optional table of Scripts (table of tables) can be given which tells the
  * method to purge all current Scripts and replace them. Or the method can be
  * called with no arguments. In either case, a list of Scripts is returned.
@@ -278,27 +260,45 @@ list_return:
 }
 
 /*
+ * Drop all of the scripts currently owned. Returns the number scripts dropped.
+ */
+static int
+lua_actor_drop (lua_State *L)
+{
+    int i = 0;
+    Actor *actor = lua_check_actor(L, 1);
+    Script *script;
+    
+    for (script = actor->script; script != NULL; script = script->next, i++)
+        luaL_unref(actor->L, LUA_REGISTRYINDEX, script->ref);
+
+    actor->script = NULL;
+    lua_pushinteger(L, i);
+    return 1;
+}
+
+/*
  * Create actor from table and add it as a child. Returns the child created.
  * player:child{ {"draw", 2, 4}, { "weapon", "knife" } }
  */
 static int
 lua_actor_child (lua_State *L)
 {
-    int table_ref;
     Actor *child, *actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
-
-    table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Actor");
     lua_getfield(L, -1, "new");
-    lua_rawgeti(L, LUA_REGISTRYINDEX, table_ref);
+    lua_pushvalue(L, 2);
     if (lua_pcall(L, 1, 1, 0))
         luaL_error(L, "Creating child failed: %s", lua_tostring(L, -1));
 
     child = lua_check_actor(L, -1);
     actor_add_child(actor, child);
+
+    child->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, child->ref);
 
     return 1;
 }
@@ -319,6 +319,25 @@ lua_actor_children (lua_State *L)
         lua_rawseti(L, -2, i);
     }
 
+    return 1;
+}
+
+/*
+ * Remove all the children that an Actor has created. Returns the number of 
+ * children abandoned (you sicko).
+ */
+static int
+lua_actor_abandon (lua_State *L)
+{
+    int i = 0;
+    Actor *parent = lua_check_actor(L, 1);
+    Actor *actor;
+    
+    for (actor = parent->child; actor != NULL; actor = actor->next, i++)
+        luaL_unref(L, LUA_REGISTRYINDEX, actor->ref);
+
+    parent->child = NULL;
+    lua_pushinteger(L, i);
     return 1;
 }
 
@@ -361,12 +380,13 @@ lua_actor_gc (lua_State *L)
 }
 
 static const luaL_Reg actor_methods[] = {
-    {"send",       lua_actor_think},
     {"give",       lua_actor_give},
-    {"drop",       lua_actor_drop},
     {"scripts",    lua_actor_scripts},
+    {"drop",       lua_actor_drop},
     {"child",      lua_actor_child},
     {"children",   lua_actor_children},
+    {"abandon",    lua_actor_abandon},
+    {"send",       lua_actor_think},
     {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},
     {"__tostring", lua_actor_tostring},

@@ -56,6 +56,7 @@ describe("An Actor", function()
 
     it("can remove all the scripts it owns", function()
         assert.is_equal(actor:drop(), 3)
+        assert.is_equal(#actor:scripts(), 0)
     end)
 
     it("can be given a script directly, which is automatically loaded", function()
@@ -100,8 +101,18 @@ describe("An Actor", function()
         assert.is_equal(scripts[2]:probe("direction"), "down")
     end)
 
-    pending("can be given a child")
-    pending("can be given a list of children")
+    it("can create a child", function()
+        local child = actor:child{ {"draw", 2, 4} }
+        assert.is_equal(child:scripts()[1]:probe("coordinates")[1], 2)
+        assert.is_equal(actor:children()[1]:scripts()[1]:probe("coordinates")[1], 2)
+    end)
+
+    it("can abandon its children", function()
+        assert.is_equal(actor:abandon(), 1)
+        assert.is_equal(#actor:children(), 0)
+    end)
+
+    pending("can abandon and then create from a list of children")
     pending("automatically loads any scripts given")
     pending("cannot recieve a message without a mailbox")
     pending("cannot send a message without a mailbox")
