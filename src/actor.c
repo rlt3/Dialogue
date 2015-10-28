@@ -371,18 +371,12 @@ lua_actor_abandon (lua_State *L)
 static int
 lua_actor_think (lua_State *L)
 {
-    Actor* actor = lua_check_actor(L, 1);
-    Envelope *envelope = actor_envelope_create(L, post_tone_think, NULL);
-    mailbox_add(actor->mailbox, envelope);
     return 0;
 }
 
 static int
 lua_actor_yell (lua_State *L)
 {
-    Actor* actor = lua_check_actor(L, 1);
-    Envelope *envelope = actor_envelope_create(L, post_tone_yell, NULL);
-    mailbox_add(actor->mailbox, envelope);
     return 0;
 }
 

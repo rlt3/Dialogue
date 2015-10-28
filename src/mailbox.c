@@ -1,73 +1,8 @@
-#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <pthread.h>
 #include "mailbox.h"
 #include "post.h"
 #include "utils.h"
-
-/*
- * A thread platform for having our mailbox run concurrently.
- */
-void *
-mailbox_thread (void *arg)
-{
-    Mailbox *box = (Mailbox*) arg;
-
-    while (box->processing) {
-        /* Bind (or Just Envelope) the next envelope to the post function */
-        envelope_bind(mailbox_next(box), post);
-        usleep(10000);
-    }
-
-    return NULL;
-}
-
-/*
- * Free an envelope from the stream and return it. If the stream pointer given
- * is NULL, this returns an empty envelope that will fail a bind call.
- */
-Envelope
-mailbox_stream_retrieve (Envelope *stream)
-{
-    Envelope envelope;
-
-    if (stream == NULL)
-        return envelope_create_empty();
-
-    /* free the envelope, but not the malloc'd data array inside */
-    envelope = *stream;
-    free(stream);
-
-    return envelope;
-}
-
-/*
- * Take ownership of the Envelope pointer and add it to the Stream.
- */
-void
-mailbox_add (Mailbox *box, Envelope *envelope)
-{
-    if (box->head == NULL) {
-        box->head = envelope;
-        box->tail = envelope;
-    } else {
-        box->tail->next = envelope;
-        box->tail = envelope;
-    }
-}
-
-/*
- * Return the next Envelope.
- */
-Envelope
-mailbox_next (Mailbox *box)
-{
-    Envelope envelope = mailbox_stream_retrieve(box->head);
-    box->head = envelope.next;
-    envelope.next = NULL;
-    return envelope;
-}
 
 /*
  * Make sure the argument at index N is a Mailbox and return it if it is.
@@ -79,24 +14,55 @@ lua_check_mailbox (lua_State *L, int index)
 }
 
 /*
- * This spawns a thread so the mailbox can process envelopes concurrently to
- * the interpreter. No thread is spawned if allocation fails.
+ * Create the intermediary state which messages are held before sent to Actors.
  */
 static int
 lua_mailbox_new (lua_State *L)
 {
-    pthread_t thread;
-
+    lua_State *B;
     Mailbox *box = lua_newuserdata(L, sizeof(Mailbox));
     luaL_getmetatable(L, MAILBOX_LIB);
     lua_setmetatable(L, -2);
 
-    box->head = NULL;
-    box->tail = NULL;
-    box->processing = 1;
+    box->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+    box->L = luaL_newstate();
+    B = box->L;
 
-    pthread_create(&thread, NULL, mailbox_thread, box);
-    pthread_detach(thread);
+    luaL_openlibs(B);
+    lua_newtable(B);
+    box->envelopes_ref = luaL_ref(B, LUA_REGISTRYINDEX);
+
+    return 1;
+}
+
+static int
+lua_mailbox_add (lua_State *L)
+{
+    int length;
+    lua_State *B;
+    Mailbox *box = lua_check_mailbox(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    B = box->L;
+    lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
+    length = luaL_len(B, -1);
+    utils_copy_top(B, L);
+    lua_rawseti(B, -2, length + 1);
+    lua_pop(B, 1);
+
+    return 0;
+}
+
+static int
+lua_mailbox_envelopes (lua_State *L)
+{
+    lua_State *B;
+    Mailbox *box = lua_check_mailbox(L, 1);
+    B = box->L;
+    
+    lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
+    utils_copy_top(L, B);
+    lua_pop(B, 1);
 
     return 1;
 }
@@ -116,21 +82,13 @@ static int
 lua_mailbox_gc (lua_State *L)
 {
     Mailbox *box = lua_check_mailbox(L, 1);
-    box->processing = 0;
-
-    /* wait for thread to destruct */
-    usleep(10000);
-
-    /* `mailbox_next` frees the stream objects as it gets to them. */
-    while (box->head != NULL)
-        mailbox_next(box);
-
-    luaL_unref(L, LUA_REGISTRYINDEX, box->ref);
-
+    lua_close(box->L);
     return 0;
 }
 
 static const luaL_Reg mailbox_methods[] = {
+    {"add",        lua_mailbox_add},
+    {"envelopes",  lua_mailbox_envelopes},
     {"__tostring", lua_mailbox_print},
     {"__gc",       lua_mailbox_gc},
     { NULL, NULL }

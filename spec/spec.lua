@@ -132,3 +132,13 @@ describe("An Actor", function()
     pending("can be given a mailbox")
 
 end)
+
+describe("A Mailbox", function()
+    local mailbox = Dialogue.Mailbox.new{}
+
+    it("can add a message from a table", function()
+        mailbox:add{"update"}
+        assert.is_equal(#mailbox:envelopes(), 1)
+        assert.are.same(mailbox:envelopes()[1], {"update"})
+    end)
+end)
