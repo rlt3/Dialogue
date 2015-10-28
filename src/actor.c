@@ -303,7 +303,13 @@ lua_actor_child (lua_State *L)
 }
 
 /*
- * Return an array of children an Actor owns.
+ * An optional table of Actors (table of tables) can be given which tells the
+ * method to abandon its current children and create new ones from table. Or
+ * the method can be called with no arguments. In either case, a list of
+ * Actors is returned.
+ *
+ * actor:children() => { script, ... }
+ * actor:children{ { {"weapon", "axe", "up"} } } => { Actor }
  */
 static int
 lua_actor_children (lua_State *L)
@@ -336,7 +342,7 @@ list_return:
     lua_newtable(L);
 
     for (i = 1, child = actor->child; child != NULL; child = child->next, i++) {
-        utils_push_object(L, child, ACTOR_LIB);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, child->ref);
         lua_rawseti(L, -2, i);
     }
 
