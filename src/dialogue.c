@@ -26,7 +26,7 @@ lua_dialogue_new (lua_State *L)
     /* push the Scripts part of the table to create an Actor */
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Actor");
-    table_push_head(L, 1);
+    utils_push_table_head(L, 1);
     lua_call(L, 1, 1);
     actor = lua_check_actor(L, -1);
     /* pull reference to entire userdata to push later */
@@ -58,7 +58,7 @@ lua_dialogue_new (lua_State *L)
         lua_getglobal(L, "Dialogue");
         lua_getfield(L, -1, "new");
         lua_pushvalue(L, -3);
-        lua_object_push(L, actor->dialogue, ACTOR_LIB);
+        utils_push_object(L, actor->dialogue, ACTOR_LIB);
         lua_call(L, 2, 1);
 
         child = lua_check_actor(L, -1);
