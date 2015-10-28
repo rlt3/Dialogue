@@ -243,8 +243,7 @@ lua_actor_scripts (lua_State *L)
         lua_getfield(L, 1, "give");
         utils_push_object(L, actor, ACTOR_LIB);
         lua_pushvalue(L, -3);
-        if (lua_pcall(L, 2, 1, 0))
-            luaL_error(L, "failed to give: %s", lua_tostring(L, -1));
+        lua_call(L, 2, 1);
         lua_pop(L, 2);
     }
 
@@ -309,9 +308,31 @@ lua_actor_child (lua_State *L)
 static int
 lua_actor_children (lua_State *L)
 {
-    int i;
-    Actor *child, *actor = lua_check_actor(L, 1);
+    int i, args = lua_gettop(L);
+    Actor *child;
+    Actor *actor = lua_check_actor(L, 1);
 
+    if (args == 1)
+        goto list_return;
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    lua_getfield(L, 1, "abandon");
+    utils_push_object(L, actor, ACTOR_LIB);
+    lua_call(L, 1, 1);
+    lua_pop(L, 1);
+
+    lua_pushnil(L);
+    while (lua_next(L, 2)) {
+        luaL_checktype(L, -1, LUA_TTABLE);
+        lua_getfield(L, 1, "child");
+        utils_push_object(L, actor, ACTOR_LIB);
+        lua_pushvalue(L, -3);
+        lua_call(L, 2, 1);
+        lua_pop(L, 2);
+    }
+
+list_return:
     lua_newtable(L);
 
     for (i = 1, child = actor->child; child != NULL; child = child->next, i++) {

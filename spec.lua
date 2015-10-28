@@ -112,7 +112,20 @@ describe("An Actor", function()
         assert.is_equal(#actor:children(), 0)
     end)
 
-    pending("can abandon and then create from a list of children")
+    it("can be given a list of children, which overwrites any children created", function()
+        local children = actor:children{ 
+            { {"weapon", "sword & board", "down"}, {"draw", 128, 256} },
+            { {"weapon", "magic missile", "up"}, {"draw", 120, 250} },
+            { {"weapon", "stupid bow", "up"}, {"draw", 115, 245} },
+        }
+        assert.is_equal(#children, 3)
+        assert.is_equal(#actor:children(), 3)
+
+        assert.is_equal(children[1]:scripts()[1]:probe("weapon"), "sword & board")
+        assert.is_equal(children[2]:scripts()[1]:probe("weapon"), "magic missile")
+        assert.is_equal(children[3]:scripts()[1]:probe("weapon"), "stupid bow")
+    end)
+
     pending("automatically loads any scripts given")
     pending("cannot recieve a message without a mailbox")
     pending("cannot send a message without a mailbox")
