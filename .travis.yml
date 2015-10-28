@@ -15,7 +15,7 @@ install:
   - sudo apt-get install luarocks
   - sudo luarocks install busted
 
-script: make
+script: make travis_build && make test
 
 notifications:
   recipients:
