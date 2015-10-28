@@ -60,9 +60,9 @@ envelope_create (lua_State *L, Actor *author, Tone tone, Actor *recipient)
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Envelope");
     lua_pushvalue(L, 2);
-    lua_object_push(L, author, ACTOR_LIB);
+    utils_push_object(L, author, ACTOR_LIB);
     lua_pushlightuserdata(L, tone);
-    lua_object_push(L, recipient, ACTOR_LIB);
+    utils_push_object(L, recipient, ACTOR_LIB);
     lua_call(L, 4, 1);
     envelope = lua_check_envelope(L, -1);
     lua_pop(L, 2);

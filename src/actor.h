@@ -12,7 +12,9 @@ struct Envelope;
 
 typedef struct Actor {
     lua_State *L;
+
     pthread_mutex_t mutex;
+    pthread_mutex_t stack_mutex;
 
     struct Actor *parent;
     struct Actor *next;
@@ -43,6 +45,24 @@ actor_add_child (Actor *actor, Actor *child);
  */
 void
 actor_send_envelope (Actor *actor, struct Envelope *envelope);
+
+/*
+ * Find and remove the Script from the Actor's linked-list of Scripts.
+ */
+void
+actor_remove_script (Actor *actor, struct Script *removed);
+
+/*
+ * Request the stack from the given actor so that we can have thread-safe apis.
+ */
+lua_State*
+actor_request_stack (Actor *actor);
+
+/*
+ * Return the stack back to the Actor who can give it out again.
+ */
+void
+actor_return_stack (Actor *actor);
 
 /*
  * Check for an Actor at index. Errors if it isn't an Actor.

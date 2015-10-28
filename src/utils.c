@@ -1,11 +1,10 @@
-#include "stdio.h"
 #include "utils.h"
 
 /*
  * Push a pointer and associate a metatable with it.
  */
 void
-lua_object_push (lua_State *L, void *object_ptr, const char *metatable)
+utils_push_object (lua_State *L, void *object_ptr, const char *metatable)
 {
     lua_pushlightuserdata(L, object_ptr);
     luaL_getmetatable(L, metatable);
@@ -16,21 +15,21 @@ lua_object_push (lua_State *L, void *object_ptr, const char *metatable)
  * Push an object's method and also the object to reference `self`.
  */
 void
-lua_method_push (lua_State *L, 
+utils_push_object_method (lua_State *L, 
         void *object_ptr, 
         const char *metatable, 
         const char *method)
 {
-    lua_object_push(L, object_ptr, metatable);
+    utils_push_object(L, object_ptr, metatable);
     lua_getfield(L, -1, method);
-    lua_object_push(L, object_ptr, metatable);
+    utils_push_object(L, object_ptr, metatable);
 }
 
 /*
  * Push the first element of a table at index.
  */
 void
-table_push_head (lua_State *L, int index)
+utils_push_table_head (lua_State *L, int index)
 {
     lua_rawgeti(L, index, 1);
 }
@@ -39,7 +38,7 @@ table_push_head (lua_State *L, int index)
  * Push N elements after first of a table at index. Returns elements pushed.
  */
 int
-table_push_data (lua_State *L, int index)
+utils_push_table_data (lua_State *L, int index)
 {
     luaL_checktype(L, index, LUA_TTABLE);
     int i, len = luaL_len(L, index);
@@ -55,14 +54,15 @@ table_push_data (lua_State *L, int index)
  * Pushes table onto 'to' stack that's a copy of table in 'from' at index.
  */
 void
-table_push_copy (lua_State *from, lua_State *to, int index)
+utils_copy_table (lua_State *to, lua_State *from, int index)
 {
     int i;
     lua_newtable(to);
     lua_pushnil(from);
-    for (i = 1; lua_next(from, index); i++, lua_pop(from, 1)) {
-        lua_copy_top(from, to);
+    for (i = 1; lua_next(from, index); i++) {
+        utils_copy_top(to, from);
         lua_rawseti(to, -2, i);
+        lua_pop(from, 1);
     }
 }
 
@@ -70,7 +70,7 @@ table_push_copy (lua_State *from, lua_State *to, int index)
  * Copies the value at the top of 'from' to 'to'.
  */
 void
-lua_copy_top (lua_State *from, lua_State *to)
+utils_copy_top (lua_State *to, lua_State *from)
 {
     int type = lua_type(from, -1);
     switch(type)
@@ -88,7 +88,7 @@ lua_copy_top (lua_State *from, lua_State *to)
         break;
 
     case LUA_TTABLE:
-        table_push_copy(from, to, lua_gettop(from));
+        utils_copy_table(to, from, lua_gettop(from));
         break;
 
     default:
