@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <unistd.h>
+#include "dialogue.h"
 #include "mailbox.h"
+#include "actor.h"
 #include "post.h"
 #include "utils.h"
 
@@ -29,39 +31,59 @@ lua_mailbox_new (lua_State *L)
     B = box->L;
 
     luaL_openlibs(B);
+    luaL_requiref(B, "Dialogue", luaopen_Dialogue, 1);
+    lua_pop(B, 1);
+
     lua_newtable(B);
     box->envelopes_ref = luaL_ref(B, LUA_REGISTRYINDEX);
 
     return 1;
 }
 
+/*
+ * mailbox:add(author, tone, {"movement", 20, 40})
+ */
 static int
 lua_mailbox_add (lua_State *L)
 {
-    int length;
-    lua_State *B;
-    Mailbox *box = lua_check_mailbox(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_check_mailbox(L, 1);
+    lua_check_actor(L, 2);
+    luaL_checkstring(L, 3);
+    luaL_checktype(L, 4, LUA_TTABLE);
 
-    B = box->L;
-    lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
-    length = luaL_len(B, -1);
-    utils_copy_top(B, L);
-    lua_rawseti(B, -2, length + 1);
-    lua_pop(B, 1);
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Mailbox");
+    lua_getfield(L, -1, "Envelope");
+    lua_getfield(L, -1, "new");
+    lua_pushvalue(L, 1);
+    lua_pushvalue(L, 2);
+    lua_pushvalue(L, 3);
+    lua_pushvalue(L, 4);
+    lua_call(L, 4, 1);
 
-    return 0;
+    return 1;
 }
 
 static int
 lua_mailbox_envelopes (lua_State *L)
 {
+    int i, table_index;
     lua_State *B;
     Mailbox *box = lua_check_mailbox(L, 1);
+    Envelope *envelope;
     B = box->L;
+
+    lua_newtable(L);
     
     lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
-    utils_copy_top(L, B);
+    table_index = lua_gettop(B);
+
+    lua_pushnil(B);
+    for (i = 1; lua_next(B, table_index); i++, lua_pop(B, 1)) {
+        envelope = lua_check_envelope(B, -1);
+        utils_push_object(L, envelope, ENVELOPE_LIB);
+        lua_rawseti(L, -2, i);
+    }
     lua_pop(B, 1);
 
     return 1;

@@ -1,7 +1,7 @@
-#include <stdlib.h>
 #include "envelope.h"
-#include "post.h"
 #include "actor.h"
+#include "mailbox.h"
+#include "post.h"
 #include "utils.h"
 
 /*
@@ -14,129 +14,96 @@ lua_check_envelope (lua_State *L, int index)
 }
 
 /*
- * Create an envelope that will fail a bind call.
- */
-Envelope
-envelope_create_empty()
-{
-    Envelope envelope;
-    envelope.next = NULL;
-    envelope.data = NULL;
-    envelope.data_len = 0;
-    return envelope;
-}
-
-/*
- * Determine if an envelope should be called like f(envelope) or not.
+ * Check the table at index for the requirements of an Envelope.
  */
 void
-envelope_bind (Envelope envelope, void (*f) (Envelope))
+envelope_check_table (lua_State *L, int index)
 {
-    if (envelope.data_len > 0)
-        f(envelope);
+    int len;
+    luaL_checktype(L, index, LUA_TTABLE);
+    len = luaL_len(L, index);
+    luaL_argcheck(L, len > 0, index, "Message needs to have a title!");
 }
 
 /*
- * Push the table of an Envelope onto given lua_State.
- */
-void
-envelope_push_table (lua_State *L, Envelope *envelope)
-{
-    int i;
-    lua_newtable(L);
-    for (i = 0; i < envelope->data_len; i++) {
-        lua_pushstring(L, envelope->data[i]);
-        lua_rawseti(L, -2, i + 1);
-    }
-}
-
-/*
- * Create an Envelope inside a lua_State and return a pointer to it.
- */
-Envelope *
-envelope_create (lua_State *L, Actor *author, Tone tone, Actor *recipient)
-{
-    Envelope *envelope;
-    lua_getglobal(L, "Dialogue");
-    lua_getfield(L, -1, "Envelope");
-    lua_pushvalue(L, 2);
-    utils_push_object(L, author, ACTOR_LIB);
-    lua_pushlightuserdata(L, tone);
-    utils_push_object(L, recipient, ACTOR_LIB);
-    lua_call(L, 4, 1);
-    envelope = lua_check_envelope(L, -1);
-    lua_pop(L, 2);
-    return envelope;
-}
-
-/*
- * Create a new envelope with the given message.
- * Envelope{ "update", 20 }
- * Envelope{ "location", 1, 2 }
+ * An Envelope exists inside a Mailbox. It holds all the metadata of a message,
+ * along with the message itself. Since our Actors have no use for the meta-
+ * data, we can get by with having the Envelope exist in the Mailbox's 
+ * lua_State and just copying the message table from the Mailbox to the Actor.
+ *
+ * Envelope.new(mailbox, author, tone, { "movement", 20, 40 })
  */
 static int
 lua_envelope_new (lua_State *L)
 {
-    int len, i;
+    int envelope_ref, length;
+    lua_State *B;
     Envelope *envelope;
-    Actor *actor = NULL;
-    Actor *recipient = NULL;
-    Tone tone = post_tone_think;
+    Mailbox *box = lua_check_mailbox(L, 1);
+    Actor *author = lua_check_actor(L, 2);
+    const char *tone = luaL_checkstring(L, 3);
+    envelope_check_table(L, 4);
 
-    luaL_checktype(L, 1, LUA_TTABLE);
-    len = luaL_len(L, 1);
-    luaL_argcheck(L, len > 0, 1, "Message needs to have a title!");
+    B = box->L;
+    envelope = lua_newuserdata(B, sizeof(Envelope));
+    luaL_getmetatable(B, ENVELOPE_LIB);
+    lua_setmetatable(B, -2);
 
-    actor = lua_check_actor(L, 2);
-    tone = lua_touserdata(L, 3);
-
-    if (lua_gettop(L) == 4) {
-        recipient = lua_check_actor(L, 3);
-    }
-
-    /* 
-     * Instead of Lua handling this memory, we need to. This also commits us to
-     * use all lightuserdata as Envelopes (bindings between actors).
-     */
-    envelope = malloc(sizeof(Envelope));
-    lua_pushlightuserdata(L, envelope);
-    luaL_getmetatable(L, ENVELOPE_LIB);
-    lua_setmetatable(L, -2);
-
+    envelope->author = author;
+    envelope->recipient = NULL;
+    envelope->mailbox = box;
     envelope->tone = tone;
-    envelope->author = actor;
-    envelope->recipient = recipient;
-    envelope->next = NULL;
-    envelope->data_len = len;
-    envelope->data = malloc(envelope->data_len * sizeof(const char*));
 
-    lua_pushnil(L);
-    for (i = 0; lua_next(L, 1); i++, lua_pop(L, 1))
-        envelope->data[i] = lua_tostring(L, -1);
+    utils_copy_top(B, L);
+    envelope->message_ref = luaL_ref(B, LUA_REGISTRYINDEX);
 
+    envelope_ref = luaL_ref(B, LUA_REGISTRYINDEX);
+    lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
+    length = luaL_len(B, -1);
+    lua_rawgeti(B, LUA_REGISTRYINDEX, envelope_ref);
+    lua_rawseti(B, -2, length + 1);
+    lua_pop(B, 1);
+
+    luaL_unref(B, LUA_REGISTRYINDEX, envelope_ref);
+
+    utils_push_object(L, envelope, ENVELOPE_LIB);
     return 1;
 }
 
-void
-envelope_free (Envelope *envelope)
+static int
+lua_envelope_tostring (lua_State *L)
 {
-    free(envelope->data);
-    free(envelope);
+    Envelope *envelope = lua_check_envelope(L, 1);
+    lua_pushfstring(L, "%s %p", ENVELOPE_LIB, envelope);
+    return 1;
 }
 
 /*
- * Return the raw table that the envelope operates on.
+ * Return the message inside the envelope.
  */
 static int
-lua_envelope_table (lua_State *L)
+lua_envelope_message (lua_State *L)
 {
     Envelope *envelope = lua_check_envelope(L, 1);
-    envelope_push_table(L, envelope);
+    lua_State *B = envelope->mailbox->L;
+    lua_rawgeti(B, LUA_REGISTRYINDEX, envelope->message_ref);
+    utils_copy_top(L, B);
+    lua_pop(B, 1);
     return 1;
 }
 
+static int
+lua_envelope_gc (lua_State *L)
+{
+    Envelope *envelope = lua_check_envelope(L, 1);
+    luaL_unref(envelope->mailbox->L, LUA_REGISTRYINDEX, envelope->message_ref);
+    return 0;
+}
+
 static const luaL_Reg envelope_methods[] = {
-    {"table", lua_envelope_table},
+    {"message", lua_envelope_message},
+    {"__gc", lua_envelope_gc},
+    {"__tostring", lua_envelope_tostring},
     { NULL, NULL }
 };
 

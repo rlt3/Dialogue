@@ -94,34 +94,11 @@ actor_remove_script (Actor *actor, Script *removing)
 }
 
 /*
- * Get the actor from the lua_State and craft an envelope.
- */
-Envelope *
-actor_envelope_create (lua_State *L, Tone tone, Actor *recipient)
-{
-    Actor* actor = lua_check_actor(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
-    return envelope_create(L, actor, tone, NULL);
-}
-
-/*
  * From an envelope, send a message to each Script an actor owns.
  */
 void
 actor_send_envelope (Actor *actor, Envelope *envelope)
 {
-    Script *script;
-    pthread_mutex_lock(&actor->mutex);
-
-    for (script = actor->script; script != NULL; script = script->next) {
-        utils_push_object_method(actor->L, script, SCRIPT_LIB, "send");
-        envelope_push_table(actor->L, envelope);
-        if (lua_pcall(actor->L, 2, 0, 0))
-            luaL_error(actor->L, "Error sending: %s", lua_tostring(actor->L, -1));
-        lua_pop(actor->L, lua_gettop(actor->L));
-    }
-
-    pthread_mutex_unlock(&actor->mutex);
 }
 
 /*

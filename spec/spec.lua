@@ -126,19 +126,30 @@ describe("An Actor", function()
         assert.is_equal(children[3]:scripts()[1]:probe("weapon"), "stupid bow")
     end)
 
-    pending("automatically loads any scripts given")
     pending("cannot recieve a message without a mailbox")
     pending("cannot send a message without a mailbox")
     pending("can be given a mailbox")
+end)
 
+describe("A Dialogue", function()
+    pending("has a method 'audience' which returns a list of actors filtered by the tone")
 end)
 
 describe("A Mailbox", function()
+    local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
     local mailbox = Dialogue.Mailbox.new{}
 
-    it("can add a message from a table", function()
-        mailbox:add{"update"}
-        assert.is_equal(#mailbox:envelopes(), 1)
-        assert.are.same(mailbox:envelopes()[1], {"update"})
+    describe("can have Envelopes", function()
+        local envelope = Dialogue.Mailbox.Envelope.new(mailbox, actor, "yell", {"update"})
+
+        it("that hold the message inside", function()
+            assert.are.same(envelope:message(), {"update"})
+        end)
+    end)
+
+    it("can create and add an envelope", function()
+        mailbox:add(actor, "yell", {"attack", 2, 3})
+        assert.is_equal(#mailbox:envelopes(), 2)
+        assert.are.same(mailbox:envelopes()[2]:message(), {"attack", 2, 3})
     end)
 end)

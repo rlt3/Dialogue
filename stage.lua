@@ -7,3 +7,7 @@ children = actor:children{
     { {"weapon", "magic missile", "up"}, {"draw", 120, 250} },
     { {"weapon", "stupid bow", "up"}, {"draw", 115, 245} },
 }
+
+mailbox = Dialogue.Mailbox.new()
+
+envelope = Dialogue.Mailbox.Envelope.new(mailbox, actor, "yell", {"update"})
