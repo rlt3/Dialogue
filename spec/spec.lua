@@ -150,7 +150,7 @@ end)
 
 describe("A Mailbox", function()
     local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
-    local mailbox = Dialogue.Mailbox.new(4)
+    local mailbox = Dialogue.Mailbox.new(4):pause()
 
     describe("can have Envelopes", function()
         local envelope = Dialogue.Mailbox.Envelope.new(mailbox, actor, "yell", {"update"})
@@ -165,4 +165,6 @@ describe("A Mailbox", function()
         assert.is_equal(#mailbox:envelopes(), 2)
         assert.are.same(mailbox:envelopes()[2]:message(), {"attack", 2, 3})
     end)
+
+    pending("can be started which processes envelopes as they come")
 end)

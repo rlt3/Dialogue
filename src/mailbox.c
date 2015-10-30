@@ -65,9 +65,13 @@ mailbox_thread (void *arg)
 {
     Mailbox *box = arg;
 
-    while (box->processing)
+    while (box->processing) {
+        while (box->paused)
+            usleep(1000);
+
         while (box->envelope_count > 0)
             mailbox_assign_postman(box);
+    }
 
     return NULL;
 }
@@ -100,7 +104,10 @@ lua_mailbox_new (lua_State *L)
     luaL_getmetatable(L, MAILBOX_LIB);
     lua_setmetatable(L, -2);
 
+    box->processing = 1;
+    box->paused = 0;
     box->envelope_count = 0;
+
     box->postmen_count = thread_count;
     box->postmen = malloc(sizeof(Postman) * thread_count);
     if (box->postmen == NULL)
@@ -199,14 +206,34 @@ static int
 lua_mailbox_gc (lua_State *L)
 {
     Mailbox *box = lua_check_mailbox(L, 1);
+    box->processing = 0;
     mailbox_free_postmen(box);
     lua_close(box->L);
     return 0;
 }
 
+static int
+lua_mailbox_start (lua_State *L)
+{
+    Mailbox *box = lua_check_mailbox(L, 1);
+    box->processing = 1;
+    box->paused = 0;
+    return 1;
+}
+
+static int
+lua_mailbox_pause (lua_State *L)
+{
+    Mailbox *box = lua_check_mailbox(L, 1);
+    box->paused = 1;
+    return 1;
+}
+
 static const luaL_Reg mailbox_methods[] = {
     {"add",        lua_mailbox_add},
     {"envelopes",  lua_mailbox_envelopes},
+    {"start",      lua_mailbox_start},
+    {"pause",      lua_mailbox_pause},
     {"__tostring", lua_mailbox_print},
     {"__gc",       lua_mailbox_gc},
     { NULL, NULL }
