@@ -54,6 +54,7 @@ lua_envelope_new (lua_State *L)
     envelope->recipient = NULL;
     envelope->mailbox = box;
     envelope->tone = tone;
+    box->envelope_count += 1;
 
     utils_copy_top(B, L);
     envelope->message_ref = luaL_ref(B, LUA_REGISTRYINDEX);

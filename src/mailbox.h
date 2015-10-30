@@ -10,6 +10,8 @@
 
 typedef struct Mailbox {
     lua_State *L;
+    int envelope_count;
+    int processing;
     pthread_mutex_t mutex;
     struct Postman **postmen;
     int postmen_count;

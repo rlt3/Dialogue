@@ -30,16 +30,29 @@ mailbox_return_stack (Mailbox *box)
     pthread_mutex_unlock(&box->mutex);
 }
 
+void
+mailbox_assign_postman (Mailbox *box)
+{
+    lua_State *B = mailbox_request_stack(box);
+    /*
+     * 1. Get the latest envelope
+     * 2. Get the audience (list of actors) for the message
+     * 3. Put the message on top of the stack.
+     * 4. Map the audience to postman_give_address
+     */
+    mailbox_return_stack(box);
+}
 
 void *
 mailbox_thread (void *arg)
 {
-    return NULL;
-}
+    Mailbox *box = arg;
 
-void
-mailbox_create_thread ()
-{
+    while (box->processing)
+        while (box->envelope_count > 0)
+            mailbox_assign_postman(box);
+
+    return NULL;
 }
 
 void
@@ -63,17 +76,18 @@ mailbox_free_postmen (Mailbox *box)
 static int
 lua_mailbox_new (lua_State *L)
 {
+    pthread_t thread;
     lua_State *B;
     int i, thread_count = luaL_checkinteger(L, 1);
     Mailbox *box = lua_newuserdata(L, sizeof(Mailbox));
     luaL_getmetatable(L, MAILBOX_LIB);
     lua_setmetatable(L, -2);
 
+    box->envelope_count = 0;
+    box->postmen_count = thread_count;
     box->postmen = malloc(sizeof(Postman) * thread_count);
     if (box->postmen == NULL)
         luaL_error(L, "Error allocating memory for Mailbox threads!");
-
-    box->postmen_count = thread_count;
 
     for (i = 0; i < box->postmen_count; i++) {
         box->postmen[i] = postman_create(box);
@@ -93,6 +107,9 @@ lua_mailbox_new (lua_State *L)
 
     lua_newtable(B);
     box->envelopes_ref = luaL_ref(B, LUA_REGISTRYINDEX);
+
+    pthread_create(&thread, NULL, mailbox_thread, box);
+    pthread_detach(thread);
 
     return 1;
 }
@@ -131,7 +148,6 @@ lua_mailbox_envelopes (lua_State *L)
     lua_State *B;
     Mailbox *box = lua_check_mailbox(L, 1);
     Envelope *envelope;
-    //B = box->L;
     B = mailbox_request_stack(box);
 
     lua_newtable(L);
