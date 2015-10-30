@@ -44,7 +44,8 @@ lua_envelope_new (lua_State *L)
     const char *tone = luaL_checkstring(L, 3);
     envelope_check_table(L, 4);
 
-    B = box->L;
+    //B = box->L;
+    B = mailbox_request_stack(box);
     envelope = lua_newuserdata(B, sizeof(Envelope));
     luaL_getmetatable(B, ENVELOPE_LIB);
     lua_setmetatable(B, -2);
@@ -66,6 +67,7 @@ lua_envelope_new (lua_State *L)
 
     luaL_unref(B, LUA_REGISTRYINDEX, envelope_ref);
 
+    mailbox_return_stack(box);
     utils_push_object(L, envelope, ENVELOPE_LIB);
     return 1;
 }
@@ -85,10 +87,12 @@ static int
 lua_envelope_message (lua_State *L)
 {
     Envelope *envelope = lua_check_envelope(L, 1);
-    lua_State *B = envelope->mailbox->L;
+    //lua_State *B = envelope->mailbox->L;
+    lua_State *B = mailbox_request_stack(envelope->mailbox);
     lua_rawgeti(B, LUA_REGISTRYINDEX, envelope->message_ref);
     utils_copy_top(L, B);
     lua_pop(B, 1);
+    mailbox_return_stack(envelope->mailbox);
     return 1;
 }
 

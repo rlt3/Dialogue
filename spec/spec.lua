@@ -137,7 +137,7 @@ end)
 
 describe("A Mailbox", function()
     local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
-    local mailbox = Dialogue.Mailbox.new{}
+    local mailbox = Dialogue.Mailbox.new(4)
 
     describe("can have Envelopes", function()
         local envelope = Dialogue.Mailbox.Envelope.new(mailbox, actor, "yell", {"update"})

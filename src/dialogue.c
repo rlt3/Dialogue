@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "actor.h"
+#include "envelope.h"
 #include "script.h"
 #include "mailbox.h"
 #include "utils.h"
