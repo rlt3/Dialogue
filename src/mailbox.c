@@ -30,10 +30,27 @@ mailbox_return_stack (Mailbox *box)
     pthread_mutex_unlock(&box->mutex);
 }
 
+/*
+ * Push the next envelope onto the top of the Mailbox stack.
+ */
+void
+mailbox_push_next_envelope (Mailbox *box)
+{
+    lua_State *B = box->L;
+    lua_getglobal(B, "table");
+    lua_getfield(B, -1, "remove");
+    lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
+    lua_pushinteger(B, 1);
+    lua_call(B, 2, 1);
+    lua_pop(B, 2); /* pop 'table' and return value */
+    box->envelope_count -= 1;
+}
+
 void
 mailbox_assign_postman (Mailbox *box)
 {
     lua_State *B = mailbox_request_stack(box);
+    mailbox_push_next_envelope(box);
     /*
      * 1. Get the latest envelope
      * 2. Get the audience (list of actors) for the message

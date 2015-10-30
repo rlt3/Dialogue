@@ -132,6 +132,19 @@ describe("An Actor", function()
 end)
 
 describe("A Dialogue", function()
+    local dialogue = Dialogue.new{
+        { {"weapon", "Crown", "North"} },
+        {
+            { 
+                { {"draw", 400, 200} },
+                {}
+            },
+            { 
+                { {"draw", 2, 4} },
+                {}
+            }
+        }
+    }
     pending("has a method 'audience' which returns a list of actors filtered by the tone")
 end)
 
