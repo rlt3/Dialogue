@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "dialogue.h"
@@ -192,6 +193,23 @@ lua_mailbox_envelopes (lua_State *L)
 }
 
 static int
+lua_mailbox_start (lua_State *L)
+{
+    Mailbox *box = lua_check_mailbox(L, 1);
+    box->processing = 1;
+    box->paused = 0;
+    return 1;
+}
+
+static int
+lua_mailbox_pause (lua_State *L)
+{
+    Mailbox *box = lua_check_mailbox(L, 1);
+    box->paused = 1;
+    return 1;
+}
+
+static int
 lua_mailbox_print (lua_State *L)
 {
     Mailbox *box = lua_check_mailbox(L, 1);
@@ -207,26 +225,12 @@ lua_mailbox_gc (lua_State *L)
 {
     Mailbox *box = lua_check_mailbox(L, 1);
     box->processing = 0;
+    box->paused = 0;
+    box->envelope_count = 0;
+    usleep(1500);
     mailbox_free_postmen(box);
     lua_close(box->L);
     return 0;
-}
-
-static int
-lua_mailbox_start (lua_State *L)
-{
-    Mailbox *box = lua_check_mailbox(L, 1);
-    box->processing = 1;
-    box->paused = 0;
-    return 1;
-}
-
-static int
-lua_mailbox_pause (lua_State *L)
-{
-    Mailbox *box = lua_check_mailbox(L, 1);
-    box->paused = 1;
-    return 1;
 }
 
 static const luaL_Reg mailbox_methods[] = {

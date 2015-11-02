@@ -39,43 +39,43 @@ lua_dialogue_new (lua_State *L)
     actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_pop(L, 1);
 
-    /*
-     * The recursion relies on sending the first created Actor (the head) to
-     * all the descendants as a second parameter. So, every Dialogue.new call
-     * past the first will be called like Dialogue.new(table, head).
-     */
-    if (args == 1) {
-        actor->dialogue = actor;
-        lua_getglobal(L, "Dialogue");
-        lua_getfield(L, -1, "Mailbox");
-        lua_getfield(L, -1, "new");
-        lua_pushinteger(L, thread_count);
-        lua_call(L, 1, 1);
-        actor->mailbox = lua_check_mailbox(L, -1);
-        actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        lua_pop(L, 1);
-    } else {
-        actor->dialogue = lua_check_actor(L, 2);
-        lua_pop(L, 1);
-    }
+    ///*
+    // * The recursion relies on sending the first created Actor (the head) to
+    // * all the descendants as a second parameter. So, every Dialogue.new call
+    // * past the first will be called like Dialogue.new(table, head).
+    // */
+    //if (args == 1) {
+    //    actor->dialogue = actor;
+    //    lua_getglobal(L, "Dialogue");
+    //    lua_getfield(L, -1, "Mailbox");
+    //    lua_getfield(L, -1, "new");
+    //    lua_pushinteger(L, thread_count);
+    //    lua_call(L, 1, 1);
+    //    actor->mailbox = lua_check_mailbox(L, -1);
+    //    actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    //    lua_pop(L, 1);
+    //} else {
+    //    actor->dialogue = lua_check_actor(L, 2);
+    //    lua_pop(L, 1);
+    //}
 
-    /* push the children part of the table and recurse */
-    lua_rawgeti(L, dialogue_table, 2);
-    children_table = lua_gettop(L);
-    lua_pushnil(L);
-    while (lua_next(L, children_table)) {
-        lua_getglobal(L, "Dialogue");
-        lua_getfield(L, -1, "new");
-        lua_pushvalue(L, -3);
-        utils_push_object(L, actor->dialogue, ACTOR_LIB);
-        lua_call(L, 2, 1);
+    ///* push the children part of the table and recurse */
+    //lua_rawgeti(L, dialogue_table, 2);
+    //children_table = lua_gettop(L);
+    //lua_pushnil(L);
+    //while (lua_next(L, children_table)) {
+    //    lua_getglobal(L, "Dialogue");
+    //    lua_getfield(L, -1, "new");
+    //    lua_pushvalue(L, -3);
+    //    utils_push_object(L, actor->dialogue, ACTOR_LIB);
+    //    lua_call(L, 2, 1);
 
-        child = lua_check_actor(L, -1);
-        actor_add_child(actor, child);
+    //    child = lua_check_actor(L, -1);
+    //    actor_add_child(actor, child);
 
-        lua_pop(L, 3); /* child, Dialogue table, and table value */
-    }
-    lua_pop(L, 1);
+    //    lua_pop(L, 3); /* child, Dialogue table, and table value */
+    //}
+    //lua_pop(L, 1);
 
     /* push the reference to the userdata (instead of pushing light userdata) */
     lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);

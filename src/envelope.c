@@ -97,17 +97,8 @@ lua_envelope_message (lua_State *L)
     return 1;
 }
 
-static int
-lua_envelope_gc (lua_State *L)
-{
-    Envelope *envelope = lua_check_envelope(L, 1);
-    luaL_unref(envelope->mailbox->L, LUA_REGISTRYINDEX, envelope->message_ref);
-    return 0;
-}
-
 static const luaL_Reg envelope_methods[] = {
     {"message", lua_envelope_message},
-    {"__gc", lua_envelope_gc},
     {"__tostring", lua_envelope_tostring},
     { NULL, NULL }
 };

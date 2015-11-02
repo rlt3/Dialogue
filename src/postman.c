@@ -66,4 +66,6 @@ postman_free (Postman *postman)
     postman->has_address = 0;
     postman->delivering = 0;
     usleep(1000);
+    free(postman);
+    postman = NULL;
 }
