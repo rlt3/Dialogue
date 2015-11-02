@@ -149,6 +149,8 @@ describe("A Dialogue", function()
             }
         }
         assert.is_equal(dialogue:scripts()[1]:probe("weapon"), "Crown")
+        assert.are.same(dialogue:children()[1]:scripts()[1]:probe("coordinates"), {400, 200})
+        assert.are.same(dialogue:children()[2]:scripts()[1]:probe("coordinates"), {2, 4})
     end)
 
     pending("has a method 'audience' which returns a list of actors filtered by the tone")
