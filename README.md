@@ -4,6 +4,9 @@ Dialogue isn't ready yet, but will be version 0.0 very, very soon. This readme
 should give some insight on what I'm doing, but most likely won't work if you
 clone this repo.
 
+If you want more info, please checkout the prototype of this project written in
+Common Lisp: [Tree-Talk](https://github.com/rlt3/tree-talk).
+
 # Dialogue
 
 Dialogue is an Actor system for Lua. 
@@ -54,9 +57,11 @@ here are provided in the tutorial folder.
 
 Create an Actor that acts as a room. Give it a single Script which is
 a dungeon from level 7 with coordinates B, 3.
+
     room = Dialogue.Actor.new{ {"dungeon", 7, {"B", "3"} }
     
 Create the player and monster, give them sprites and weapons
+
     player = room:child{ {"sprite", "player"}, {"weapon", "axe"} }
     monster = room:child{ {"sprite", "monster"}, {"weapon", "claws"} }
 
@@ -77,6 +82,6 @@ The above is functionally the same as this:
     }
 
 It seems verbose to express it in table form, but it is mainly meant for
-automation and computers to write, not humans. The form is rather simple: { {},
-{} }, where the first table is the Scripts of an Actor and the second is its
+automation and computers to write, not humans. The form is rather simple: `{ {},
+{} }`, where the first table is the Scripts of an Actor and the second is its
 children.
