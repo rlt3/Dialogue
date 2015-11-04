@@ -183,10 +183,6 @@ lua_actor_audience (lua_State *L)
         tone_say(L, actor);
         break;
 
-    case 'w':
-        tone_whisper(L, actor);
-        break;
-
     case 'c':
         tone_command(L, actor);
         break;
@@ -195,8 +191,9 @@ lua_actor_audience (lua_State *L)
         tone_yell(L, actor);
         break;
 
+    case 'w':
     case 't':
-        tone_think(L, actor);
+        lua_newtable(L);
         break;
 
     default:

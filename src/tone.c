@@ -63,14 +63,6 @@ tone_say (lua_State *L, Actor *actor)
 }
 
 /*
- * Set a specific actor as the audience.
- */
-void
-tone_whisper (lua_State *L, Actor *actor)
-{
-}
-
-/*
  * Set itself as its audience.
  */
 void
