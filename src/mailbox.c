@@ -7,6 +7,7 @@
 #include "envelope.h"
 #include "actor.h"
 #include "post.h"
+#include "tone.h"
 #include "utils.h"
 
 /*

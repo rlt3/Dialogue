@@ -1,4 +1,5 @@
 #include "actor.h"
+#include "tone.h"
 
 void
 audience_set (lua_State *L, Actor *actor)
@@ -32,6 +33,42 @@ audience_dialogue (lua_State *L, Actor *dialogue)
 }
 
 /*
+ * Filter an Actor's audience by the tone -- a string.
+ */
+void
+tone_filter (lua_State *L, Actor *actor, const char *tone)
+{
+    if (tone == NULL)
+        luaL_error(L, "Tone cannot be empty!");
+
+    /* a vicious hack: each of our tones has a different first character */
+    switch(tone[0]) {
+    case 's':
+        tone_say(L, actor);
+        break;
+
+    case 'c':
+        tone_command(L, actor);
+        break;
+
+    case 'y':
+        tone_yell(L, actor);
+        break;
+
+    case 'w':
+        break;
+
+    case 't':
+        tone_think(L, actor);
+        break;
+
+    default:
+        luaL_error(L, "%s is not a valid tone", tone);
+        break;
+    }
+}
+
+/*
  * Set the entire dialogue tree as the audience.
  */
 void
@@ -60,6 +97,14 @@ tone_say (lua_State *L, Actor *actor)
     lua_newtable(L);
     audience_set(L, actor->parent);
     audience_children(L, actor->parent->child);
+}
+
+/*
+ * Set a specific actor as the audience.
+ */
+void
+tone_whisper (lua_State *L, Actor *actor)
+{
 }
 
 /*

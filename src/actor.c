@@ -173,34 +173,7 @@ lua_actor_audience (lua_State *L)
 {
     Actor *actor = lua_check_actor(L, 1);
     const char *tone = luaL_checkstring(L, 2);
-    
-    if (tone == NULL)
-        luaL_error(L, "Tone cannot be empty!");
-
-    /* a vicious hack: each of our tones has a different first character */
-    switch(tone[0]) {
-    case 's':
-        tone_say(L, actor);
-        break;
-
-    case 'c':
-        tone_command(L, actor);
-        break;
-
-    case 'y':
-        tone_yell(L, actor);
-        break;
-
-    case 'w':
-    case 't':
-        lua_newtable(L);
-        break;
-
-    default:
-        luaL_error(L, "%s is not a valid tone", tone);
-        break;
-    }
-
+    tone_filter(L, actor, tone);
     return 1;
 }
 
