@@ -218,7 +218,7 @@ lua_mailbox_print (lua_State *L)
 }
 
 /*
- * Stop thread and free any envelopes before Lua garbage collects the mailbox.
+ * Stop thread and free any postmen before Lua garbage collects the mailbox.
  */
 static int
 lua_mailbox_gc (lua_State *L)

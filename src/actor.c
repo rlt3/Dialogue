@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include "dialogue.h"
-#include "envelope.h"
-#include "mailbox.h"
-#include "post.h"
 #include "actor.h"
 #include "script.h"
+#include "mailbox.h"
+#include "envelope.h"
+#include "post.h"
+#include "tone.h"
 #include "utils.h"
 
 /*
@@ -157,6 +158,51 @@ lua_actor_new (lua_State *L)
     lua_pop(L, 1);
 
     luaL_unref(L, LUA_REGISTRYINDEX, actor_ref);
+
+    return 1;
+}
+
+/*
+ * Return a list of Actors which are the audience filtered by the tone given as
+ * a string.
+ * actor:audience("say") => { actor, actor, ... }
+ * actor:audience("command") => { child, child, ... }
+ */
+static int
+lua_actor_audience (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    const char *tone = luaL_checkstring(L, 2);
+    
+    if (tone == NULL)
+        luaL_error(L, "Tone cannot be empty!");
+
+    /* a vicious hack: each of our tones has a different first character */
+    switch(tone[0]) {
+    case 's':
+        tone_say(L, actor);
+        break;
+
+    case 'w':
+        tone_whisper(L, actor);
+        break;
+
+    case 'c':
+        tone_command(L, actor);
+        break;
+
+    case 'y':
+        tone_yell(L, actor);
+        break;
+
+    case 't':
+        tone_think(L, actor);
+        break;
+
+    default:
+        luaL_error(L, "%s is not a valid tone", tone);
+        break;
+    }
 
     return 1;
 }
@@ -384,6 +430,7 @@ static const luaL_Reg actor_methods[] = {
     {"child",      lua_actor_child},
     {"children",   lua_actor_children},
     {"abandon",    lua_actor_abandon},
+    {"audience",   lua_actor_audience},
     {"send",       lua_actor_think},
     {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},
