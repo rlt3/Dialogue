@@ -133,27 +133,84 @@ end)
 
 describe("A Dialogue", function()
     local dialogue = dialogue
+    local a = a
+    local b = b
+    local c = c
+    local d = d
+    local e = e
 
     it("can be created from a table of tables", function()
         dialogue = Dialogue.new{
             { {"weapon", "Crown", "North"} },
             {
                 { 
-                    { {"draw", 400, 200} },
+                    { {"draw", 2, 4} },
                     {}
                 },
                 { 
-                    { {"draw", 2, 4} },
+                    { {"draw", 400, 200} },
+                    {
+                        { 
+                            { {"weapon", "bullet", "south"} },
+                            {}
+                        },
+                        { 
+                            { {"weapon", "bomb", "south-east"} },
+                            {}
+                        }
+                    }
+                },
+                { 
+                    { {"draw", 20, 6} },
                     {}
                 }
             }
         }
+
+        a = dialogue:children()[1]
+        b = dialogue:children()[2]
+        c = dialogue:children()[3]
+        d = b:children()[1]
+        e = b:children()[2]
+
+        -- The 'form' of the tree:
+        --       x
+        --     / | \
+        --    a  b  c
+        --      / \
+        --     d   e
+
         assert.is_equal(dialogue:scripts()[1]:probe("weapon"), "Crown")
-        assert.are.same(dialogue:children()[1]:scripts()[1]:probe("coordinates"), {400, 200})
-        assert.are.same(dialogue:children()[2]:scripts()[1]:probe("coordinates"), {2, 4})
+        assert.are.same(a:scripts()[1]:probe("coordinates"), {2, 4})
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {400, 200})
+        assert.are.same(c:scripts()[1]:probe("coordinates"), {20, 6})
+
+        assert.is_equal(d:scripts()[1]:probe("weapon"), "bullet")
+        assert.is_equal(e:scripts()[1]:probe("weapon"), "bomb")
     end)
 
-    pending("has a method 'audience' which returns a list of actors filtered by the tone")
+    it("has a method 'audience' which returns a list of actors filtered by the tone", function()
+        local audience = b:audience("say")
+        assert.is_equal(#audience, 4)
+        assert.is_equal(audience[1], dialogue)
+        assert.is_equal(audience[2], a)
+        assert.is_equal(audience[3], b)
+        assert.is_equal(audience[4], c)
+
+        audience = b:audience("command")
+        assert.is_equal(#audience, 2)
+        assert.is_equal(audience[1], d)
+        assert.is_equal(audience[2], e)
+
+        audience = b:audience("yell")
+        assert.is_equal(#audience, 6)
+        assert.is_equal(audience[1], dialogue)
+        assert.is_equal(audience[2], a)
+        assert.is_equal(audience[3], b)
+        assert.is_equal(audience[4], c)
+        assert.is_equal(audience[5], d)
+        assert.is_equal(audience[6], e)
+    end)
 end)
 
 describe("A Mailbox", function()

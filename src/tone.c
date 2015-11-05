@@ -1,35 +1,40 @@
 #include "actor.h"
 #include "tone.h"
 
+/*
+ * Since we're doing this recursively, we pass in the accumulator (acc) to each
+ * function and make sure to increment as we do so.
+ */
+
 void
-audience_set (lua_State *L, Actor *actor)
+audience_set (lua_State *L, Actor *actor, int acc)
 {
     if (actor == NULL)
         return;
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
-    lua_rawseti(L, -2, 0);
+    lua_rawseti(L, -2, acc);
 }
 
 void
-audience_children (lua_State *L, Actor *child)
+audience_children (lua_State *L, Actor *child, int acc)
 {
-    audience_set(L, child);
+    audience_set(L, child, acc);
 
     if (child->next != NULL)
-        audience_children(L, child->next);
+        audience_children(L, child->next, acc + 1);
 }
 
 void
-audience_dialogue (lua_State *L, Actor *dialogue)
+audience_dialogue (lua_State *L, Actor *dialogue, int acc)
 {
-    audience_set(L, dialogue);
+    audience_set(L, dialogue, acc);
 
     if (dialogue->next != NULL)
-        audience_dialogue(L, dialogue->next);
+        audience_dialogue(L, dialogue->next, acc + 1);
 
     if (dialogue->child != NULL)
-        audience_dialogue(L, dialogue->child);
+        audience_dialogue(L, dialogue->child, acc + 1);
 }
 
 /*
@@ -75,7 +80,7 @@ void
 tone_yell (lua_State *L, Actor *actor)
 {
     lua_newtable(L);
-    audience_dialogue(L, actor->dialogue);
+    audience_dialogue(L, actor->dialogue, 1);
 }
 
 /*
@@ -85,7 +90,7 @@ void
 tone_command (lua_State *L, Actor *actor)
 {
     lua_newtable(L);
-    audience_children(L, actor->child);
+    audience_children(L, actor->child, 1);
 }
 
 /*
@@ -95,8 +100,8 @@ void
 tone_say (lua_State *L, Actor *actor)
 {
     lua_newtable(L);
-    audience_set(L, actor->parent);
-    audience_children(L, actor->parent->child);
+    audience_set(L, actor->parent, 1);
+    audience_children(L, actor->parent->child, 2);
 }
 
 /*
@@ -114,5 +119,5 @@ void
 tone_think (lua_State *L, Actor *actor)
 {
     lua_newtable(L);
-    audience_set(L, actor);
+    audience_set(L, actor, 1);
 }
