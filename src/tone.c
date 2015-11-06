@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "actor.h"
 #include "tone.h"
 
@@ -17,24 +18,36 @@ audience_set (lua_State *L, Actor *actor, int acc)
 }
 
 void
-audience_children (lua_State *L, Actor *child, int acc)
+audience_siblings (lua_State *L, Actor *child, int acc)
 {
     audience_set(L, child, acc);
 
     if (child->next != NULL)
-        audience_children(L, child->next, acc + 1);
+        audience_siblings(L, child->next, acc + 1);
 }
 
-void
-audience_dialogue (lua_State *L, Actor *dialogue, int acc)
+/*
+ * From a parent actor, go through each child and set them in the table. If 
+ * that child has children itself, call this function on it and use the return
+ * value as the next index in the for loop. This will recursively fill out the
+ * tree in a top-down manner. 
+ */
+int
+audience_dialogue (lua_State *L, Actor *parent, int acc)
 {
-    audience_set(L, dialogue, acc);
+    Actor *child;
+    audience_set(L, parent, acc);
 
-    if (dialogue->next != NULL)
-        audience_dialogue(L, dialogue->next, acc + 1);
+    for (child = parent->child, acc++; child != NULL; child = child->next) {
+        if (child->child != NULL) {
+            acc = audience_dialogue(L, child, acc);
+        } else {
+            audience_set(L, child, acc);
+            acc++;
+        }
+    }
 
-    if (dialogue->child != NULL)
-        audience_dialogue(L, dialogue->child, acc + 1);
+    return acc;
 }
 
 /*
@@ -90,7 +103,7 @@ void
 tone_command (lua_State *L, Actor *actor)
 {
     lua_newtable(L);
-    audience_children(L, actor->child, 1);
+    audience_siblings(L, actor->child, 1);
 }
 
 /*
@@ -101,7 +114,7 @@ tone_say (lua_State *L, Actor *actor)
 {
     lua_newtable(L);
     audience_set(L, actor->parent, 1);
-    audience_children(L, actor->parent->child, 2);
+    audience_siblings(L, actor->parent->child, 2);
 }
 
 /*

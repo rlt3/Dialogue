@@ -169,24 +169,23 @@ describe("A Dialogue", function()
 
         a = dialogue:children()[1]
         b = dialogue:children()[2]
-        c = dialogue:children()[3]
-        d = b:children()[1]
-        e = b:children()[2]
+        c = b:children()[1]
+        d = b:children()[2]
+        e = dialogue:children()[3]
 
         -- The 'form' of the tree:
-        --       x
+        --    dialogue
         --     / | \
-        --    a  b  c
+        --    a  b  e
         --      / \
-        --     d   e
+        --     c   d
 
         assert.is_equal(dialogue:scripts()[1]:probe("weapon"), "Crown")
         assert.are.same(a:scripts()[1]:probe("coordinates"), {2, 4})
         assert.are.same(b:scripts()[1]:probe("coordinates"), {400, 200})
-        assert.are.same(c:scripts()[1]:probe("coordinates"), {20, 6})
-
-        assert.is_equal(d:scripts()[1]:probe("weapon"), "bullet")
-        assert.is_equal(e:scripts()[1]:probe("weapon"), "bomb")
+        assert.is_equal(c:scripts()[1]:probe("weapon"), "bullet")
+        assert.is_equal(d:scripts()[1]:probe("weapon"), "bomb")
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {20, 6})
     end)
 
     it("has a method 'audience' which returns a list of actors filtered by the tone", function()
@@ -195,12 +194,12 @@ describe("A Dialogue", function()
         assert.is_equal(audience[1], dialogue)
         assert.is_equal(audience[2], a)
         assert.is_equal(audience[3], b)
-        assert.is_equal(audience[4], c)
+        assert.is_equal(audience[4], e)
 
         audience = b:audience("command")
         assert.is_equal(#audience, 2)
-        assert.is_equal(audience[1], d)
-        assert.is_equal(audience[2], e)
+        assert.is_equal(audience[1], c)
+        assert.is_equal(audience[2], d)
 
         audience = b:audience("yell")
         assert.is_equal(#audience, 6)
