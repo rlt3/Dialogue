@@ -20,7 +20,7 @@ travis_build: $(SOURCES)
 	$(CC) -Wall -Isrc/ -I./ -I./lua -I./lua/src -D _BSD_SOURCE -fPIC -shared -o $(MODULE) $^ -L./ -L/usr/lib -llua -lpthread
 
 dialogue: $(SOURCES)
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
+	$(CC) -g $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
 test:
 	cp $(MODULE) spec/

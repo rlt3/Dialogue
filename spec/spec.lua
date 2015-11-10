@@ -132,54 +132,47 @@ describe("An Actor", function()
 end)
 
 describe("A Dialogue", function()
-    local dialogue = dialogue
-    local a = a
-    local b = b
-    local c = c
-    local d = d
-    local e = e
-
-    it("can be created from a table of tables", function()
-        dialogue = Dialogue.new{
-            { {"weapon", "Crown", "North"} },
-            {
-                { 
-                    { {"draw", 2, 4} },
-                    {}
-                },
-                { 
-                    { {"draw", 400, 200} },
-                    {
-                        { 
-                            { {"weapon", "bullet", "south"} },
-                            {}
-                        },
-                        { 
-                            { {"weapon", "bomb", "south-east"} },
-                            {}
-                        }
+    local dialogue = Dialogue.new{
+        { {"weapon", "Crown", "North"} },
+        {
+            { 
+                { {"draw", 2, 4} },
+                {}
+            },
+            { 
+                { {"draw", 400, 200} },
+                {
+                    { 
+                        { {"weapon", "bullet", "south"} },
+                        {}
+                    },
+                    { 
+                        { {"weapon", "bomb", "south-east"} },
+                        {}
                     }
-                },
-                { 
-                    { {"draw", 20, 6} },
-                    {}
                 }
+            },
+            { 
+                { {"draw", 20, 6} },
+                {}
             }
         }
+    }
 
-        a = dialogue:children()[1]
-        b = dialogue:children()[2]
-        c = b:children()[1]
-        d = b:children()[2]
-        e = dialogue:children()[3]
+    -- The 'form' of the tree:
+    --    dialogue
+    --     / | \
+    --    a  b  e
+    --      / \
+    --     c   d
+    
+    local a = dialogue:children()[1]
+    local b = dialogue:children()[2]
+    local c = b:children()[1]
+    local d = b:children()[2]
+    local e = dialogue:children()[3]
 
-        -- The 'form' of the tree:
-        --    dialogue
-        --     / | \
-        --    a  b  e
-        --      / \
-        --     c   d
-
+    it("can be created from a table of tables", function()
         assert.is_equal(dialogue:scripts()[1]:probe("weapon"), "Crown")
         assert.are.same(a:scripts()[1]:probe("coordinates"), {2, 4})
         assert.are.same(b:scripts()[1]:probe("coordinates"), {400, 200})
