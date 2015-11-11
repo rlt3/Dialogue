@@ -51,7 +51,12 @@ mailbox_push_next_envelope (Mailbox *box)
 void
 mailbox_assign_postman (Mailbox *box)
 {
-    lua_State *B = mailbox_request_stack(box);
+    lua_State *B;
+
+    if (box == NULL)
+        return;
+    
+    B = mailbox_request_stack(box);
     mailbox_push_next_envelope(box);
     /*
      * 1. Get the latest envelope
@@ -101,7 +106,8 @@ lua_mailbox_new (lua_State *L)
 {
     pthread_t thread;
     lua_State *B;
-    int i, thread_count = luaL_checkinteger(L, 1);
+    int i;
+    int thread_count = luaL_checkinteger(L, 1);
     Mailbox *box = lua_newuserdata(L, sizeof(Mailbox));
     luaL_getmetatable(L, MAILBOX_LIB);
     lua_setmetatable(L, -2);
@@ -111,17 +117,20 @@ lua_mailbox_new (lua_State *L)
     box->envelope_count = 0;
 
     box->postmen_count = thread_count;
-    box->postmen = malloc(sizeof(Postman) * thread_count);
-    if (box->postmen == NULL)
-        luaL_error(L, "Error allocating memory for Mailbox threads!");
+    box->postmen = NULL;
 
-    for (i = 0; i < box->postmen_count; i++) {
-        box->postmen[i] = postman_create(box);
-        if (box->postmen[i] == NULL) {
-            mailbox_free_postmen(box);
-            luaL_error(L, "Error allocating memory for Postman!");
-        }
-    }
+    //box->postmen = malloc(sizeof(Postman*) * thread_count);
+
+    //if (box->postmen == NULL)
+    //    luaL_error(L, "Error allocating memory for Mailbox threads!");
+
+    //for (i = 0; i < box->postmen_count; i++) {
+    //    box->postmen[i] = postman_create(box);
+    //    if (box->postmen[i] == NULL) {
+    //        mailbox_free_postmen(box);
+    //        luaL_error(L, "Error allocating memory for Postman!");
+    //    }
+    //}
 
     box->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     box->L = luaL_newstate();
@@ -134,8 +143,8 @@ lua_mailbox_new (lua_State *L)
     lua_newtable(B);
     box->envelopes_ref = luaL_ref(B, LUA_REGISTRYINDEX);
 
-    pthread_create(&thread, NULL, mailbox_thread, box);
-    pthread_detach(thread);
+    //pthread_create(&thread, NULL, mailbox_thread, box);
+    //pthread_detach(thread);
 
     return 1;
 }
@@ -225,11 +234,11 @@ static int
 lua_mailbox_gc (lua_State *L)
 {
     Mailbox *box = lua_check_mailbox(L, 1);
+    box->envelope_count = 0;
     box->processing = 0;
     box->paused = 0;
-    box->envelope_count = 0;
-    usleep(1500);
-    mailbox_free_postmen(box);
+    usleep(2000);
+    //mailbox_free_postmen(box);
     lua_close(box->L);
     return 0;
 }

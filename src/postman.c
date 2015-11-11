@@ -10,7 +10,12 @@
 void
 postman_deliver (Postman *postman)
 {
-    lua_State *B = mailbox_request_stack(postman->mailbox);
+    lua_State *B;
+
+    if (postman == NULL)
+        return;
+
+    B = mailbox_request_stack(postman->mailbox);
     mailbox_return_stack(postman->mailbox);
 }
 
@@ -63,6 +68,7 @@ postman_give_address (Postman *postman, Actor *address)
 void
 postman_free (Postman *postman)
 {
+    postman->address = NULL;
     postman->has_address = 0;
     postman->delivering = 0;
     usleep(1000);

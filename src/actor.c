@@ -131,6 +131,8 @@ lua_actor_new (lua_State *L)
     actor->next = NULL;
     actor->child = NULL;
     actor->script = NULL;
+    actor->mailbox = NULL;
+    actor->dialogue = NULL;
     actor->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     actor->stack_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     actor->L = luaL_newstate();
@@ -385,11 +387,12 @@ static int
 lua_actor_gc (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
-    utils_push_object_method(L, actor, ACTOR_LIB, "drop");
-    lua_call(L, 1, 1);
-    lua_pop(L, 1);
+    ///* all actors in a dialogue share the same mailbox, so free it once */
+    //if (actor->mailbox != NULL) {
+    //    luaL_unref(L, LUA_REGISTRYINDEX, actor->mailbox->ref);
+    //    actor->mailbox = NULL;
+    //}
     lua_close(actor->L);
-    luaL_unref(L, LUA_REGISTRYINDEX, actor->ref);
     return 0;
 }
 

@@ -46,14 +46,14 @@ lua_dialogue_new (lua_State *L)
      */
     if (args == 1) {
         actor->dialogue = actor;
-        //lua_getglobal(L, "Dialogue");
-        //lua_getfield(L, -1, "Mailbox");
-        //lua_getfield(L, -1, "new");
-        //lua_pushinteger(L, thread_count);
-        //lua_call(L, 1, 1);
-        //actor->mailbox = lua_check_mailbox(L, -1);
-        //actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        //lua_pop(L, 2);
+        lua_getglobal(L, "Dialogue");
+        lua_getfield(L, -1, "Mailbox");
+        lua_getfield(L, -1, "new");
+        lua_pushinteger(L, thread_count);
+        lua_call(L, 1, 1);
+        actor->mailbox = lua_check_mailbox(L, -1);
+        actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        lua_pop(L, 2);
     } else {
         actor->dialogue = lua_check_actor(L, 2);
         lua_pop(L, 1);
