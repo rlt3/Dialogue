@@ -46,6 +46,7 @@ lua_dialogue_new (lua_State *L)
      */
     if (args == 1) {
         actor->dialogue = actor;
+        actor->mailbox = NULL;
         lua_getglobal(L, "Dialogue");
         lua_getfield(L, -1, "Mailbox");
         lua_getfield(L, -1, "new");

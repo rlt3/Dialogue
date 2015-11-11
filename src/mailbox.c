@@ -100,10 +100,12 @@ void
 mailbox_free_postmen (Mailbox *box)
 {
     int i;
-    for (i = 0; i < box->postmen_count; i++)
-        if (box->postmen[i] != NULL)
+    for (i = 0; i < box->postmen_count; i++) {
+        if (box->postmen[i] != NULL) {
             postman_free(box->postmen[i]);
-
+            box->postmen[i] = NULL;
+        }
+    }
     free(box->postmen);
 }
 
@@ -135,8 +137,10 @@ lua_mailbox_new (lua_State *L)
     if (box->postmen == NULL)
         luaL_error(L, "Error allocating memory for Mailbox threads!");
 
-    for (i = 0; i < box->postmen_count; i++)
+    for (i = 0; i < box->postmen_count; i++) {
         box->postmen[i] = NULL;
+        postman_create(L, box->postmen[i], box);
+    }
 
     box->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     box->L = luaL_newstate();
@@ -245,12 +249,13 @@ static int
 lua_mailbox_gc (lua_State *L)
 {
     Mailbox *box = lua_check_mailbox(L, 1);
-    box->envelope_count = 0;
     box->processing = 0;
     box->paused = 0;
-    usleep(2000);
+    box->envelope_count = 0;
     mailbox_free_postmen(box);
+    usleep(2000);
     lua_close(box->L);
+    printf("mailbox gc'd\n");
     return 0;
 }
 

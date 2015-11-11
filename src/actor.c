@@ -387,11 +387,6 @@ static int
 lua_actor_gc (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
-    ///* all actors in a dialogue share the same mailbox, so free it once */
-    //if (actor->mailbox != NULL) {
-    //    luaL_unref(L, LUA_REGISTRYINDEX, actor->mailbox->ref);
-    //    actor->mailbox = NULL;
-    //}
     lua_close(actor->L);
     return 0;
 }
