@@ -387,6 +387,7 @@ static int
 lua_actor_gc (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
+    printf("gcing actor %p\n", actor);
     lua_close(actor->L);
     return 0;
 }

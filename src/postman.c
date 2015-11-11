@@ -44,8 +44,8 @@ postman_create (lua_State *L, Postman *postman, Mailbox *mailbox)
     postman->address = NULL;
     postman->mailbox = mailbox;
 
-    //pthread_create(&thread, NULL, postman_thread, postman);
-    //pthread_detach(thread);
+    pthread_create(&thread, NULL, postman_thread, postman);
+    pthread_detach(thread);
 }
 
 /*
