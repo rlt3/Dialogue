@@ -10,13 +10,8 @@
 void
 postman_deliver (Postman *postman)
 {
-    lua_State *B;
-
-    if (postman == NULL)
-        return;
-
-    B = mailbox_request_stack(postman->mailbox);
-    mailbox_return_stack(postman->mailbox);
+    //lua_State *B = mailbox_request_stack(postman->mailbox);
+    //mailbox_return_stack(postman->mailbox);
 }
 
 void *
@@ -32,27 +27,25 @@ postman_thread (void *arg)
 }
 
 /*
- * Create a postman, a representation of a thread. Returns NULL if allocation
- * fails.
+ * 
  */
-Postman *
-postman_create (Mailbox *box)
+void
+postman_create (lua_State *L, Postman *postman, Mailbox *mailbox)
 {
-    Postman *postman = malloc(sizeof(Postman));
+    pthread_t thread;
+
+    postman = malloc(sizeof(Postman));
 
     if (postman == NULL)
-        goto exit;
+        luaL_error(L, "Error allocating memory for Postman thread!");
 
     postman->delivering = 1;
     postman->has_address = 0;
     postman->address = NULL;
-    postman->mailbox = box;
+    postman->mailbox = mailbox;
 
-    pthread_create(&postman->thread, NULL, postman_thread, postman);
-    pthread_detach(postman->thread);
-
-exit:
-    return postman;
+    //pthread_create(&thread, NULL, postman_thread, postman);
+    //pthread_detach(thread);
 }
 
 /*
@@ -65,13 +58,17 @@ postman_give_address (Postman *postman, Actor *address)
     postman->has_address = 1;
 }
 
+/*
+ * Tell the postman to stop and wait for its to fully end.
+ */
 void
 postman_free (Postman *postman)
 {
-    postman->address = NULL;
-    postman->has_address = 0;
     postman->delivering = 0;
-    usleep(1000);
+    postman->has_address = 0;
+    postman->address = NULL;
+    postman->mailbox = NULL;
+    usleep(2000);
     free(postman);
     postman = NULL;
 }

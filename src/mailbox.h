@@ -9,14 +9,14 @@
 #define MAILBOX_LIB "Dialogue.Mailbox"
 
 typedef struct Mailbox {
-    lua_State *L;
-    int envelope_count;
-    int processing;
-    int paused;
     pthread_mutex_t mutex;
+    lua_State *L;
     struct Postman **postmen;
     int postmen_count;
+    int processing;
+    int paused;
     int envelopes_ref;
+    int envelope_count;
     int ref;
 } Mailbox;
 

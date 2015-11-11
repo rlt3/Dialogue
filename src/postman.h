@@ -1,6 +1,9 @@
 #ifndef DIALOGUE_POSTMAN
 #define DIALOGUE_POSTMAN
 
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 #include <pthread.h>
 
 /*
@@ -8,20 +11,28 @@
  */
 
 typedef struct Postman {
-    pthread_t thread;
     int delivering;
     int has_address;
     struct Mailbox *mailbox;
     struct Actor *address;
 } Postman;
 
-Postman *
-postman_create (struct Mailbox*);
-
+/*
+ * 
+ */
 void
-postman_give_address (Postman*, struct Actor*);
+postman_create (lua_State *L, Postman *postman, struct Mailbox *mailbox);
 
+/*
+ * Assign an address for the postman to deliver envelopes to.
+ */
 void
-postman_free (Postman*);
+postman_give_address (Postman *postman, struct Actor *address);
+
+/*
+ * Tell the postman to stop and wait for its to fully end.
+ */
+void
+postman_free (Postman *postman);
 
 #endif

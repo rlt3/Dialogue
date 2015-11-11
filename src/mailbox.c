@@ -19,16 +19,30 @@ lua_check_mailbox (lua_State *L, int index)
     return (Mailbox*) luaL_checkudata(L, index, MAILBOX_LIB);
 }
 
+/*
+ * Request and block for stack access. This function might be called from a
+ * thread after the mailbox has been garbage collected, so it can return
+ * NULL as a safety check.
+ */
 lua_State *
 mailbox_request_stack (Mailbox *box)
 {
+    if (box == NULL)
+        return NULL;
+
     pthread_mutex_lock(&box->mutex);
     return box->L;
 }
 
+/*
+ * Give the stack back for other threads to use.
+ */
 void
 mailbox_return_stack (Mailbox *box)
 {
+    if (box == NULL)
+        return;
+
     pthread_mutex_unlock(&box->mutex);
 }
 
@@ -51,12 +65,11 @@ mailbox_push_next_envelope (Mailbox *box)
 void
 mailbox_assign_postman (Mailbox *box)
 {
-    lua_State *B;
+    lua_State *B = mailbox_request_stack(box);
 
-    if (box == NULL)
+    if (B == NULL)
         return;
-    
-    B = mailbox_request_stack(box);
+
     mailbox_push_next_envelope(box);
     /*
      * 1. Get the latest envelope
@@ -87,13 +100,9 @@ void
 mailbox_free_postmen (Mailbox *box)
 {
     int i;
-    for (i = 0; i < box->postmen_count; i++) {
-        if (box->postmen[i] == NULL)
-            continue;
-
-        postman_free(box->postmen[i]);
-        box->postmen[i] = NULL;
-    }
+    for (i = 0; i < box->postmen_count; i++)
+        if (box->postmen[i] != NULL)
+            postman_free(box->postmen[i]);
 
     free(box->postmen);
 }
@@ -107,8 +116,12 @@ lua_mailbox_new (lua_State *L)
     pthread_t thread;
     lua_State *B;
     int i;
-    int thread_count = luaL_checkinteger(L, 1);
-    Mailbox *box = lua_newuserdata(L, sizeof(Mailbox));
+    int thread_count;
+    Mailbox *box;
+
+    thread_count = luaL_checkinteger(L, 1);
+
+    box = lua_newuserdata(L, sizeof(Mailbox));
     luaL_getmetatable(L, MAILBOX_LIB);
     lua_setmetatable(L, -2);
 
@@ -117,20 +130,13 @@ lua_mailbox_new (lua_State *L)
     box->envelope_count = 0;
 
     box->postmen_count = thread_count;
-    box->postmen = NULL;
+    box->postmen = malloc(sizeof(Postman*) * thread_count);
 
-    //box->postmen = malloc(sizeof(Postman*) * thread_count);
+    if (box->postmen == NULL)
+        luaL_error(L, "Error allocating memory for Mailbox threads!");
 
-    //if (box->postmen == NULL)
-    //    luaL_error(L, "Error allocating memory for Mailbox threads!");
-
-    //for (i = 0; i < box->postmen_count; i++) {
-    //    box->postmen[i] = postman_create(box);
-    //    if (box->postmen[i] == NULL) {
-    //        mailbox_free_postmen(box);
-    //        luaL_error(L, "Error allocating memory for Postman!");
-    //    }
-    //}
+    for (i = 0; i < box->postmen_count; i++)
+        box->postmen[i] = NULL;
 
     box->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
     box->L = luaL_newstate();
@@ -143,8 +149,8 @@ lua_mailbox_new (lua_State *L)
     lua_newtable(B);
     box->envelopes_ref = luaL_ref(B, LUA_REGISTRYINDEX);
 
-    //pthread_create(&thread, NULL, mailbox_thread, box);
-    //pthread_detach(thread);
+    pthread_create(&thread, NULL, mailbox_thread, box);
+    pthread_detach(thread);
 
     return 1;
 }
@@ -155,7 +161,7 @@ lua_mailbox_new (lua_State *L)
 static int
 lua_mailbox_add (lua_State *L)
 {
-    lua_check_mailbox(L, 1);
+    Mailbox *box = lua_check_mailbox(L, 1);
     lua_check_actor(L, 2);
     luaL_checkstring(L, 3);
     luaL_checktype(L, 4, LUA_TTABLE);
@@ -169,6 +175,8 @@ lua_mailbox_add (lua_State *L)
     lua_pushvalue(L, 3);
     lua_pushvalue(L, 4);
     lua_call(L, 4, 1);
+
+    box->envelope_count += 1;
 
     return 1;
 }
@@ -184,6 +192,9 @@ lua_mailbox_envelopes (lua_State *L)
     Mailbox *box = lua_check_mailbox(L, 1);
     Envelope *envelope;
     B = mailbox_request_stack(box);
+
+    if (B == NULL)
+        luaL_error(L, "Cannot get Mailbox internal state!");
 
     lua_newtable(L);
     
@@ -238,7 +249,7 @@ lua_mailbox_gc (lua_State *L)
     box->processing = 0;
     box->paused = 0;
     usleep(2000);
-    //mailbox_free_postmen(box);
+    mailbox_free_postmen(box);
     lua_close(box->L);
     return 0;
 }
