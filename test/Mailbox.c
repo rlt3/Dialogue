@@ -1,25 +1,6 @@
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <unistd.h>
+#include "Mailbox.h"
 #include "Postman.h"
 #include "utils.h"
-
-#define MAILBOX_LIB "Mailbox"
-
-typedef struct Mailbox {
-    lua_State *L;
-    int processing;
-    pthread_mutex_t mutex;
-    pthread_cond_t new_envelope;
-    pthread_t thread;
-    struct Postman **postmen;
-    int postmen_count;
-    int envelopes_table;
-    int envelope_count;
-} Mailbox;
 
 /*
  * Make sure the argument at index N is a Mailbox and return it if it is.
@@ -30,30 +11,41 @@ lua_check_mailbox (lua_State *L, int index)
     return (Mailbox*) luaL_checkudata(L, index, MAILBOX_LIB);
 }
 
+/*
+ * Removes the next envelope from its queue of Envelopes and leaves it at the top
+ * of the Mailbox stack.
+ */
 void
-mailbox_handle_next (Mailbox *mailbox)
+mailbox_push_next_envelope (Mailbox *mailbox)
 {
-    int table_index;
-
+    int ref;
     lua_State *B = mailbox->L;
     lua_getglobal(B, "table");
     lua_getfield(B, -1, "remove");
     lua_rawgeti(B, LUA_REGISTRYINDEX, mailbox->envelopes_table);
     lua_pushinteger(B, 1);
     lua_call(B, 2, 1);
-    
-    mailbox->envelope_count--;
-    table_index = lua_gettop(B);
+    ref = luaL_ref(B, LUA_REGISTRYINDEX);
+    lua_pop(B, 1);
+    lua_rawgeti(B, LUA_REGISTRYINDEX, ref);
+    luaL_unref(B, LUA_REGISTRYINDEX, ref);
+}
 
-    printf("{ ");
-    lua_pushnil(B);
-    while (lua_next(B, table_index)) {
-        printf("%s ", lua_tostring(B, -1));
-        lua_pop(B, 1);
+/*
+ * Loop through the postmen until one is found that can deliver.
+ */
+void
+mailbox_alert_postman (Mailbox *mailbox)
+{
+    int i;
+
+    for (i = 0; i < mailbox->postmen_count; i++) {
+        if (postman_get_address(mailbox->postmen[i]))
+            break;
+
+        if (i == mailbox->postmen_count - 1)
+            i = -1;
     }
-    printf("}\n");
-
-    lua_pop(B, 2);
 }
 
 void *
@@ -66,10 +58,10 @@ mailbox_thread (void *arg)
 
     while (mailbox->processing) {
         if (mailbox->envelope_count > 0) {
-            printf("Processing envelope\n");
-            mailbox_handle_next(mailbox);
+            printf("Mailbox telling postman to get next envelope\n");
+            mailbox_alert_postman(mailbox);
         } else {
-            printf("Waiting on envelopes\n");
+            printf("Mailbox waiting on envelopes\n");
             rc = pthread_cond_wait(&mailbox->new_envelope, &mailbox->mutex);
         }
     }
@@ -99,7 +91,7 @@ lua_mailbox_new (lua_State *L)
         luaL_error(L, "Error allocating memory for Mailbox threads!");
 
     //for (i = 0; i < box->postmen_count; i++)
-    //    postman_create(L, box->postmen[i], box);
+    //    postman_create(L, box->postmen[i], mailbox);
     
     mailbox->L = luaL_newstate();
     B = mailbox->L;
@@ -169,13 +161,16 @@ lua_mailbox_count (lua_State *L)
 static int
 lua_mailbox_gc (lua_State *L)
 {
-    int rc;
+    int rc, i;
     Mailbox *mailbox = lua_check_mailbox(L, 1);
 
     /* Wait for access (make sure nothing's processing) and stop the thread */
     rc = pthread_mutex_lock(&mailbox->mutex);
     mailbox->processing = 0;
     rc = pthread_mutex_unlock(&mailbox->mutex);
+
+    for (i = 0; i < mailbox->postmen_count; i++)
+        postman_free(mailbox->postmen[i]);
 
     free(mailbox->postmen);
     lua_close(mailbox->L);
