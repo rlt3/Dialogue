@@ -134,11 +134,13 @@ lua_mailbox_add (lua_State *L)
     Mailbox *mailbox = lua_check_mailbox(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
+    /* Wait & lock for access to the internal state */
     rc = pthread_mutex_lock(&mailbox->mutex);
     B = mailbox->L;
 
     mailbox->envelope_count++;
 
+    /* Copy table from the global lua State (L) to the internal (B) */
     lua_rawgeti(B, LUA_REGISTRYINDEX, mailbox->envelopes_table);
     utils_copy_top(B, L);
     lua_rawseti(B, -2, mailbox->envelope_count);
@@ -146,9 +148,21 @@ lua_mailbox_add (lua_State *L)
 
     lua_pushinteger(L, mailbox->envelope_count);
 
+    /* Unlock access and then signal thread the wait condition */
     rc = pthread_mutex_unlock(&mailbox->mutex);
     rc = pthread_cond_signal(&mailbox->new_envelope);
 
+    return 1;
+}
+
+static int
+lua_mailbox_count (lua_State *L)
+{
+    int rc;
+    Mailbox *mailbox = lua_check_mailbox(L, 1);
+    rc = pthread_mutex_lock(&mailbox->mutex);
+    lua_pushinteger(L, mailbox->envelope_count);
+    rc = pthread_mutex_unlock(&mailbox->mutex);
     return 1;
 }
 
@@ -158,6 +172,7 @@ lua_mailbox_gc (lua_State *L)
     int rc;
     Mailbox *mailbox = lua_check_mailbox(L, 1);
 
+    /* Wait for access (make sure nothing's processing) and stop the thread */
     rc = pthread_mutex_lock(&mailbox->mutex);
     mailbox->processing = 0;
     rc = pthread_mutex_unlock(&mailbox->mutex);
@@ -165,11 +180,14 @@ lua_mailbox_gc (lua_State *L)
     free(mailbox->postmen);
     lua_close(mailbox->L);
 
+    puts("Done gcing mailbox");
+
     return 0;
 }
 
 static const luaL_Reg mailbox_methods[] = {
     {"add",        lua_mailbox_add},
+    {"count",      lua_mailbox_count},
     {"__gc",       lua_mailbox_gc},
     { NULL, NULL }
 };
