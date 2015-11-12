@@ -1,6 +1,7 @@
 UNAME := $(shell uname)
 CC=clang
 SOURCES=src/dialogue.o src/mailbox.o src/postman.o src/tone.o src/post.o src/actor.o src/script.o src/envelope.o src/utils.o
+MSOURCES=test/Mailbox.o src/utils.o
 MODULE=Dialogue.so
 
 ifeq ($(UNAME), Linux)
@@ -21,6 +22,9 @@ travis_build: $(SOURCES)
 
 dialogue: $(SOURCES)
 	$(CC) -g $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
+
+mailbox: $(MSOURCES)
+	$(CC) -g $(CFLAGS) $(SOFLAGS) -o Mailbox.so $^ $(LDFLAGS)
 
 test:
 	cp $(MODULE) spec/

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "mailbox.h"
@@ -19,9 +20,11 @@ postman_thread (void *arg)
 {
     Postman *postman = arg;
 
-    while (postman->delivering)
-        while (postman->has_address)
-            postman_deliver(postman);
+    //while (postman->delivering) {
+    //    usleep(1000);
+    //    //while (postman->has_address)
+    //    //    postman_deliver(postman);
+    //}
 
     return NULL;
 }
@@ -38,6 +41,7 @@ postman_create (lua_State *L, Postman *postman, Mailbox *mailbox)
 
     if (postman == NULL)
         luaL_error(L, "Error allocating memory for Postman thread!");
+    printf("postman: %p\n", postman);
 
     postman->delivering = 1;
     postman->has_address = 0;
