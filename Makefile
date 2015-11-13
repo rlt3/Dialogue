@@ -26,7 +26,7 @@ dialogue: $(SOURCES)
 mailbox: $(MSOURCES)
 	$(CC) -g $(CFLAGS) $(SOFLAGS) -o Mailbox.so $^ $(LDFLAGS)
 
-test:
+tst:
 	cp $(MODULE) spec/
 	cd spec/ && busted spec.lua
 

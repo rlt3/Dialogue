@@ -9,13 +9,14 @@
 #define MAILBOX_LIB "Dialogue.Mailbox"
 
 typedef struct Mailbox {
-    pthread_mutex_t mutex;
     lua_State *L;
+    int processing;
+    pthread_mutex_t mutex;
+    pthread_cond_t new_envelope;
+    pthread_t thread;
     struct Postman **postmen;
     int postmen_count;
-    int processing;
-    int paused;
-    int envelopes_ref;
+    int envelopes_table;
     int envelope_count;
     int ref;
 } Mailbox;
@@ -26,11 +27,12 @@ typedef struct Mailbox {
 Mailbox *
 lua_check_mailbox (lua_State *L, int index);
 
-lua_State *
-mailbox_request_stack (Mailbox*);
-
+/*
+ * Removes the next envelope from its queue of Envelopes and leaves it at the top
+ * of the Mailbox stack. Must have a lock on the Mailbox first.
+ */
 void
-mailbox_return_stack (Mailbox*);
+mailbox_push_next_envelope (Mailbox *mailbox);
 
 int 
 luaopen_Dialogue_Mailbox (lua_State * L);

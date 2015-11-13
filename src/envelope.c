@@ -26,6 +26,16 @@ envelope_check_table (lua_State *L, int index)
 }
 
 /*
+ * Push the message from an Envelope at index.
+ */
+void
+envelope_push_message (lua_State *L, int index)
+{
+    Envelope *envelope = lua_check_envelope(L, index);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->message_ref);
+}
+
+/*
  * Put a message (Table) inside an Envelope with the author and tone so it can
  * be sent to the right recipients.
  *
@@ -48,10 +58,10 @@ lua_envelope_new (lua_State *L)
     lua_setmetatable(L, -2);
 
     envelope->author = author;
-    envelope->recipient = NULL;
     envelope->tone = tone;
-    envelope->mailbox = NULL;
     envelope->message_ref = message_ref;
+    envelope->mailbox = NULL;
+    envelope->recipient = NULL;
 
     return 1;
 }
@@ -70,8 +80,7 @@ lua_envelope_tostring (lua_State *L)
 static int
 lua_envelope_message (lua_State *L)
 {
-    Envelope *envelope = lua_check_envelope(L, 1);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->message_ref);
+    envelope_push_message(L, 1);
     return 1;
 }
 

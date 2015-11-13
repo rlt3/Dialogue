@@ -20,219 +20,186 @@ lua_check_mailbox (lua_State *L, int index)
 }
 
 /*
- * Request and block for stack access. This function might be called from a
- * thread after the mailbox has been garbage collected, so it can return
- * NULL as a safety check.
- */
-lua_State *
-mailbox_request_stack (Mailbox *box)
-{
-    if (box == NULL)
-        return NULL;
-
-    pthread_mutex_lock(&box->mutex);
-    return box->L;
-}
-
-/*
- * Give the stack back for other threads to use.
+ * Removes the next envelope from its queue of Envelopes and leaves it at the top
+ * of the Mailbox stack.
  */
 void
-mailbox_return_stack (Mailbox *box)
+mailbox_push_next_envelope (Mailbox *mailbox)
 {
-    if (box == NULL)
-        return;
-
-    pthread_mutex_unlock(&box->mutex);
-}
-
-/*
- * Push the next envelope onto the top of the Mailbox stack.
- */
-void
-mailbox_push_next_envelope (Mailbox *box)
-{
-    lua_State *B = box->L;
+    int ref;
+    lua_State *B = mailbox->L;
     lua_getglobal(B, "table");
     lua_getfield(B, -1, "remove");
-    lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
+    lua_rawgeti(B, LUA_REGISTRYINDEX, mailbox->envelopes_table);
     lua_pushinteger(B, 1);
     lua_call(B, 2, 1);
-    lua_pop(B, 2); /* pop 'table' and return value */
-    box->envelope_count -= 1;
+    ref = luaL_ref(B, LUA_REGISTRYINDEX);
+    lua_pop(B, 1);
+    lua_rawgeti(B, LUA_REGISTRYINDEX, ref);
+    luaL_unref(B, LUA_REGISTRYINDEX, ref);
 }
 
+/*
+ * Loop through the postmen until one is found that can deliver.
+ */
 void
-mailbox_assign_postman (Mailbox *box)
+mailbox_alert_postman (Mailbox *mailbox)
 {
-    lua_State *B = mailbox_request_stack(box);
+    int i;
 
-    if (B == NULL)
-        return;
+    for (i = 0; i < mailbox->postmen_count; i++) {
+        if (postman_get_address(mailbox->postmen[i]))
+            break;
 
-    mailbox_push_next_envelope(box);
-    /*
-     * 1. Get the latest envelope
-     * 2. Get the audience (list of actors) for the message
-     * 3. Put the message on top of the stack.
-     * 4. Map the audience to postman_give_address
-     */
-    mailbox_return_stack(box);
+        if (i == mailbox->postmen_count - 1)
+            i = -1;
+    }
 }
 
 void *
 mailbox_thread (void *arg)
 {
-    Mailbox *box = arg;
+    int rc;
+    Mailbox *mailbox = arg;
 
-    while (box->processing) {
-        while (box->paused)
-            usleep(1000);
+    rc = pthread_mutex_lock(&mailbox->mutex);
 
-        while (box->envelope_count > 0)
-            mailbox_assign_postman(box);
+    while (mailbox->processing) {
+        if (mailbox->envelope_count > 0) {
+            mailbox_alert_postman(mailbox);
+            mailbox->envelope_count--;
+        } else {
+            rc = pthread_cond_wait(&mailbox->new_envelope, &mailbox->mutex);
+        }
     }
 
     return NULL;
 }
 
-void
-mailbox_free_postmen (Mailbox *box)
-{
-    int i;
-    for (i = 0; i < box->postmen_count; i++) {
-        if (box->postmen[i] != NULL) {
-            postman_free(box->postmen[i]);
-            box->postmen[i] = NULL;
-        }
-    }
-    free(box->postmen);
-}
-
 /*
- * Create the intermediary state which messages are held before sent to Actors.
+ * Create the Mailbox which holds the messages being sent inside Envelopes. It
+ * holds these Envelopes inside an intermediary Lua stack and uses Postmen to
+ * deliver them to Actors.
  */
 static int
 lua_mailbox_new (lua_State *L)
 {
-    pthread_t thread;
-    lua_State *B;
     int i;
     int thread_count;
-    Mailbox *box;
+    pthread_mutexattr_t mutex_attr;
+    lua_State *B;
+    Mailbox *mailbox;
 
     thread_count = luaL_checkinteger(L, 1);
 
-    box = lua_newuserdata(L, sizeof(Mailbox));
+    mailbox = lua_newuserdata(L, sizeof(Mailbox));
     luaL_getmetatable(L, MAILBOX_LIB);
     lua_setmetatable(L, -2);
 
-    box->processing = 1;
-    box->paused = 0;
-    box->envelope_count = 0;
+    mailbox->postmen_count = thread_count;
+    mailbox->postmen = malloc(sizeof(Postman*) * thread_count);
 
-    box->postmen_count = thread_count;
-    box->postmen = malloc(sizeof(Postman*) * thread_count);
-
-    if (box->postmen == NULL)
+    if (mailbox->postmen == NULL)
         luaL_error(L, "Error allocating memory for Mailbox threads!");
 
-    for (i = 0; i < box->postmen_count; i++) {
-        box->postmen[i] = NULL;
-        postman_create(L, box->postmen[i], box);
+    /* 
+     * Allocate all the Postmen. If there's an error allocating one, free any
+     * previously allocated Postmen and then their array and error out.
+     */
+    for (i = 0; i < mailbox->postmen_count; i++) {
+        mailbox->postmen[i] = postman_new(mailbox);
+
+        if (mailbox->postmen[i] == NULL) {
+            for (i = i - 1; i >= 0; i--)
+                postman_free(mailbox->postmen[i]);
+            free(mailbox->postmen[i]);
+            luaL_error(L, "Error allocating memory for Postman!");
+        }
     }
-
-    box->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
-    box->L = luaL_newstate();
-    B = box->L;
-
+    
+    mailbox->L = luaL_newstate();
+    B = mailbox->L;
     luaL_openlibs(B);
+
     luaL_requiref(B, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(B, 1);
 
     lua_newtable(B);
-    box->envelopes_ref = luaL_ref(B, LUA_REGISTRYINDEX);
+    mailbox->envelopes_table = luaL_ref(B, LUA_REGISTRYINDEX);
+    mailbox->envelope_count = 0;
 
-    pthread_create(&thread, NULL, mailbox_thread, box);
-    pthread_detach(thread);
+    mailbox->processing = 1;
+    mailbox->new_envelope = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+
+    pthread_mutexattr_init(&mutex_attr);
+    //pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&mailbox->mutex, &mutex_attr);
+
+    pthread_create(&mailbox->thread, NULL, mailbox_thread, mailbox);
+    pthread_detach(mailbox->thread);
 
     return 1;
 }
 
 /*
+ * Copy the message (the table) to the internal state and create an Envelope
+ * for it. Put that envelope in the envelopes table and signal the thread to
+ * process it if not already. Returns current number of Envelopes.
+ *
  * mailbox:add(author, tone, {"movement", 20, 40})
  */
 static int
 lua_mailbox_add (lua_State *L)
 {
-    Mailbox *box = lua_check_mailbox(L, 1);
-    lua_check_actor(L, 2);
-    luaL_checkstring(L, 3);
+    int rc, table_index;
+    lua_State *B;
+    Mailbox *mailbox = lua_check_mailbox(L, 1);
+    Actor *actor = lua_check_actor(L, 2);
+    const char *tone = luaL_checkstring(L, 3);
     luaL_checktype(L, 4, LUA_TTABLE);
 
-    lua_getglobal(L, "Dialogue");
-    lua_getfield(L, -1, "Mailbox");
-    lua_getfield(L, -1, "Envelope");
-    lua_getfield(L, -1, "new");
-    lua_pushvalue(L, 1);
-    lua_pushvalue(L, 2);
-    lua_pushvalue(L, 3);
-    lua_pushvalue(L, 4);
-    lua_call(L, 4, 1);
+    /* Wait & lock for access to the internal state */
+    rc = pthread_mutex_lock(&mailbox->mutex);
+    B = mailbox->L;
 
-    box->envelope_count += 1;
+    mailbox->envelope_count++;
 
-    return 1;
-}
-
-/*
- * Get the list of envelopes currently in the mailbox.
- */
-static int
-lua_mailbox_envelopes (lua_State *L)
-{
-    int i, table_index;
-    lua_State *B;
-    Mailbox *box = lua_check_mailbox(L, 1);
-    Envelope *envelope;
-    B = mailbox_request_stack(box);
-
-    if (B == NULL)
-        luaL_error(L, "Cannot get Mailbox internal state!");
-
-    lua_newtable(L);
-    
-    lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
+    lua_rawgeti(B, LUA_REGISTRYINDEX, mailbox->envelopes_table);
     table_index = lua_gettop(B);
 
-    lua_pushnil(B);
-    for (i = 1; lua_next(B, table_index); i++, lua_pop(B, 1)) {
-        envelope = lua_check_envelope(B, -1);
-        utils_push_object(L, envelope, ENVELOPE_LIB);
-        lua_rawseti(L, -2, i);
-    }
-    lua_pop(B, 1);
+    lua_getglobal(B, "Dialogue");
+    lua_getfield(B, -1, "Mailbox");
+    lua_getfield(B, -1, "Envelope");
+    lua_getfield(B, -1, "new");
+    utils_push_object(B, actor, ACTOR_LIB);
+    lua_pushstring(B, tone);
+    utils_copy_top(B, L);
+    lua_call(B, 3, 1);
+    
+    lua_rawseti(B, table_index, mailbox->envelope_count);
 
-    mailbox_return_stack(box);
+    lua_pop(B, 3); /* Pop Dialogue, Mailbox & Envelope */
+
+    lua_pushinteger(L, mailbox->envelope_count);
+
+    /* Unlock access and then signal thread the wait condition */
+    rc = pthread_mutex_unlock(&mailbox->mutex);
+    rc = pthread_cond_signal(&mailbox->new_envelope);
+
     return 1;
 }
 
 static int
-lua_mailbox_start (lua_State *L)
+lua_mailbox_count (lua_State *L)
 {
-    Mailbox *box = lua_check_mailbox(L, 1);
-    box->processing = 1;
-    box->paused = 0;
+    int rc;
+    Mailbox *mailbox = lua_check_mailbox(L, 1);
+    rc = pthread_mutex_lock(&mailbox->mutex);
+    lua_pushinteger(L, mailbox->envelope_count);
+    rc = pthread_mutex_unlock(&mailbox->mutex);
     return 1;
 }
 
-static int
-lua_mailbox_pause (lua_State *L)
-{
-    Mailbox *box = lua_check_mailbox(L, 1);
-    box->paused = 1;
-    return 1;
-}
 
 static int
 lua_mailbox_print (lua_State *L)
@@ -243,27 +210,31 @@ lua_mailbox_print (lua_State *L)
 }
 
 /*
- * Stop thread and free any postmen before Lua garbage collects the mailbox.
+ * Stop the Mailbox thread and all the Postmen threads.
  */
 static int
 lua_mailbox_gc (lua_State *L)
 {
-    Mailbox *box = lua_check_mailbox(L, 1);
-    box->processing = 0;
-    box->paused = 0;
-    box->envelope_count = 0;
-    mailbox_free_postmen(box);
-    usleep(2000);
-    lua_close(box->L);
-    printf("mailbox gc'd\n");
+    int rc, i;
+    Mailbox *mailbox = lua_check_mailbox(L, 1);
+
+    /* Wait for access (make sure nothing's processing) and stop the thread */
+    rc = pthread_mutex_lock(&mailbox->mutex);
+    mailbox->processing = 0;
+    rc = pthread_mutex_unlock(&mailbox->mutex);
+
+    for (i = 0; i < mailbox->postmen_count; i++)
+        postman_free(mailbox->postmen[i]);
+
+    free(mailbox->postmen);
+    lua_close(mailbox->L);
+
     return 0;
 }
 
 static const luaL_Reg mailbox_methods[] = {
     {"add",        lua_mailbox_add},
-    {"envelopes",  lua_mailbox_envelopes},
-    {"start",      lua_mailbox_start},
-    {"pause",      lua_mailbox_pause},
+    {"count",      lua_mailbox_count},
     {"__tostring", lua_mailbox_print},
     {"__gc",       lua_mailbox_gc},
     { NULL, NULL }

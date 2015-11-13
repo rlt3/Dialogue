@@ -35,6 +35,12 @@ typedef struct Envelope {
 Envelope *
 lua_check_envelope (lua_State *L, int index);
 
+/*
+ * Push the message from an Envelope at index.
+ */
+void
+envelope_push_message (lua_State *L, int index);
+
 int 
 luaopen_Dialogue_Envelope (lua_State *L);
 
