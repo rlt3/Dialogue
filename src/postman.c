@@ -15,9 +15,9 @@ postman_deliver (Postman *postman)
     lua_State *P = postman->L;
 
     /* 
-     * We wait for Mailbox access for the next envelope and give it up as soon
-     * as we copy the necessary information as other threads could be working
-     * on another Envelope as we process this one.
+     * Wait for Mailbox access. We push the next Envelope and get the relevant
+     * info and give up access as soon as possible. Other threads could be using
+     * that access to deliver other envelopes!
      */
 
     int rc = pthread_mutex_lock(&mailbox->mutex);
@@ -30,16 +30,14 @@ postman_deliver (Postman *postman)
     rc = pthread_mutex_unlock(&mailbox->mutex);
 
     /* print out the envelope from our stack */
-    printf("{ ");
     lua_pushnil(P);
     while (lua_next(P, 1)) {
         if (strcmp("amazing", lua_tostring(P, -1)) == 0)
             usleep(5000);
 
-        printf("%s ", lua_tostring(P, -1));
+        printf("%s\n", lua_tostring(P, -1));
         lua_pop(P, 1);
     }
-    printf("}\n");
     lua_pop(P, 1);
 
     postman->needs_address = 0;
@@ -112,7 +110,6 @@ postman_get_address (Postman *postman)
     if (rc != 0)
         goto busy;
 
-    printf("Postman %p is delivering!\n", postman);
     postman->needs_address = 1;
 
     rc = pthread_mutex_unlock(&postman->mutex);

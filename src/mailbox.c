@@ -112,7 +112,7 @@ lua_mailbox_new (lua_State *L)
         if (mailbox->postmen[i] == NULL) {
             for (i = i - 1; i >= 0; i--)
                 postman_free(mailbox->postmen[i]);
-            free(mailbox->postmen[i]);
+            free(mailbox->postmen);
             luaL_error(L, "Error allocating memory for Postman!");
         }
     }
