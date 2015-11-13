@@ -6,3 +6,5 @@ dialogue
 *.dylib
 *.swp
 *.swo
+weapon.lua
+draw.lua

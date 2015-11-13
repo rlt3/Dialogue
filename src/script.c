@@ -154,8 +154,8 @@ static int
 lua_script_send (lua_State *L)
 {
     int argc, envelope_index;
-    Script *script = lua_check_script(L, 1);
     lua_State *A;
+    Script *script = lua_check_script(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
     A = actor_request_stack(script->actor);
@@ -223,22 +223,11 @@ lua_script_tostring (lua_State *L)
     return 1;
 }
 
-static int
-lua_script_gc (lua_State *L)
-{
-    Script *script = lua_check_script(L, 1);
-    actor_remove_script(script->actor, script);
-    luaL_unref(script->actor->L, LUA_REGISTRYINDEX, script->table_reference);
-    luaL_unref(script->actor->L, LUA_REGISTRYINDEX, script->object_reference);
-    return 0;
-}
-
 static const luaL_Reg script_methods[] = {
     {"send", lua_script_send},
     {"load", lua_script_load},
     {"probe", lua_script_probe},
     {"table", lua_script_table},
-    {"__gc", lua_script_gc},
     {"__tostring", lua_script_tostring},
     { NULL, NULL }
 };

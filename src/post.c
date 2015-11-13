@@ -43,6 +43,5 @@ post_tone_yell (Envelope *envelope)
 void
 post (Envelope envelope)
 {
-    envelope.tone(&envelope);
-    free(envelope.data);
+    //envelope.tone(&envelope);
 }

@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include "dialogue.h"
-#include "envelope.h"
-#include "mailbox.h"
-#include "post.h"
 #include "actor.h"
 #include "script.h"
+#include "mailbox.h"
+#include "envelope.h"
+#include "post.h"
+#include "tone.h"
 #include "utils.h"
 
 /*
@@ -13,7 +14,7 @@
 lua_State*
 actor_request_stack (Actor *actor)
 {
-    //pthread_mutex_lock(&actor->stack_mutex);
+    pthread_mutex_lock(&actor->mutex);
     return actor->L;
 }
 
@@ -23,7 +24,7 @@ actor_request_stack (Actor *actor)
 void
 actor_return_stack (Actor *actor)
 {
-    //pthread_mutex_unlock(&actor->stack_mutex);
+    pthread_mutex_unlock(&actor->mutex);
 }
 
 /*
@@ -94,34 +95,11 @@ actor_remove_script (Actor *actor, Script *removing)
 }
 
 /*
- * Get the actor from the lua_State and craft an envelope.
- */
-Envelope *
-actor_envelope_create (lua_State *L, Tone tone, Actor *recipient)
-{
-    Actor* actor = lua_check_actor(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
-    return envelope_create(L, actor, tone, NULL);
-}
-
-/*
  * From an envelope, send a message to each Script an actor owns.
  */
 void
 actor_send_envelope (Actor *actor, Envelope *envelope)
 {
-    Script *script;
-    pthread_mutex_lock(&actor->mutex);
-
-    for (script = actor->script; script != NULL; script = script->next) {
-        utils_push_object_method(actor->L, script, SCRIPT_LIB, "send");
-        envelope_push_table(actor->L, envelope);
-        if (lua_pcall(actor->L, 2, 0, 0))
-            luaL_error(actor->L, "Error sending: %s", lua_tostring(actor->L, -1));
-        lua_pop(actor->L, lua_gettop(actor->L));
-    }
-
-    pthread_mutex_unlock(&actor->mutex);
 }
 
 /*
@@ -143,6 +121,7 @@ lua_actor_new (lua_State *L)
     int actor_ref;
     lua_State *A;
     Actor *actor;
+    pthread_mutexattr_t mutex_attr;
     luaL_checktype(L, 1, LUA_TTABLE);
 
     actor = lua_newuserdata(L, sizeof(Actor));
@@ -153,8 +132,13 @@ lua_actor_new (lua_State *L)
     actor->next = NULL;
     actor->child = NULL;
     actor->script = NULL;
-    actor->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
-    actor->stack_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+    actor->mailbox = NULL;
+    actor->dialogue = NULL;
+
+    pthread_mutexattr_init(&mutex_attr);
+    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&actor->mutex, &mutex_attr);
+
     actor->L = luaL_newstate();
     A = actor->L;
 
@@ -181,6 +165,21 @@ lua_actor_new (lua_State *L)
 
     luaL_unref(L, LUA_REGISTRYINDEX, actor_ref);
 
+    return 1;
+}
+
+/*
+ * Return a list of Actors which are the audience filtered by the tone given as
+ * a string.
+ * actor:audience("say") => { actor, actor, ... }
+ * actor:audience("command") => { child, child, ... }
+ */
+static int
+lua_actor_audience (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    const char *tone = luaL_checkstring(L, 2);
+    tone_filter(L, actor, tone);
     return 1;
 }
 
@@ -267,9 +266,12 @@ lua_actor_drop (lua_State *L)
     int i = 0;
     Actor *actor = lua_check_actor(L, 1);
     Script *script;
+    lua_State *A = actor_request_stack(actor);
     
     for (script = actor->script; script != NULL; script = script->next, i++)
-        luaL_unref(actor->L, LUA_REGISTRYINDEX, script->ref);
+        luaL_unref(A, LUA_REGISTRYINDEX, script->ref);
+
+    actor_return_stack(actor);
 
     actor->script = NULL;
     lua_pushinteger(L, i);
@@ -371,18 +373,12 @@ lua_actor_abandon (lua_State *L)
 static int
 lua_actor_think (lua_State *L)
 {
-    Actor* actor = lua_check_actor(L, 1);
-    Envelope *envelope = actor_envelope_create(L, post_tone_think, NULL);
-    mailbox_add(actor->mailbox, envelope);
     return 0;
 }
 
 static int
 lua_actor_yell (lua_State *L)
 {
-    Actor* actor = lua_check_actor(L, 1);
-    Envelope *envelope = actor_envelope_create(L, post_tone_yell, NULL);
-    mailbox_add(actor->mailbox, envelope);
     return 0;
 }
 
@@ -398,11 +394,9 @@ static int
 lua_actor_gc (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
-    utils_push_object_method(L, actor, ACTOR_LIB, "drop");
-    lua_call(L, 1, 1);
-    lua_pop(L, 1);
-    lua_close(actor->L);
-    luaL_unref(L, LUA_REGISTRYINDEX, actor->ref);
+    lua_State *A = actor_request_stack(actor);
+    lua_close(A);
+    actor_return_stack(actor);
     return 0;
 }
 
@@ -413,6 +407,7 @@ static const luaL_Reg actor_methods[] = {
     {"child",      lua_actor_child},
     {"children",   lua_actor_children},
     {"abandon",    lua_actor_abandon},
+    {"audience",   lua_actor_audience},
     {"send",       lua_actor_think},
     {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},

@@ -5,25 +5,28 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
-#define ENVELOPE_LIB "Dialogue.Envelope"
+#define ENVELOPE_LIB "Dialogue.Mailbox.Envelope"
 
+struct Mailbox;
 struct Envelope;
 struct Actor;
-typedef void (*Tone) (struct Envelope*);
 
 /*
- * The Envelope is what holds an individual message in a stream while the 
- * system is processing other messages. It is the C representation of a
- * table for us to easily pass around.
+ * The Envelope holds the metadata of a message. The message is simply a table.
+ * In the real-world an Envelope holds the address of the recipient, but ours
+ * is a tad different -- we hold the method for getting the recipients of the
+ * message since each message could potentially have more than one recipient.
+ *
+ * In exceptional cases a recipient can be set explicity for a one-to-one
+ * relay.
  */
 
 typedef struct Envelope {
-    struct Envelope *next;
     struct Actor *author;
     struct Actor *recipient;
-    Tone tone;
-    const char **data;
-    int data_len;
+    struct Mailbox *mailbox;
+    const char *tone;
+    int message_ref;
 } Envelope;
 
 /*
@@ -33,31 +36,10 @@ Envelope *
 lua_check_envelope (lua_State *L, int index);
 
 /*
- * Create an Envelope inside a lua_State and return a pointer to it.
- */
-Envelope *
-envelope_create (lua_State *, struct Actor *, Tone, struct Actor *);
-
-/*
- * Create an envelope that will fail a bind call.
- */
-Envelope
-envelope_create_empty();
-
-/*
- * Determine if an envelope should be called like f(envelope) or not.
+ * Push the message from an Envelope at index.
  */
 void
-envelope_bind(Envelope, void (*f) (Envelope));
-
-/*
- * Push the table of an Envelope onto given lua_State.
- */
-void
-envelope_push_table (lua_State *L, Envelope *envelope);
-
-void
-envelope_free (Envelope *envelope);
+envelope_push_message (lua_State *L, int index);
 
 int 
 luaopen_Dialogue_Envelope (lua_State *L);

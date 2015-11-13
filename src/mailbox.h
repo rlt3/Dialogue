@@ -1,34 +1,38 @@
 #ifndef DIALOGUE_MAILBOX
 #define DIALOGUE_MAILBOX
 
-#include "envelope.h"
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+#include <pthread.h>
 
 #define MAILBOX_LIB "Dialogue.Mailbox"
 
 typedef struct Mailbox {
-    Envelope *head;
-    Envelope *tail;
+    lua_State *L;
     int processing;
+    pthread_mutex_t mutex;
+    pthread_cond_t new_envelope;
+    pthread_t thread;
+    struct Postman **postmen;
+    int postmen_count;
+    int envelopes_table;
+    int envelope_count;
     int ref;
 } Mailbox;
-
-/*
- * Add an envelope to our mailbox.
- */
-void
-mailbox_add (Mailbox *box, Envelope *envelope);
-
-/*
- * Return the next Envelope.
- */
-Envelope
-mailbox_next (Mailbox *box);
 
 /*
  * Make sure the argument at index N is a Mailbox and return it if it is.
  */
 Mailbox *
 lua_check_mailbox (lua_State *L, int index);
+
+/*
+ * Removes the next envelope from its queue of Envelopes and leaves it at the top
+ * of the Mailbox stack. Must have a lock on the Mailbox first.
+ */
+void
+mailbox_push_next_envelope (Mailbox *mailbox);
 
 int 
 luaopen_Dialogue_Mailbox (lua_State * L);
