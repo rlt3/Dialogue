@@ -1,3 +1,4 @@
+#include <string.h>
 #include "Postman.h"
 #include "utils.h"
 
@@ -21,6 +22,9 @@ postman_deliver (Postman *postman)
     printf("{ ");
     lua_pushnil(P);
     while (lua_next(P, 1)) {
+        if (strcmp("amazing", lua_tostring(P, -1)) == 0)
+            usleep(5000);
+
         printf("%s ", lua_tostring(P, -1));
         lua_pop(P, 1);
     }

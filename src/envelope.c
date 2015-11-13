@@ -26,57 +26,33 @@ envelope_check_table (lua_State *L, int index)
 }
 
 /*
- * An Envelope exists inside a Mailbox. It holds all the metadata of a message,
- * along with the message itself. Since our Actors have no use for the meta-
- * data, we can get by with having the Envelope exist in the Mailbox's 
- * lua_State and just copying the message table from the Mailbox to the Actor.
+ * Put a message (Table) inside an Envelope with the author and tone so it can
+ * be sent to the right recipients.
  *
- * Envelope.new(mailbox, author, tone, { "movement", 20, 40 })
+ * Envelope.new(author, tone, { "movement", 20, 40 })
  */
 static int
 lua_envelope_new (lua_State *L)
 {
-    int envelope_ref;
-    int length;
-    lua_State *B;
+    int message_ref;
     Envelope *envelope;
 
-    Mailbox *box = lua_check_mailbox(L, 1);
-    Actor *author = lua_check_actor(L, 2);
-    const char *tone = luaL_checkstring(L, 3);
-    envelope_check_table(L, 4);
+    Actor *author = lua_check_actor(L, 1);
+    const char *tone = luaL_checkstring(L, 2);
+    envelope_check_table(L, 3);
 
-    B = mailbox_request_stack(box);
-    if (B == NULL)
-        luaL_error(L, "Cannot get Mailbox internal state!");
+    message_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    envelope = lua_newuserdata(B, sizeof(Envelope));
-    luaL_getmetatable(B, ENVELOPE_LIB);
-    lua_setmetatable(B, -2);
+    envelope = lua_newuserdata(L, sizeof(Envelope));
+    luaL_getmetatable(L, ENVELOPE_LIB);
+    lua_setmetatable(L, -2);
 
     envelope->author = author;
     envelope->recipient = NULL;
-    envelope->mailbox = box;
     envelope->tone = tone;
+    envelope->mailbox = NULL;
+    envelope->message_ref = message_ref;
 
-    /* reference the message table and put it in the envelope */
-    utils_copy_top(B, L);
-    envelope->message_ref = luaL_ref(B, LUA_REGISTRYINDEX);
-
-    /* reference the envelope itself and pop it from the stack temporarily */
-    envelope_ref = luaL_ref(B, LUA_REGISTRYINDEX);
-
-    /* push the envelopes table from the mailbox and append this envelope */
-    lua_rawgeti(B, LUA_REGISTRYINDEX, box->envelopes_ref);
-    length = luaL_len(B, -1);
-    lua_rawgeti(B, LUA_REGISTRYINDEX, envelope_ref);
-    lua_rawseti(B, -2, length + 1);
-    lua_pop(B, 1);
-
-    luaL_unref(B, LUA_REGISTRYINDEX, envelope_ref);
-
-    mailbox_return_stack(box);
-    utils_push_object(L, envelope, ENVELOPE_LIB);
     return 1;
 }
 
@@ -95,15 +71,7 @@ static int
 lua_envelope_message (lua_State *L)
 {
     Envelope *envelope = lua_check_envelope(L, 1);
-    lua_State *B = mailbox_request_stack(envelope->mailbox);
-
-    if (B == NULL)
-        luaL_error(L, "Cannot get Mailbox internal state!");
-
-    lua_rawgeti(B, LUA_REGISTRYINDEX, envelope->message_ref);
-    utils_copy_top(L, B);
-    lua_pop(B, 1);
-    mailbox_return_stack(envelope->mailbox);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->message_ref);
     return 1;
 }
 

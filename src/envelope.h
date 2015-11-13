@@ -12,10 +12,15 @@ struct Envelope;
 struct Actor;
 
 /*
- * The Envelope holds the metadata of a message. It exists inside a Mailbox.
- * This provides an easy way to transport messages between Actors as well as
- * between the interpreter and the Mailbox and then to Actors.
+ * The Envelope holds the metadata of a message. The message is simply a table.
+ * In the real-world an Envelope holds the address of the recipient, but ours
+ * is a tad different -- we hold the method for getting the recipients of the
+ * message since each message could potentially have more than one recipient.
+ *
+ * In exceptional cases a recipient can be set explicity for a one-to-one
+ * relay.
  */
+
 typedef struct Envelope {
     struct Actor *author;
     struct Actor *recipient;
