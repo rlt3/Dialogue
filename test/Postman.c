@@ -40,27 +40,34 @@ postman_thread (void *arg)
 
     while (postman->delivering) {
         if (postman->needs_address) {
-            printf("Postman getting next envelope\n");
             postman_deliver(postman);
         } else {
-            printf("Postman waiting on mailbox\n");
+            printf("THREAD: Postman  %p waiting\n", postman);
             rc = pthread_cond_wait(&postman->get_address, &postman->mutex);
         }
     }
+
+    printf("THREAD: Ending postman %p\n", postman);
 
     return NULL;
 }
 
 /*
  * Create a postman which waits for the mailbox to tell it when to get a new
- * envelope and deliver it.
+ * envelope and deliver it. Returns pointer if OK or NULL if not.
  */
-void
-postman_new (lua_State *L, Postman *postman, Mailbox *mailbox)
+Postman *
+postman_new (Mailbox *mailbox)
 {
     lua_State *P;
     pthread_mutexattr_t mutex_attr;
-    postman = malloc(sizeof(Postman));
+
+    Postman *postman = malloc(sizeof(Postman));
+
+    if (postman == NULL)
+        goto exit;
+
+    printf("CREATE: postman %p\n", postman);
 
     postman->mailbox = mailbox;
     postman->delivering = 1;
@@ -72,11 +79,16 @@ postman_new (lua_State *L, Postman *postman, Mailbox *mailbox)
     pthread_mutex_init(&postman->mutex, &mutex_attr);
 
     postman->L = luaL_newstate();
-    P = mailbox->L;
+    P = postman->L;
     luaL_openlibs(P);
+
+    printf("CREATE: Starting postman %p thread\n", postman);
 
     pthread_create(&postman->thread, NULL, postman_thread, postman);
     pthread_detach(postman->thread);
+
+exit:
+    return postman;
 }
 
 /*
@@ -89,8 +101,12 @@ postman_get_address (Postman *postman)
 {
     int rc = pthread_mutex_lock(&postman->mutex);
 
-    if (rc != 0)
+    if (rc != 0) {
+        printf("Postman %p busy...\n", postman);
         goto busy;
+    }
+
+    printf("Postman %p free!\n", postman);
 
     postman->needs_address = 1;
 
@@ -109,10 +125,18 @@ busy:
 void
 postman_free (Postman *postman)
 {
+    printf("FREE: Waiting for postman %p\n", postman);
+
     int rc = pthread_mutex_lock(&postman->mutex);
     postman->delivering = 0;
     rc = pthread_mutex_unlock(&postman->mutex);
 
+    usleep(10000);
+
+    printf("FREE: Closing postman %p internal state\n", postman);
+
     lua_close(postman->L);
     free(postman);
+
+    printf("FREE: Done freeing postman\n");
 }

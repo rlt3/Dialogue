@@ -13,8 +13,12 @@ typedef struct Postman {
     pthread_t thread;
 } Postman;
 
-void
-postman_new (lua_State *L, Postman *postman, Mailbox *mailbox);
+/*
+ * Create a postman which waits for the mailbox to tell it when to get a new
+ * envelope and deliver it. Returns pointer if OK or NULL if not.
+ */
+Postman *
+postman_new (Mailbox *mailbox);
 
 /*
  * Tell the postman to get an address (the next envelope) from the mailbox.
