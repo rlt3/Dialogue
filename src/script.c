@@ -154,8 +154,8 @@ static int
 lua_script_send (lua_State *L)
 {
     int argc, envelope_index;
-    Script *script = lua_check_script(L, 1);
     lua_State *A;
+    Script *script = lua_check_script(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
     A = actor_request_stack(script->actor);

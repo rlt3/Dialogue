@@ -14,7 +14,6 @@ typedef struct Actor {
     lua_State *L;
 
     pthread_mutex_t mutex;
-    pthread_mutex_t stack_mutex;
 
     struct Actor *parent;
     struct Actor *next;

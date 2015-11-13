@@ -14,7 +14,7 @@
 lua_State*
 actor_request_stack (Actor *actor)
 {
-    //pthread_mutex_lock(&actor->stack_mutex);
+    pthread_mutex_lock(&actor->mutex);
     return actor->L;
 }
 
@@ -24,7 +24,7 @@ actor_request_stack (Actor *actor)
 void
 actor_return_stack (Actor *actor)
 {
-    //pthread_mutex_unlock(&actor->stack_mutex);
+    pthread_mutex_unlock(&actor->mutex);
 }
 
 /*
@@ -121,6 +121,7 @@ lua_actor_new (lua_State *L)
     int actor_ref;
     lua_State *A;
     Actor *actor;
+    pthread_mutexattr_t mutex_attr;
     luaL_checktype(L, 1, LUA_TTABLE);
 
     actor = lua_newuserdata(L, sizeof(Actor));
@@ -133,8 +134,11 @@ lua_actor_new (lua_State *L)
     actor->script = NULL;
     actor->mailbox = NULL;
     actor->dialogue = NULL;
-    actor->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
-    actor->stack_mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+
+    pthread_mutexattr_init(&mutex_attr);
+    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&actor->mutex, &mutex_attr);
+
     actor->L = luaL_newstate();
     A = actor->L;
 
@@ -262,9 +266,12 @@ lua_actor_drop (lua_State *L)
     int i = 0;
     Actor *actor = lua_check_actor(L, 1);
     Script *script;
+    lua_State *A = actor_request_stack(actor);
     
     for (script = actor->script; script != NULL; script = script->next, i++)
-        luaL_unref(actor->L, LUA_REGISTRYINDEX, script->ref);
+        luaL_unref(A, LUA_REGISTRYINDEX, script->ref);
+
+    actor_return_stack(actor);
 
     actor->script = NULL;
     lua_pushinteger(L, i);
@@ -387,7 +394,9 @@ static int
 lua_actor_gc (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
-    lua_close(actor->L);
+    lua_State *A = actor_request_stack(actor);
+    lua_close(A);
+    actor_return_stack(actor);
     return 0;
 }
 

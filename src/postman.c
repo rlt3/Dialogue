@@ -2,14 +2,21 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include "dialogue.h"
 #include "postman.h"
 #include "envelope.h"
 #include "actor.h"
+#include "script.h"
 #include "utils.h"
 
 void
 postman_deliver (Postman *postman)
 {
+    int scripts_index;
+    const char *tone;
+    Actor *author;
+    Script *script;
+    Envelope *envelope;
     Mailbox *mailbox = postman->mailbox;
     lua_State *B = mailbox->L;
     lua_State *P = postman->L;
@@ -23,22 +30,32 @@ postman_deliver (Postman *postman)
     int rc = pthread_mutex_lock(&mailbox->mutex);
 
     mailbox_push_next_envelope(mailbox);
+    envelope = lua_check_envelope(B, -1);
+    tone = envelope->tone;
+    author = envelope->author;
     envelope_push_message(B, -1);
     utils_copy_top(P, B);
     lua_pop(B, 2);
 
     rc = pthread_mutex_unlock(&mailbox->mutex);
 
-    /* print out the envelope from our stack */
-    lua_pushnil(P);
-    while (lua_next(P, 1)) {
-        if (strcmp("amazing", lua_tostring(P, -1)) == 0)
-            usleep(5000);
+    utils_push_object_method(P, author, ACTOR_LIB, "scripts");
+    if (lua_pcall(P, 1, 1, 0))
+        luaL_error(P, "Error sending message to actor %p", author);
+    scripts_index = lua_gettop(P);
 
-        printf("%s\n", lua_tostring(P, -1));
-        lua_pop(P, 1);
+    /*
+     * For each script in the actor, send it the message (table) at index 1.
+     */
+    lua_pushnil(P);
+    while (lua_next(P, scripts_index)) {
+        script = lua_check_script(P, -1);
+        utils_push_object_method(P, script, SCRIPT_LIB, "send");
+        lua_pushvalue(P, 1);
+        lua_call(P, 2, 0);
+        lua_pop(P, 2); /* script & key */
     }
-    lua_pop(P, 1);
+    lua_pop(P, 2); /* message table & actor */
 
     postman->needs_address = 0;
 }
@@ -89,6 +106,8 @@ postman_new (Mailbox *mailbox)
     postman->L = luaL_newstate();
     P = postman->L;
     luaL_openlibs(P);
+    luaL_requiref(P, "Dialogue", luaopen_Dialogue, 1);
+    lua_pop(P, 1);
 
     pthread_create(&postman->thread, NULL, postman_thread, postman);
     pthread_detach(postman->thread);
