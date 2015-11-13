@@ -15,7 +15,7 @@ describe("A Mailbox", function()
         mailbox:add{"rolling", "stone"}
         mailbox:add{"all", "along", "the", "watchtower"}
 
-        os.execute("sleep " .. tonumber(1))
+        os.execute("sleep " .. tonumber(4))
         assert.is_equal(mailbox:count(), 0)
     end)
 end)

@@ -42,12 +42,9 @@ postman_thread (void *arg)
         if (postman->needs_address) {
             postman_deliver(postman);
         } else {
-            printf("THREAD: Postman  %p waiting\n", postman);
             rc = pthread_cond_wait(&postman->get_address, &postman->mutex);
         }
     }
-
-    printf("THREAD: Ending postman %p\n", postman);
 
     return NULL;
 }
@@ -67,22 +64,18 @@ postman_new (Mailbox *mailbox)
     if (postman == NULL)
         goto exit;
 
-    printf("CREATE: postman %p\n", postman);
-
     postman->mailbox = mailbox;
     postman->delivering = 1;
     postman->needs_address = 0;
     postman->get_address = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 
     pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    //pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&postman->mutex, &mutex_attr);
 
     postman->L = luaL_newstate();
     P = postman->L;
     luaL_openlibs(P);
-
-    printf("CREATE: Starting postman %p thread\n", postman);
 
     pthread_create(&postman->thread, NULL, postman_thread, postman);
     pthread_detach(postman->thread);
@@ -99,15 +92,12 @@ exit:
 int
 postman_get_address (Postman *postman)
 {
-    int rc = pthread_mutex_lock(&postman->mutex);
+    int rc = pthread_mutex_trylock(&postman->mutex);
 
-    if (rc != 0) {
-        printf("Postman %p busy...\n", postman);
+    if (rc != 0)
         goto busy;
-    }
 
-    printf("Postman %p free!\n", postman);
-
+    printf("Postman %p is delivering!\n", postman);
     postman->needs_address = 1;
 
     rc = pthread_mutex_unlock(&postman->mutex);
@@ -125,18 +115,10 @@ busy:
 void
 postman_free (Postman *postman)
 {
-    printf("FREE: Waiting for postman %p\n", postman);
-
     int rc = pthread_mutex_lock(&postman->mutex);
     postman->delivering = 0;
     rc = pthread_mutex_unlock(&postman->mutex);
 
-    usleep(10000);
-
-    printf("FREE: Closing postman %p internal state\n", postman);
-
     lua_close(postman->L);
     free(postman);
-
-    printf("FREE: Done freeing postman\n");
 }

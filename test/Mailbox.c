@@ -58,11 +58,9 @@ mailbox_thread (void *arg)
 
     while (mailbox->processing) {
         if (mailbox->envelope_count > 0) {
-            printf("Mailbox telling postman to get next envelope\n");
+            mailbox_alert_postman(mailbox);
             mailbox->envelope_count--;
-            //mailbox_alert_postman(mailbox);
         } else {
-            printf("Mailbox waiting on envelopes\n");
             rc = pthread_cond_wait(&mailbox->new_envelope, &mailbox->mutex);
         }
     }
@@ -88,12 +86,8 @@ lua_mailbox_new (lua_State *L)
     mailbox->postmen_count = thread_count;
     mailbox->postmen = malloc(sizeof(Postman*) * thread_count);
 
-    printf("creating mailbox with %d threads\n", mailbox->postmen_count);
-
     if (mailbox->postmen == NULL)
         luaL_error(L, "Error allocating memory for Mailbox threads!");
-
-    puts("creating postmen");
 
     for (i = 0; i < mailbox->postmen_count; i++) {
         mailbox->postmen[i] = postman_new(mailbox);
@@ -114,7 +108,7 @@ lua_mailbox_new (lua_State *L)
     mailbox->new_envelope = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 
     pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    //pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&mailbox->mutex, &mutex_attr);
 
     pthread_create(&mailbox->thread, NULL, mailbox_thread, mailbox);
@@ -173,22 +167,16 @@ lua_mailbox_gc (lua_State *L)
     int rc, i;
     Mailbox *mailbox = lua_check_mailbox(L, 1);
 
-    puts("Waiting for mailbox access");
-
     /* Wait for access (make sure nothing's processing) and stop the thread */
     rc = pthread_mutex_lock(&mailbox->mutex);
     mailbox->processing = 0;
     rc = pthread_mutex_unlock(&mailbox->mutex);
-
-    puts("Freeing postmen");
 
     for (i = 0; i < mailbox->postmen_count; i++)
         postman_free(mailbox->postmen[i]);
 
     free(mailbox->postmen);
     lua_close(mailbox->L);
-
-    puts("Done gcing mailbox");
 
     return 0;
 }
