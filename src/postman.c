@@ -39,22 +39,11 @@ postman_deliver (Postman *postman)
 
     rc = pthread_mutex_unlock(&mailbox->mutex);
 
-    utils_push_object_method(P, author, ACTOR_LIB, "scripts");
-    if (lua_pcall(P, 1, 1, 0))
+    utils_push_object_method(P, author, ACTOR_LIB, "send");
+    lua_pushvalue(P, 1);
+    if (lua_pcall(P, 2, 0, 0))
         luaL_error(P, "Error sending message to actor %p", author);
-    scripts_index = lua_gettop(P);
 
-    /*
-     * For each script in the actor, send it the message (table) at index 1.
-     */
-    lua_pushnil(P);
-    while (lua_next(P, scripts_index)) {
-        script = lua_check_script(P, -1);
-        utils_push_object_method(P, script, SCRIPT_LIB, "send");
-        lua_pushvalue(P, 1);
-        lua_call(P, 2, 0);
-        lua_pop(P, 2); /* script & key */
-    }
     lua_pop(P, 2); /* message table & actor */
 
     postman->needs_address = 0;

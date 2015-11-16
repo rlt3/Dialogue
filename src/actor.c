@@ -191,7 +191,7 @@ lua_actor_audience (lua_State *L)
 static int
 lua_actor_give (lua_State *L)
 {
-    lua_check_actor(L, 1);
+    Actor *actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
     lua_getglobal(L, "Dialogue");
@@ -371,6 +371,45 @@ lua_actor_abandon (lua_State *L)
 }
 
 static int
+lua_actor_send (lua_State *L)
+{
+    int argc, envelope_index;
+    lua_State *A;
+    Script *script;
+    Actor *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    A = actor_request_stack(actor);
+
+    utils_copy_table(A, L, 2);
+    envelope_index = lua_gettop(A);
+
+    for (script = actor->script; script != NULL; script = script->next) {
+        /* function = object.message_title */
+        script_push_object(script, L);
+        utils_push_table_head(A, envelope_index);
+        lua_gettable(A, -2);
+
+        /* it's not an error if the function doesn't exist */
+        if (!lua_isfunction(A, -1)) {
+            lua_pop(A, 2);
+            continue;
+        }
+
+        /* push again to reference 'self' */
+        script_push_object(script, L);
+        argc = utils_push_table_data(A, envelope_index);
+        if (lua_pcall(A, argc + 1, 0, 0)) 
+            luaL_error(L, "Error sending message: %s\n", lua_tostring(L, -1));
+
+        lua_pop(A, 1);
+    }
+
+    actor_return_stack(actor);
+    return 0;
+}
+
+static int
 lua_actor_think (lua_State *L)
 {
     return 0;
@@ -408,7 +447,7 @@ static const luaL_Reg actor_methods[] = {
     {"children",   lua_actor_children},
     {"abandon",    lua_actor_abandon},
     {"audience",   lua_actor_audience},
-    {"send",       lua_actor_think},
+    {"send",       lua_actor_send},
     {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},
     {"__tostring", lua_actor_tostring},

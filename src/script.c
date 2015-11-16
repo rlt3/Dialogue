@@ -69,6 +69,8 @@ lua_script_new (lua_State *L)
         luaL_error(L, "Creating new script failed: %s", lua_tostring(A, -1));
 
     script = lua_check_script(A, -1);
+    lua_pop(A, 4);
+
     actor_add_script(actor, script);
     utils_push_object(L, script, SCRIPT_LIB);
 
@@ -98,6 +100,9 @@ lua_script_spawn (lua_State *L)
     script->table_reference = table_ref;
     script->next = NULL;
     script->is_loaded = 0;
+    script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, script->ref);
 
     return 1;
 }
@@ -141,6 +146,8 @@ lua_script_load (lua_State *L)
 
     script->object_reference = luaL_ref(A, LUA_REGISTRYINDEX);
     script->is_loaded = 1;
+
+    lua_pop(A, 2);
 
     actor_return_stack(script->actor);
     return 0;
