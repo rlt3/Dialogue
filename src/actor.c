@@ -184,6 +184,24 @@ lua_actor_audience (lua_State *L)
 }
 
 /*
+ * Get the Mailbox from an Actor inside a Dialogue.
+ */
+static int
+lua_actor_mailbox (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+
+    if (actor->dialogue == NULL)
+        luaL_error(L, "Actor must be in a Dialogue to have a Mailbox!");
+
+    if (actor->mailbox == NULL)
+        luaL_error(L, "The Dialogue's Mailbox is NULL!");
+
+    utils_push_object(L, actor->mailbox, MAILBOX_LIB);
+    return 1;
+}
+
+/*
  * From a given table, create a Script, give it to the actor, then load it.
  * Returns the loaded Script.
  * player:give{ "weapon", "gun" }
@@ -447,6 +465,7 @@ static const luaL_Reg actor_methods[] = {
     {"children",   lua_actor_children},
     {"abandon",    lua_actor_abandon},
     {"audience",   lua_actor_audience},
+    {"mailbox",    lua_actor_mailbox},
     {"send",       lua_actor_send},
     {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},

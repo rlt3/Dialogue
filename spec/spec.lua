@@ -131,6 +131,34 @@ describe("An Actor", function()
     pending("can be given a mailbox")
 end)
 
+describe("A Mailbox", function()
+    local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
+    local mailbox = Dialogue.Mailbox.new(8)
+    
+    describe("can have Envelopes", function()
+        local envelope = Dialogue.Mailbox.Envelope.new(actor, "think", {"move", 20, 1000})
+
+        it("that hold the message inside", function()
+            assert.are.same(envelope:message(), {"move", 20, 1000})
+        end)
+    end)
+
+    it("can accept an envelope", function()
+        count = mailbox:add(actor, "think", {"move", 20, 1000})
+
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(actor:scripts()[1]:probe("coordinates"), {21, 1001})
+    end)
+
+    --it("processes the Envelopes it receives automatically", function()
+    --    mailbox:add(actor, "whisper", {"amazing"})
+    --    mailbox:add(actor, "whisper", {"grace"})
+
+    --    os.execute("sleep " .. tonumber(2))
+    --    assert.is_equal(mailbox:count(), 0)
+    --end)
+end)
+
 describe("A Dialogue", function()
     local dialogue = Dialogue.new{
         { {"weapon", "Crown", "North"} },
@@ -203,32 +231,14 @@ describe("A Dialogue", function()
         assert.is_equal(audience[5], d)
         assert.is_equal(audience[6], e)
     end)
-end)
 
-describe("A Mailbox", function()
-    local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
-    local mailbox = Dialogue.Mailbox.new(8)
-    
-    describe("can have Envelopes", function()
-        local envelope = Dialogue.Mailbox.Envelope.new(actor, "yell", {"update"})
+    it("every actor in a Dialogue has access to the same Mailbox", function()
+        local mailbox = dialogue:mailbox()
 
-        it("that hold the message inside", function()
-            assert.are.same(envelope:message(), {"update"})
-        end)
+        assert.is_equal(a:mailbox(), mailbox)
+        assert.is_equal(b:mailbox(), mailbox)
+        assert.is_equal(c:mailbox(), mailbox)
+        assert.is_equal(d:mailbox(), mailbox)
+        assert.is_equal(e:mailbox(), mailbox)
     end)
-
-    it("can accept an envelope", function()
-        count = mailbox:add(actor, "yell", {"update"})
-
-        os.execute("sleep " .. tonumber(0.5))
-        assert.is_equal(count, 1)
-    end)
-
-    --it("processes the Envelopes it receives automatically", function()
-    --    mailbox:add(actor, "whisper", {"amazing"})
-    --    mailbox:add(actor, "whisper", {"grace"})
-
-    --    os.execute("sleep " .. tonumber(2))
-    --    assert.is_equal(mailbox:count(), 0)
-    --end)
 end)
