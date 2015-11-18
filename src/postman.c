@@ -12,7 +12,7 @@
 void
 postman_deliver (Postman *postman)
 {
-    int scripts_index;
+    int audience_index;
     const char *tone;
     Actor *author;
     Script *script;
@@ -39,12 +39,24 @@ postman_deliver (Postman *postman)
 
     rc = pthread_mutex_unlock(&mailbox->mutex);
 
-    utils_push_object_method(P, author, ACTOR_LIB, "send");
-    lua_pushvalue(P, 1);
-    if (lua_pcall(P, 2, 0, 0))
-        luaL_error(P, "Error sending message to actor %p", author);
+    /* Get the author's audience by the tone */
+    utils_push_object_method(P, author, ACTOR_LIB, "audience");
+    lua_pushstring(P, tone);
+    lua_call(P, 2, 1);
+    audience_index = lua_gettop(P);
 
-    lua_pop(P, 2); /* message table & actor */
+    /* and send each of the actors in the audience the message */
+    lua_pushnil(P);
+    while (lua_next(P, audience_index)) {
+        lua_check_actor(P, -1);
+        lua_getfield(P, -1, "send");
+        lua_pushvalue(P, -2); /* push the 'self' reference */
+        lua_pushvalue(P, 1);
+        lua_call(P, 2, 0);
+        lua_pop(P, 1);
+    }
+
+    lua_pop(P, 3); /* audience table, actor, message */
 
     postman->needs_address = 0;
 }
