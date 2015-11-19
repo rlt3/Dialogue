@@ -250,7 +250,7 @@ describe("A Dialogue", function()
         assert.is_equal(d:scripts()[1]:probe("durability"), 10)
 
         mailbox:add(b, "command", {"attack"})
-        os.execute("sleep " .. tonumber(2))
+        os.execute("sleep " .. tonumber(0.5))
 
         assert.is_equal(c:scripts()[1]:probe("durability"), 9)
         assert.is_equal(d:scripts()[1]:probe("durability"), 9)

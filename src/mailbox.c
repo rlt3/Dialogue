@@ -92,12 +92,12 @@ lua_mailbox_new (lua_State *L)
 
     thread_count = luaL_checkinteger(L, 1);
 
-    mailbox = lua_newuserdata(L, sizeof(Mailbox));
+    mailbox = lua_newuserdata(L, sizeof *mailbox);
     luaL_getmetatable(L, MAILBOX_LIB);
     lua_setmetatable(L, -2);
 
     mailbox->postmen_count = thread_count;
-    mailbox->postmen = malloc(sizeof(Postman*) * thread_count);
+    mailbox->postmen = malloc(sizeof(*mailbox->postmen) * thread_count);
 
     if (mailbox->postmen == NULL)
         luaL_error(L, "Error allocating memory for Mailbox threads!");

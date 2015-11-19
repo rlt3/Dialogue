@@ -7,6 +7,7 @@
 #include "envelope.h"
 #include "actor.h"
 #include "script.h"
+#include "tone.h"
 #include "utils.h"
 
 void
@@ -15,7 +16,6 @@ postman_deliver (Postman *postman)
     int audience_index;
     const char *tone;
     Actor *author;
-    Script *script;
     Envelope *envelope;
     Mailbox *mailbox = postman->mailbox;
     lua_State *B = mailbox->L;
@@ -40,10 +40,10 @@ postman_deliver (Postman *postman)
     rc = pthread_mutex_unlock(&mailbox->mutex);
 
     /* Get the author's audience by the tone */
-    utils_push_object_method(P, author, ACTOR_LIB, "audience");
-    lua_pushstring(P, tone);
-    lua_call(P, 2, 1);
+    tone_filter(P, author, tone);
+
     audience_index = lua_gettop(P);
+    luaL_checktype(P, audience_index, LUA_TTABLE);
 
     /* and send each of the actors in the audience the message */
     lua_pushnil(P);
@@ -56,7 +56,7 @@ postman_deliver (Postman *postman)
         lua_pop(P, 1);
     }
 
-    lua_pop(P, 3); /* audience table, actor, message */
+    lua_pop(P, 2); /* audience table, message */
 
     postman->needs_address = 0;
 }
@@ -90,7 +90,7 @@ postman_new (Mailbox *mailbox)
     lua_State *P;
     pthread_mutexattr_t mutex_attr;
 
-    Postman *postman = malloc(sizeof(Postman));
+    Postman *postman = malloc(sizeof *postman);
 
     if (postman == NULL)
         goto exit;

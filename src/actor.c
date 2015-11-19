@@ -197,7 +197,7 @@ lua_actor_mailbox (lua_State *L)
     if (actor->mailbox == NULL)
         luaL_error(L, "The Dialogue's Mailbox is NULL!");
 
-    utils_push_object(L, actor->mailbox, MAILBOX_LIB);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->mailbox->ref);
     return 1;
 }
 
@@ -209,7 +209,7 @@ lua_actor_mailbox (lua_State *L)
 static int
 lua_actor_give (lua_State *L)
 {
-    Actor *actor = lua_check_actor(L, 1);
+    lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
     lua_getglobal(L, "Dialogue");
