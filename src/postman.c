@@ -40,7 +40,7 @@ postman_deliver (Postman *postman)
     rc = pthread_mutex_unlock(&mailbox->mutex);
 
     /* Get the author's audience by the tone */
-    tone_filter(P, author, tone);
+    audience_filter_tone(P, author, tone);
 
     audience_index = lua_gettop(P);
     luaL_checktype(P, audience_index, LUA_TTABLE);

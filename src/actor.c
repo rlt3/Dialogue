@@ -179,7 +179,7 @@ lua_actor_audience (lua_State *L)
 {
     Actor *actor = lua_check_actor(L, 1);
     const char *tone = luaL_checkstring(L, 2);
-    tone_filter(L, actor, tone);
+    audience_filter_tone(L, actor, tone);
     return 1;
 }
 
