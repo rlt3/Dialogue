@@ -58,7 +58,7 @@ postman_deliver (Postman *postman)
 
     lua_pop(P, 2); /* audience table, message */
 
-    postman->needs_address = 0;
+    postman->has_work = 0;
 }
 
 void *
@@ -70,10 +70,10 @@ postman_thread (void *arg)
     rc = pthread_mutex_lock(&postman->mutex);
 
     while (postman->delivering) {
-        if (postman->needs_address) {
+        if (postman->has_work) {
             postman_deliver(postman);
         } else {
-            rc = pthread_cond_wait(&postman->get_address, &postman->mutex);
+            rc = pthread_cond_wait(&postman->get_work, &postman->mutex);
         }
     }
 
@@ -97,8 +97,8 @@ postman_new (Mailbox *mailbox)
 
     postman->mailbox = mailbox;
     postman->delivering = 1;
-    postman->needs_address = 0;
-    postman->get_address = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    postman->has_work = 0;
+    postman->get_work = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 
     pthread_mutexattr_init(&mutex_attr);
     //pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
@@ -125,18 +125,13 @@ exit:
 int
 postman_get_address (Postman *postman)
 {
-    int rc = pthread_mutex_trylock(&postman->mutex);
-
-    if (rc != 0)
+    if (postman->has_work)
         goto busy;
 
-    postman->needs_address = 1;
-
-    rc = pthread_mutex_unlock(&postman->mutex);
-    rc = pthread_cond_signal(&postman->get_address);
+    postman->has_work = 1;
+    pthread_cond_signal(&postman->get_work);
 
     return 1;
-
 busy:
     return 0;
 }

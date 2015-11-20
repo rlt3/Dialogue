@@ -255,4 +255,16 @@ describe("A Dialogue", function()
         assert.is_equal(c:scripts()[1]:probe("durability"), 9)
         assert.is_equal(d:scripts()[1]:probe("durability"), 9)
     end)
+
+    it("can handle Actors sending messages which send messages", function()
+        b:think{"move", 2, 2}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {402, 202})
+
+        dialogue:yell{"walk"}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(a:scripts()[1]:probe("coordinates"), {4, 6})
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {404, 204})
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {22, 8})
+    end)
 end)
