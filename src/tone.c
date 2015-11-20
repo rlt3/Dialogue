@@ -39,8 +39,6 @@ audience_dialogue (lua_State *L, Actor *parent, int acc)
     Actor *child;
     audience_set(L, parent, acc);
 
-    printf("audience_dialogue: %p, %d\n", parent, acc);
-
     for (child = parent->child, acc++; child != NULL; child = child->next) {
         if (child->child != NULL) {
             acc = audience_dialogue(L, child, acc);

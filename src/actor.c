@@ -427,15 +427,63 @@ lua_actor_send (lua_State *L)
     return 0;
 }
 
-static int
-lua_actor_think (lua_State *L)
+/*
+ * From an Actor at index 1 and a message table at index 2, send a message
+ * to an audience via the tone given.
+ */
+void
+actor_mailbox_add_envelope (lua_State *L, const char *tone)
 {
-    return 0;
+    Actor *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    if (actor->mailbox == NULL)
+        luaL_error(L, "Actor doesn't have a Mailbox!");
+        
+    if (actor->dialogue == NULL)
+        luaL_error(L, "Actor isn't in a Dialogue!");
+
+    /* mailbox:add(actor, tone, {table}) */
+    utils_push_object_method(L, actor->mailbox, MAILBOX_LIB, "add");
+    utils_push_object(L, actor, ACTOR_LIB);
+    lua_pushstring(L, tone);
+    lua_pushvalue(L, 2);
+    lua_call(L, 4, 0);
+    lua_pop(L, 1);
 }
 
 static int
 lua_actor_yell (lua_State *L)
 {
+    actor_mailbox_add_envelope(L, "yell");
+    return 0;
+}
+
+static int
+lua_actor_command (lua_State *L)
+{
+    actor_mailbox_add_envelope(L, "command");
+    return 0;
+}
+
+static int
+lua_actor_say (lua_State *L)
+{
+    actor_mailbox_add_envelope(L, "say");
+    return 0;
+}
+
+static int
+lua_actor_whisper (lua_State *L)
+{
+    actor_mailbox_add_envelope(L, "whisper");
+    return 0;
+}
+
+static int
+lua_actor_think (lua_State *L)
+{
+    actor_mailbox_add_envelope(L, "think");
     return 0;
 }
 
@@ -467,8 +515,11 @@ static const luaL_Reg actor_methods[] = {
     {"audience",   lua_actor_audience},
     {"mailbox",    lua_actor_mailbox},
     {"send",       lua_actor_send},
-    {"think",      lua_actor_think},
     {"yell",       lua_actor_yell},
+    {"command",    lua_actor_command},
+    {"say",        lua_actor_say},
+    {"whisper",    lua_actor_whisper},
+    {"think",      lua_actor_think},
     {"__tostring", lua_actor_tostring},
     {"__gc",       lua_actor_gc},
     { NULL, NULL }
