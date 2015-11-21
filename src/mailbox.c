@@ -198,7 +198,7 @@ lua_mailbox_add (lua_State *L)
     utils_copy_top(B, L);
     lua_call(B, 3, 1);
     
-    lua_rawseti(B, table_index, mailbox->envelope_count);
+    lua_rawseti(B, table_index, luaL_len(B, table_index) + 1);
 
     lua_pop(B, 3); /* Pop Dialogue, Mailbox & Envelope */
 
