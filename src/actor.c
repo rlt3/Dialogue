@@ -179,7 +179,25 @@ lua_actor_audience (lua_State *L)
 {
     Actor *actor = lua_check_actor(L, 1);
     const char *tone = luaL_checkstring(L, 2);
-    tone_filter(L, actor, tone);
+    audience_filter_tone(L, actor, tone);
+    return 1;
+}
+
+/*
+ * Get the Mailbox from an Actor inside a Dialogue.
+ */
+static int
+lua_actor_mailbox (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+
+    if (actor->dialogue == NULL)
+        luaL_error(L, "Actor must be in a Dialogue to have a Mailbox!");
+
+    if (actor->mailbox == NULL)
+        luaL_error(L, "The Dialogue's Mailbox is NULL!");
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->mailbox->ref);
     return 1;
 }
 
@@ -371,14 +389,101 @@ lua_actor_abandon (lua_State *L)
 }
 
 static int
-lua_actor_think (lua_State *L)
+lua_actor_send (lua_State *L)
 {
+    int argc, envelope_index;
+    lua_State *A;
+    Script *script;
+    Actor *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    A = actor_request_stack(actor);
+
+    utils_copy_table(A, L, 2);
+    envelope_index = lua_gettop(A);
+
+    for (script = actor->script; script != NULL; script = script->next) {
+        /* function = object.message_title */
+        script_push_object(script, L);
+        utils_push_table_head(A, envelope_index);
+        lua_gettable(A, -2);
+
+        /* it's not an error if the function doesn't exist */
+        if (!lua_isfunction(A, -1)) {
+            lua_pop(A, 2);
+            continue;
+        }
+
+        /* push again to reference 'self' */
+        script_push_object(script, L);
+        argc = utils_push_table_data(A, envelope_index);
+        if (lua_pcall(A, argc + 1, 0, 0)) 
+            luaL_error(L, "Error sending message: %s\n", lua_tostring(L, -1));
+
+        lua_pop(A, 1);
+    }
+
+    actor_return_stack(actor);
     return 0;
+}
+
+/*
+ * From an Actor at index 1 and a message table at index 2, send a message
+ * to an audience via the tone given.
+ */
+void
+actor_mailbox_add_envelope (lua_State *L, const char *tone)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    if (actor->mailbox == NULL)
+        luaL_error(L, "Actor doesn't have a Mailbox!");
+        
+    if (actor->dialogue == NULL)
+        luaL_error(L, "Actor isn't in a Dialogue!");
+
+    /* mailbox:add(actor, tone, {table}) */
+    utils_push_object_method(L, actor->mailbox, MAILBOX_LIB, "add");
+    utils_push_object(L, actor, ACTOR_LIB);
+    lua_pushstring(L, tone);
+    lua_pushvalue(L, 2);
+    lua_call(L, 4, 0);
+    lua_pop(L, 1);
 }
 
 static int
 lua_actor_yell (lua_State *L)
 {
+    actor_mailbox_add_envelope(L, "yell");
+    return 0;
+}
+
+static int
+lua_actor_command (lua_State *L)
+{
+    actor_mailbox_add_envelope(L, "command");
+    return 0;
+}
+
+static int
+lua_actor_say (lua_State *L)
+{
+    actor_mailbox_add_envelope(L, "say");
+    return 0;
+}
+
+static int
+lua_actor_whisper (lua_State *L)
+{
+    actor_mailbox_add_envelope(L, "whisper");
+    return 0;
+}
+
+static int
+lua_actor_think (lua_State *L)
+{
+    actor_mailbox_add_envelope(L, "think");
     return 0;
 }
 
@@ -408,9 +513,13 @@ static const luaL_Reg actor_methods[] = {
     {"children",   lua_actor_children},
     {"abandon",    lua_actor_abandon},
     {"audience",   lua_actor_audience},
-    {"send",       lua_actor_think},
-    {"think",      lua_actor_think},
+    {"mailbox",    lua_actor_mailbox},
+    {"send",       lua_actor_send},
     {"yell",       lua_actor_yell},
+    {"command",    lua_actor_command},
+    {"say",        lua_actor_say},
+    {"whisper",    lua_actor_whisper},
+    {"think",      lua_actor_think},
     {"__tostring", lua_actor_tostring},
     {"__gc",       lua_actor_gc},
     { NULL, NULL }

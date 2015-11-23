@@ -92,12 +92,12 @@ lua_mailbox_new (lua_State *L)
 
     thread_count = luaL_checkinteger(L, 1);
 
-    mailbox = lua_newuserdata(L, sizeof(Mailbox));
+    mailbox = lua_newuserdata(L, sizeof *mailbox);
     luaL_getmetatable(L, MAILBOX_LIB);
     lua_setmetatable(L, -2);
 
     mailbox->postmen_count = thread_count;
-    mailbox->postmen = malloc(sizeof(Postman*) * thread_count);
+    mailbox->postmen = malloc(sizeof(*mailbox->postmen) * thread_count);
 
     if (mailbox->postmen == NULL)
         luaL_error(L, "Error allocating memory for Mailbox threads!");
@@ -151,11 +151,33 @@ lua_mailbox_new (lua_State *L)
 static int
 lua_mailbox_add (lua_State *L)
 {
-    int rc, table_index;
+    int rc, args, table_index;
     lua_State *B;
-    Mailbox *mailbox = lua_check_mailbox(L, 1);
-    Actor *actor = lua_check_actor(L, 2);
-    const char *tone = luaL_checkstring(L, 3);
+    Mailbox *mailbox;
+    Actor *actor;
+    const char *tone;
+
+    /*
+     * Because we want multiple Lua stacks (each actor, Interpreter) to be able
+     * to use this Mailbox method, we must pass the Mailbox pointer between
+     * stacks as light user data. Lua cannot differentiate between heavy user
+     * data and light user data, so we can't check the type explicitly here.
+     */
+
+    args = lua_gettop(L);
+    if (args != 4)
+        luaL_error(L, "Incorrect # of arguments to Mailbox:add (%d, expected 4)", args);
+
+    if (!lua_islightuserdata(L, 1) && !lua_isuserdata(L, 1))
+        luaL_error(L, "Argument #1 to Mailbox:add needs to be Mailbox userdata");
+
+    mailbox = (Mailbox*) lua_touserdata(L, 1);
+
+    if (mailbox == NULL)
+        luaL_error(L, "Mailbox reference cannot be NULL to Mailbox:add");
+
+    actor = lua_check_actor(L, 2);
+    tone = luaL_checkstring(L, 3);
     luaL_checktype(L, 4, LUA_TTABLE);
 
     /* Wait & lock for access to the internal state */
@@ -176,27 +198,34 @@ lua_mailbox_add (lua_State *L)
     utils_copy_top(B, L);
     lua_call(B, 3, 1);
     
-    lua_rawseti(B, table_index, mailbox->envelope_count);
+    lua_rawseti(B, table_index, luaL_len(B, table_index) + 1);
 
     lua_pop(B, 3); /* Pop Dialogue, Mailbox & Envelope */
-
-    lua_pushinteger(L, mailbox->envelope_count);
 
     /* Unlock access and then signal thread the wait condition */
     rc = pthread_mutex_unlock(&mailbox->mutex);
     rc = pthread_cond_signal(&mailbox->new_envelope);
 
-    return 1;
+    return 0;
 }
 
+/*
+ * Return the number of envelopes in the envelope table.
+ */
 static int
 lua_mailbox_count (lua_State *L)
 {
-    int rc;
+    int count;
     Mailbox *mailbox = lua_check_mailbox(L, 1);
-    rc = pthread_mutex_lock(&mailbox->mutex);
-    lua_pushinteger(L, mailbox->envelope_count);
-    rc = pthread_mutex_unlock(&mailbox->mutex);
+    lua_State *B = mailbox->L;
+
+    pthread_mutex_lock(&mailbox->mutex);
+    lua_rawgeti(B, LUA_REGISTRYINDEX, mailbox->envelopes_table);
+    count = luaL_len(B, -1);
+    lua_pop(B, 1);
+    pthread_mutex_unlock(&mailbox->mutex);
+
+    lua_pushinteger(L, count);
     return 1;
 }
 

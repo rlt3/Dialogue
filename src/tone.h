@@ -11,7 +11,7 @@ struct Actor;
  * Filter an Actor's audience by the tone -- a string.
  */
 void
-tone_filter (lua_State *L, struct Actor *actor, const char *tone);
+audience_filter_tone (lua_State *L, struct Actor *actor, const char *tone);
 
 /*
  * Set the entire dialogue tree as the audience.

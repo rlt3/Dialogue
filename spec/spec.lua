@@ -131,6 +131,35 @@ describe("An Actor", function()
     pending("can be given a mailbox")
 end)
 
+describe("A Mailbox", function()
+    local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
+    local mailbox = Dialogue.Mailbox.new(8)
+    
+    describe("can have Envelopes", function()
+        local envelope = Dialogue.Mailbox.Envelope.new(actor, "think", {"move", 20, 1000})
+
+        it("that hold the message inside", function()
+            assert.are.same(envelope:message(), {"move", 20, 1000})
+        end)
+    end)
+
+    it("can accept an envelope", function()
+        mailbox:add(actor, "think", {"move", 20, 1000})
+
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(actor:scripts()[1]:probe("coordinates"), {21, 1001})
+    end)
+
+    it("processes the Envelopes it receives automatically", function()
+        mailbox:add(actor, "think", {"move", 15, 20})
+        mailbox:add(actor, "think", {"move", 5, 0})
+
+        os.execute("sleep " .. tonumber(0.5))
+        assert.is_equal(mailbox:count(), 0)
+        assert.are.same(actor:scripts()[1]:probe("coordinates"), {41, 1021})
+    end)
+end)
+
 describe("A Dialogue", function()
     local dialogue = Dialogue.new{
         { {"weapon", "Crown", "North"} },
@@ -182,53 +211,67 @@ describe("A Dialogue", function()
     end)
 
     it("has a method 'audience' which returns a list of actors filtered by the tone", function()
+        -- Since we're working with objects (Actors, Scripts, Envelopes, &c)
+        -- which get transfered (by pointer) through many Lua stacks, our 
+        -- heavy userdata might be represented as light userdata as it has 
+        -- made rounds through the system. Since the __eq metamethod doesn't
+        -- get called for comparison of heavy vs light userdata, we simply
+        -- do this string comparison of output to see they are the same.
         local audience = b:audience("say")
         assert.is_equal(#audience, 4)
-        assert.is_equal(audience[1], dialogue)
-        assert.is_equal(audience[2], a)
-        assert.is_equal(audience[3], b)
-        assert.is_equal(audience[4], e)
+        assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
+        assert.is_equal(audience[2]:__tostring(), a:__tostring())
+        assert.is_equal(audience[3]:__tostring(), b:__tostring())
+        assert.is_equal(audience[4]:__tostring(), e:__tostring())
 
         audience = b:audience("command")
         assert.is_equal(#audience, 2)
-        assert.is_equal(audience[1], c)
-        assert.is_equal(audience[2], d)
+        assert.is_equal(audience[1]:__tostring(), c:__tostring())
+        assert.is_equal(audience[2]:__tostring(), d:__tostring())
 
         audience = b:audience("yell")
         assert.is_equal(#audience, 6)
-        assert.is_equal(audience[1], dialogue)
-        assert.is_equal(audience[2], a)
-        assert.is_equal(audience[3], b)
-        assert.is_equal(audience[4], c)
-        assert.is_equal(audience[5], d)
-        assert.is_equal(audience[6], e)
-    end)
-end)
-
-describe("A Mailbox", function()
-    local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
-    local mailbox = Dialogue.Mailbox.new(8)
-    
-    describe("can have Envelopes", function()
-        local envelope = Dialogue.Mailbox.Envelope.new(actor, "yell", {"update"})
-
-        it("that hold the message inside", function()
-            assert.are.same(envelope:message(), {"update"})
-        end)
+        assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
+        assert.is_equal(audience[2]:__tostring(), a:__tostring())
+        assert.is_equal(audience[3]:__tostring(), b:__tostring())
+        assert.is_equal(audience[4]:__tostring(), c:__tostring())
+        assert.is_equal(audience[5]:__tostring(), d:__tostring())
+        assert.is_equal(audience[6]:__tostring(), e:__tostring())
     end)
 
-    it("can accept an envelope", function()
-        count = mailbox:add(actor, "yell", {"update"})
+    it("has a Mailbox which can be accessed by every Actor", function()
+        local mailbox = dialogue:mailbox()
 
+        assert.is_equal(a:mailbox(), mailbox)
+        assert.is_equal(a:mailbox(), mailbox)
+        assert.is_equal(b:mailbox(), mailbox)
+        assert.is_equal(c:mailbox(), mailbox)
+        assert.is_equal(d:mailbox(), mailbox)
+        assert.is_equal(e:mailbox(), mailbox)
+    end)
+
+    it("allows for its Actors to send messages via their audience", function()
+        local mailbox = dialogue:mailbox()
+
+        assert.is_equal(c:scripts()[1]:probe("durability"), 10)
+        assert.is_equal(d:scripts()[1]:probe("durability"), 10)
+
+        mailbox:add(b, "command", {"attack"})
         os.execute("sleep " .. tonumber(0.5))
-        assert.is_equal(count, 1)
+
+        assert.is_equal(c:scripts()[1]:probe("durability"), 9)
+        assert.is_equal(d:scripts()[1]:probe("durability"), 9)
     end)
 
-    --it("processes the Envelopes it receives automatically", function()
-    --    mailbox:add(actor, "whisper", {"amazing"})
-    --    mailbox:add(actor, "whisper", {"grace"})
+    it("can handle Actors sending messages which send messages", function()
+        b:think{"move", 2, 2}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {402, 202})
 
-    --    os.execute("sleep " .. tonumber(2))
-    --    assert.is_equal(mailbox:count(), 0)
-    --end)
+        dialogue:yell{"walk"}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(a:scripts()[1]:probe("coordinates"), {4, 6})
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {404, 204})
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {22, 8})
+    end)
 end)

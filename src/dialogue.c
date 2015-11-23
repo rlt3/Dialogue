@@ -57,6 +57,7 @@ lua_dialogue_new (lua_State *L)
         lua_pop(L, 2);
     } else {
         actor->dialogue = lua_check_actor(L, 2);
+        actor->mailbox = actor->dialogue->mailbox;
         lua_pop(L, 1);
     }
 

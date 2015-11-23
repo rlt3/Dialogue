@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "actor.h"
 #include "tone.h"
+#include "utils.h"
 
 /*
  * Since we're doing this recursively, we pass in the accumulator (acc) to each
@@ -13,7 +14,7 @@ audience_set (lua_State *L, Actor *actor, int acc)
     if (actor == NULL)
         return;
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
+    utils_push_object(L, actor, ACTOR_LIB);
     lua_rawseti(L, -2, acc);
 }
 
@@ -54,7 +55,7 @@ audience_dialogue (lua_State *L, Actor *parent, int acc)
  * Filter an Actor's audience by the tone -- a string.
  */
 void
-tone_filter (lua_State *L, Actor *actor, const char *tone)
+audience_filter_tone (lua_State *L, Actor *actor, const char *tone)
 {
     if (tone == NULL)
         luaL_error(L, "Tone cannot be empty!");

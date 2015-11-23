@@ -6,10 +6,10 @@
 typedef struct Postman {
     lua_State *L;
     int delivering;
-    int needs_address;
+    int has_work;
     Mailbox *mailbox;
     pthread_mutex_t mutex;
-    pthread_cond_t get_address;
+    pthread_cond_t get_work;
     pthread_t thread;
 } Postman;
 

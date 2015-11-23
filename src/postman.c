@@ -7,15 +7,15 @@
 #include "envelope.h"
 #include "actor.h"
 #include "script.h"
+#include "tone.h"
 #include "utils.h"
 
 void
 postman_deliver (Postman *postman)
 {
-    int scripts_index;
+    int audience_index;
     const char *tone;
     Actor *author;
-    Script *script;
     Envelope *envelope;
     Mailbox *mailbox = postman->mailbox;
     lua_State *B = mailbox->L;
@@ -39,25 +39,26 @@ postman_deliver (Postman *postman)
 
     rc = pthread_mutex_unlock(&mailbox->mutex);
 
-    utils_push_object_method(P, author, ACTOR_LIB, "scripts");
-    if (lua_pcall(P, 1, 1, 0))
-        luaL_error(P, "Error sending message to actor %p", author);
-    scripts_index = lua_gettop(P);
+    /* Get the author's audience by the tone */
+    audience_filter_tone(P, author, tone);
 
-    /*
-     * For each script in the actor, send it the message (table) at index 1.
-     */
+    audience_index = lua_gettop(P);
+    luaL_checktype(P, audience_index, LUA_TTABLE);
+
+    /* and send each of the actors in the audience the message */
     lua_pushnil(P);
-    while (lua_next(P, scripts_index)) {
-        script = lua_check_script(P, -1);
-        utils_push_object_method(P, script, SCRIPT_LIB, "send");
+    while (lua_next(P, audience_index)) {
+        lua_check_actor(P, -1);
+        lua_getfield(P, -1, "send");
+        lua_pushvalue(P, -2); /* push the 'self' reference */
         lua_pushvalue(P, 1);
         lua_call(P, 2, 0);
-        lua_pop(P, 2); /* script & key */
+        lua_pop(P, 1);
     }
-    lua_pop(P, 2); /* message table & actor */
 
-    postman->needs_address = 0;
+    lua_pop(P, 2); /* audience table, message */
+
+    postman->has_work = 0;
 }
 
 void *
@@ -69,10 +70,10 @@ postman_thread (void *arg)
     rc = pthread_mutex_lock(&postman->mutex);
 
     while (postman->delivering) {
-        if (postman->needs_address) {
+        if (postman->has_work) {
             postman_deliver(postman);
         } else {
-            rc = pthread_cond_wait(&postman->get_address, &postman->mutex);
+            rc = pthread_cond_wait(&postman->get_work, &postman->mutex);
         }
     }
 
@@ -89,15 +90,15 @@ postman_new (Mailbox *mailbox)
     lua_State *P;
     pthread_mutexattr_t mutex_attr;
 
-    Postman *postman = malloc(sizeof(Postman));
+    Postman *postman = malloc(sizeof *postman);
 
     if (postman == NULL)
         goto exit;
 
     postman->mailbox = mailbox;
     postman->delivering = 1;
-    postman->needs_address = 0;
-    postman->get_address = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    postman->has_work = 0;
+    postman->get_work = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 
     pthread_mutexattr_init(&mutex_attr);
     //pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
@@ -124,18 +125,13 @@ exit:
 int
 postman_get_address (Postman *postman)
 {
-    int rc = pthread_mutex_trylock(&postman->mutex);
-
-    if (rc != 0)
+    if (postman->has_work)
         goto busy;
 
-    postman->needs_address = 1;
-
-    rc = pthread_mutex_unlock(&postman->mutex);
-    rc = pthread_cond_signal(&postman->get_address);
+    postman->has_work = 1;
+    pthread_cond_signal(&postman->get_work);
 
     return 1;
-
 busy:
     return 0;
 }
