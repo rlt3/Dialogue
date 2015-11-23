@@ -209,14 +209,23 @@ lua_mailbox_add (lua_State *L)
     return 0;
 }
 
+/*
+ * Return the number of envelopes in the envelope table.
+ */
 static int
 lua_mailbox_count (lua_State *L)
 {
-    int rc;
+    int count;
     Mailbox *mailbox = lua_check_mailbox(L, 1);
-    rc = pthread_mutex_lock(&mailbox->mutex);
-    lua_pushinteger(L, mailbox->envelope_count);
-    rc = pthread_mutex_unlock(&mailbox->mutex);
+    lua_State *B = mailbox->L;
+
+    pthread_mutex_lock(&mailbox->mutex);
+    lua_rawgeti(B, LUA_REGISTRYINDEX, mailbox->envelopes_table);
+    count = luaL_len(B, -1);
+    lua_pop(B, 1);
+    pthread_mutex_unlock(&mailbox->mutex);
+
+    lua_pushinteger(L, count);
     return 1;
 }
 

@@ -131,33 +131,34 @@ describe("An Actor", function()
     pending("can be given a mailbox")
 end)
 
---describe("A Mailbox", function()
---    local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
---    local mailbox = Dialogue.Mailbox.new(8)
---    
---    describe("can have Envelopes", function()
---        local envelope = Dialogue.Mailbox.Envelope.new(actor, "think", {"move", 20, 1000})
---
---        it("that hold the message inside", function()
---            assert.are.same(envelope:message(), {"move", 20, 1000})
---        end)
---    end)
---
---    it("can accept an envelope", function()
---        count = mailbox:add(actor, "think", {"move", 20, 1000})
---
---        os.execute("sleep " .. tonumber(0.5))
---        assert.are.same(actor:scripts()[1]:probe("coordinates"), {21, 1001})
---    end)
---
---    --it("processes the Envelopes it receives automatically", function()
---    --    mailbox:add(actor, "whisper", {"amazing"})
---    --    mailbox:add(actor, "whisper", {"grace"})
---
---    --    os.execute("sleep " .. tonumber(2))
---    --    assert.is_equal(mailbox:count(), 0)
---    --end)
---end)
+describe("A Mailbox", function()
+    local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
+    local mailbox = Dialogue.Mailbox.new(8)
+    
+    describe("can have Envelopes", function()
+        local envelope = Dialogue.Mailbox.Envelope.new(actor, "think", {"move", 20, 1000})
+
+        it("that hold the message inside", function()
+            assert.are.same(envelope:message(), {"move", 20, 1000})
+        end)
+    end)
+
+    it("can accept an envelope", function()
+        mailbox:add(actor, "think", {"move", 20, 1000})
+
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(actor:scripts()[1]:probe("coordinates"), {21, 1001})
+    end)
+
+    it("processes the Envelopes it receives automatically", function()
+        mailbox:add(actor, "think", {"move", 15, 20})
+        mailbox:add(actor, "think", {"move", 5, 0})
+
+        os.execute("sleep " .. tonumber(0.5))
+        assert.is_equal(mailbox:count(), 0)
+        assert.are.same(actor:scripts()[1]:probe("coordinates"), {41, 1021})
+    end)
+end)
 
 describe("A Dialogue", function()
     local dialogue = Dialogue.new{
