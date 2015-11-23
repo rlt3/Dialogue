@@ -168,7 +168,7 @@ lua_mailbox_add (lua_State *L)
     if (args != 4)
         luaL_error(L, "Incorrect # of arguments to Mailbox:add (%d, expected 4)", args);
 
-    if (!lua_islightuserdata(L, 1))
+    if (!lua_islightuserdata(L, 1) && !lua_isuserdata(L, 1))
         luaL_error(L, "Argument #1 to Mailbox:add needs to be Mailbox userdata");
 
     mailbox = (Mailbox*) lua_touserdata(L, 1);
