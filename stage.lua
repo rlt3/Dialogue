@@ -30,5 +30,4 @@ dialogue = Dialogue.new{
 
 mailbox = dialogue:mailbox()
 b = dialogue:children()[2]
---o = b:children()[1]:scripts()[1]
---t = b:children()[2]:scripts()[1]
+audience = b:audience("say")

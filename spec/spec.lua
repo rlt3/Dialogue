@@ -210,26 +210,32 @@ describe("A Dialogue", function()
     end)
 
     it("has a method 'audience' which returns a list of actors filtered by the tone", function()
+        -- Since we're working with objects (Actors, Scripts, Envelopes, &c)
+        -- which get transfered (by pointer) through many Lua stacks, our 
+        -- heavy userdata might be represented as light userdata as it has 
+        -- made rounds through the system. Since the __eq metamethod doesn't
+        -- get called for comparison of heavy vs light userdata, we simply
+        -- do this string comparison of output to see they are the same.
         local audience = b:audience("say")
         assert.is_equal(#audience, 4)
-        assert.is_equal(audience[1], dialogue)
-        assert.is_equal(audience[2], a)
-        assert.is_equal(audience[3], b)
-        assert.is_equal(audience[4], e)
+        assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
+        assert.is_equal(audience[2]:__tostring(), a:__tostring())
+        assert.is_equal(audience[3]:__tostring(), b:__tostring())
+        assert.is_equal(audience[4]:__tostring(), e:__tostring())
 
         audience = b:audience("command")
         assert.is_equal(#audience, 2)
-        assert.is_equal(audience[1], c)
-        assert.is_equal(audience[2], d)
+        assert.is_equal(audience[1]:__tostring(), c:__tostring())
+        assert.is_equal(audience[2]:__tostring(), d:__tostring())
 
         audience = b:audience("yell")
         assert.is_equal(#audience, 6)
-        assert.is_equal(audience[1], dialogue)
-        assert.is_equal(audience[2], a)
-        assert.is_equal(audience[3], b)
-        assert.is_equal(audience[4], c)
-        assert.is_equal(audience[5], d)
-        assert.is_equal(audience[6], e)
+        assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
+        assert.is_equal(audience[2]:__tostring(), a:__tostring())
+        assert.is_equal(audience[3]:__tostring(), b:__tostring())
+        assert.is_equal(audience[4]:__tostring(), c:__tostring())
+        assert.is_equal(audience[5]:__tostring(), d:__tostring())
+        assert.is_equal(audience[6]:__tostring(), e:__tostring())
     end)
 
     it("has a Mailbox which can be accessed by every Actor", function()
