@@ -14,7 +14,7 @@ install:
   - sudo apt-get install luarocks
   - sudo luarocks install busted
   - lua -v
-  - locate lua.h
+  - sudo find / -name "lua.h"
   - busted --version
 
 script: make travis_build && make test
