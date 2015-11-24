@@ -6,6 +6,7 @@ env:
 branches:
   only:
     - master
+    - travis
 
 before_install:
   - chmod +x travis.sh
