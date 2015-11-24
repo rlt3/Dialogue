@@ -17,7 +17,7 @@ endif
 all: clean dialogue
 
 travis_build: $(SOURCES)
-	$(CC) -Wall -Isrc/ -I./ -I./lua -I./lua/src -D _BSD_SOURCE -fPIC -shared -o $(MODULE) $^ -L./ -L/usr/lib -llua -lpthread
+	$(CC) -Wall -Isrc/ -I./ -D _BSD_SOURCE -fPIC -shared -o $(MODULE) $^ -L./ -L/usr/local/lib -llua5.2 -lpthread
 
 dialogue: $(SOURCES)
 	$(CC) -g $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
