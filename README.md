@@ -23,8 +23,8 @@ The Scripts are what you as a user would define.
 
 ## Terminology
 
-I intentially chose a lot of play-like language to hopefully make understanding
-this easy and to draw parallels between the real world.
+I intentionally chose a lot of play-like language to hopefully make
+understanding this easy and to draw parallels between the real world.
 
 #### Message
 
@@ -37,7 +37,7 @@ two spaces right.
 
 In real life, the tone is *how* we say something, but not actually what was 
 said. It is the same here: it is how we can scope our Audience regardless of
-the message being sent. This is how any given Actor gets it audience:
+the message being sent. This is how any given Actor gets its Audience:
 
 * Yell - Send the message to the entire Dialogue tree.
 * Say - Send a message to its parent and the children of that parent.
@@ -48,7 +48,7 @@ the message being sent. This is how any given Actor gets it audience:
 #### Audience
 
 The group of Actors which will receive a message filtered by the Tone. An
-audience can be one Actor (for a whisper) or the entire Dialogue tree (for a 
+Audience can be one Actor (for a whisper) or the entire Dialogue tree (for a 
 yell).
 
 #### Script
@@ -62,22 +62,23 @@ state.
 
 #### Actor
 
-An actor in a play can take many roles depending on the character they're
-playing -- they are fungible. Actors are no different here. They are containers
-to be given Scripts which they 'read' from.
+An actor in a play can play many different characters -- they are fungible.
+Actors are no different here. They are containers to be given Scripts which
+they 'read' from. 
 
-The Actor has its own internal state which allows it to be sent messages 
-asynchronously.
+The Actor provides the facility to send and receive messages. The Actor has
+its own internal state which allows it to be sent messages asynchronously.
 
 #### Dialogue
 
 The definition of a dialogue is two or more people conversing with one another.
-It's mostly the same here: a Dialogue is a tree of Actors and provides the
-ability for messages to be scoped by a Tone.
+It's mostly the same here: a Dialogue is a tree of Actors which can send and
+receive messages. The tree provides the ability for messages to be scoped by a
+Tone.
 
 #### Stage
 
-Most plays take place on a stage. Stage.lua is where I define by Scripts and
+Most plays take place on a stage. Stage.lua is where I define my Scripts and
 Actors in a Dialogue.
 
 ##### Other terminology
