@@ -24,6 +24,8 @@ dialogue: $(SOURCES)
 
 test:
 	cp $(MODULE) spec/
+	lua -v
+	busted --version
 	cd spec/ && busted spec.lua
 
 check:
