@@ -15,9 +15,6 @@ install:
   - chmod +x travis.sh
   - ./travis.sh
   - sudo luarocks install busted
-  - lua -v
-  - busted --version
-  - sudo find / -name "lua.h"
 
 script: make build && make check
 
