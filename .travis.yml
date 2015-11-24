@@ -12,10 +12,12 @@ install:
   - sudo apt-get install lua5.2
   - sudo apt-get install liblua5.2-dev
   - sudo apt-get install luarocks
+  - chmod +x travis.sh
+  - ./travis.sh
   - sudo luarocks install busted
   - lua -v
-  - sudo find / -name "lua.h"
   - busted --version
+  - sudo find / -name "lua.h"
 
 script: make travis_build && make test
 
