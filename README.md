@@ -1,52 +1,92 @@
-# construction_man.gif
-
-Dialogue isn't ready yet, but will be version 0.0 very, very soon. This readme
-should give some insight on what I'm doing, but most likely won't work if you
-clone this repo.
-
-If you want more info, please checkout the prototype of this project written in
-Common Lisp: [Tree-Talk](https://github.com/rlt3/tree-talk).
-
 # Dialogue
 
-Dialogue is an Actor system for Lua. 
+[![travis-ci status](https://travis-ci.org/rlt3/Dialogue.svg?branch=master)](https://travis-ci.org/rlt3/Dialogue/builds)
 
-Dialogue is different from other Actor systems because it provides scope for
-its messages. An Actor can yell or whisper or just say the message to its
-audience. Depending on how it sends its message determines who from the
-audience receives that message.
+Dialogue is a framework for Lua5.2. It is an intersection of the 
+[Actor Model](https://en.wikipedia.org/wiki/Actor_model) and an 
+[Entity Component System](https://en.wikipedia.org/wiki/Entity_component_system) 
+(ECS) with a way to scope messages so that Actors may talk to one another.
 
-A Dialogue is simply a tree of Actors. An Actor serves as a container for
-Scripts. Personified, the Actor receives a message and responds according to
-its Scripts. The Script could tell the Actor to yell or say a message. Or it
-could tell the Actor to move 15 paces to the left.
+An Actor is the core piece of Dialogue. An Actor is an empty container which
+can receive messages. It responds to these messsages via the Scripts which are
+given to it. These Scripts are analogous to Components in an ECS.
 
-The Scripts are what you write.
+A Dialogue is simply a tree of Actors. It is the tree which provides the scope
+mechanisms for messages. A Script might tell an Actor to 'whisper' a message to
+another Actor. Or the Script might tell the Actor to 'yell' the message to the
+entire Actor tree. I call these scopes 'Tones'.
 
-## Dialogue Tones
+Each Actor has its own internal state (where all of its Scripts are contained)
+which allows messages to be sent asychronously and potentially in parallel.
 
-Every Actor has an audience. This audience can be filtered by the Actor's tone
-to change who in the audience receives a message. Here are the Tones:
+The Scripts are what you as a user would define.
 
-#### Yell
+## Terminology
 
-No filter is applied. Sends the message to the entire Dialogue tree.
+I intentially chose a lot of play-like language to hopefully make understanding
+this easy and to draw parallels between the real world.
 
-#### Say
+#### Message
 
-Send a message to its parent and the children of that parent.
+The message is information being sent from one Actor to another. In this
+framework a message is just a table where the first element is the method of
+a Script object. E.g, `{"move", 2, 2}` might move an Actor 2 spaces up and
+two spaces right.
 
-#### Whisper
+#### Tone
 
-Send a message to a specific Actor, a one-to-one communication.
+In real life, the tone is *how* we say something, but not actually what was 
+said. It is the same here: it is how we can scope our Audience regardless of
+the message being sent. This is how any given Actor gets it audience:
 
-#### Command
+* Yell - Send the message to the entire Dialogue tree.
+* Say - Send a message to its parent and the children of that parent.
+* Whisper - Send a message to a specific Actor, a one-to-one communication.
+* Command - Send a message to its children.
+* Think - Send a message internally, to its Scripts.
 
-Send a message to its children.
+#### Audience
 
-#### Think
+The group of Actors which will receive a message filtered by the Tone. An
+audience can be one Actor (for a whisper) or the entire Dialogue tree (for a 
+yell).
 
-Send a message internally, to its Scripts.
+#### Script
+
+Just as an actor in real life reads their lines from a script, Scripts here
+tell the Actor how to respond to a message received. That may be sending
+another message or by doing something internally. 
+
+In this framework, a Script is a Lua object loaded into an Actor's internal
+state.
+
+#### Actor
+
+An actor in a play can take many roles depending on the character they're
+playing -- they are fungible. Actors are no different here. They are containers
+to be given Scripts which they 'read' from.
+
+The Actor has its own internal state which allows it to be sent messages 
+asynchronously.
+
+#### Dialogue
+
+The definition of a dialogue is two or more people conversing with one another.
+It's mostly the same here: a Dialogue is a tree of Actors and provides the
+ability for messages to be scoped by a Tone.
+
+#### Stage
+
+Most plays take place on a stage. Stage.lua is where I define by Scripts and
+Actors in a Dialogue.
+
+##### Other terminology
+
+Some other things aren't necessarily play-like, but are simple enough:
+
+* Envelope - holds the message with all pertinent info on how to send it
+* Mailbox - holds a collection of Envelopes to be sent
+* Postman - actually does the work of sending the Envelopes from the Mailbox
 
 ## Quick start
 
