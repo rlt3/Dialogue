@@ -16,17 +16,14 @@ endif
 
 all: clean dialogue
 
-travis_build: $(SOURCES)
-	$(CC) -Wall -Isrc/ -I./ -D _BSD_SOURCE -fPIC -shared -o $(MODULE) $^ -L./ -L/usr/local/lib -llua5.2 -lpthread
-
-dialogue: $(SOURCES)
+build: $(SOURCES)
 	$(CC) -g $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
-test:
+check:
 	cp $(MODULE) spec/
 	cd spec/ && busted spec.lua
 
-check:
+test:
 	valgrind --leak-check=full -v lua -i stage.lua
 
 clean:

@@ -19,7 +19,7 @@ install:
   - busted --version
   - sudo find / -name "lua.h"
 
-script: make travis_build && make test
+script: make build && make check
 
 notifications:
   recipients:
