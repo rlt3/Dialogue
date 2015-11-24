@@ -8,11 +8,9 @@ branches:
     - master
     - travis
 
-before_install:
-  - chmod +x travis.sh
-  - ./travis.sh
-
 install:
+  - sudo apt-get install lua5.2
+  - sudo apt-get install liblua5.2-dev
   - sudo apt-get install luarocks
   - sudo luarocks install busted
 
