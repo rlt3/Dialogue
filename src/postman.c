@@ -39,6 +39,14 @@ postman_deliver (Postman *postman)
 
     rc = pthread_mutex_unlock(&mailbox->mutex);
 
+    /* if there's a recipient set, we're assuming we're sending just to it */
+    if (envelope->recipient != NULL) {
+        utils_push_object_method(P, envelope->recipient, ACTOR_LIB, "send");
+        lua_pushvalue(P, 1);
+        lua_call(P, 2, 0);
+        goto cleanup;
+    }
+
     /* Get the author's audience by the tone */
     audience_filter_tone(P, author, tone);
 
@@ -56,8 +64,8 @@ postman_deliver (Postman *postman)
         lua_pop(P, 1);
     }
 
+cleanup:
     lua_pop(P, 2); /* audience table, message */
-
     postman->has_work = 0;
 }
 

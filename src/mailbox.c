@@ -150,11 +150,11 @@ lua_mailbox_new (lua_State *L)
 static int
 lua_mailbox_add (lua_State *L)
 {
-    int rc, args, table_index;
+    int rc, table_index, is_whisper = 0;
     lua_State *B;
     Envelope *envelope;
     Mailbox *mailbox;
-    Actor *actor;
+    Actor *actor, *recipient;
     const char *tone;
 
     /*
@@ -164,9 +164,8 @@ lua_mailbox_add (lua_State *L)
      * data and light user data, so we can't check the type explicitly here.
      */
 
-    args = lua_gettop(L);
-    if (args != 4)
-        luaL_error(L, "Incorrect # of arguments to Mailbox:add (%d, expected 4)", args);
+    if (lua_gettop(L) == 5)
+        is_whisper = 1;
 
     if (!lua_islightuserdata(L, 1) && !lua_isuserdata(L, 1))
         luaL_error(L, "Argument #1 to Mailbox:add needs to be Mailbox userdata");
@@ -179,6 +178,12 @@ lua_mailbox_add (lua_State *L)
     actor = lua_check_actor(L, 2);
     tone = luaL_checkstring(L, 3);
     luaL_checktype(L, 4, LUA_TTABLE);
+
+    /* if this is sent as a whisper, we have a recipient we need to note */
+    if (is_whisper) {
+        recipient = lua_check_actor(L, 5);
+        lua_pop(L, 1);
+    }
 
     /* Wait & lock for access to the internal state */
     rc = pthread_mutex_lock(&mailbox->mutex);
@@ -198,7 +203,10 @@ lua_mailbox_add (lua_State *L)
     utils_copy_top(B, L);
     lua_call(B, 3, 1);
 
-    envelope = lua_check_envelope(B, -1);
+    if (is_whisper) {
+        envelope = lua_check_envelope(B, -1);
+        envelope->recipient = recipient;
+    }
     
     lua_rawseti(B, table_index, luaL_len(B, table_index) + 1);
 
