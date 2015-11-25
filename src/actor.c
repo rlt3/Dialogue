@@ -1,10 +1,9 @@
-#include <stdio.h>
+#include <string.h>
 #include "dialogue.h"
 #include "actor.h"
 #include "script.h"
 #include "mailbox.h"
 #include "envelope.h"
-#include "post.h"
 #include "tone.h"
 #include "utils.h"
 
@@ -428,14 +427,21 @@ lua_actor_send (lua_State *L)
 }
 
 /*
- * From an Actor at index 1 and a message table at index 2, send a message
- * to an audience via the tone given.
+ * Expects an Actor at index 1 and a message table at index 2. If the tone is
+ * 'whisper', then a third actor at index 3 (the recipient) is expected as is
+ * passed along as the last parameter to Mailbox:Add
  */
 void
 actor_mailbox_add_envelope (lua_State *L, const char *tone)
 {
+    int is_whisper = 0;
     Actor *actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
+
+    if (strcmp(tone, "whisper") == 0) {
+        lua_check_actor(L, 3);
+        is_whisper = 1;
+    }
 
     if (actor->mailbox == NULL)
         luaL_error(L, "Actor doesn't have a Mailbox!");
@@ -448,7 +454,14 @@ actor_mailbox_add_envelope (lua_State *L, const char *tone)
     utils_push_object(L, actor, ACTOR_LIB);
     lua_pushstring(L, tone);
     lua_pushvalue(L, 2);
-    lua_call(L, 4, 0);
+
+    if (is_whisper) {
+        lua_pushvalue(L, 3);
+        lua_call(L, 5, 0);
+    } else {
+        lua_call(L, 4, 0);
+    }
+
     lua_pop(L, 1);
 }
 

@@ -1,6 +1,6 @@
 UNAME := $(shell uname)
 CC=clang
-SOURCES=src/dialogue.o src/mailbox.o src/postman.o src/tone.o src/post.o src/actor.o src/script.o src/envelope.o src/utils.o
+SOURCES=src/dialogue.o src/mailbox.o src/postman.o src/tone.o src/actor.o src/script.o src/envelope.o src/utils.o
 MODULE=Dialogue.so
 
 ifeq ($(UNAME), Linux)

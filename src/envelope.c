@@ -1,7 +1,6 @@
 #include "envelope.h"
 #include "actor.h"
 #include "mailbox.h"
-#include "post.h"
 #include "utils.h"
 
 /*

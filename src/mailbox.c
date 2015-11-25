@@ -6,7 +6,6 @@
 #include "mailbox.h"
 #include "envelope.h"
 #include "actor.h"
-#include "post.h"
 #include "tone.h"
 #include "utils.h"
 
@@ -153,6 +152,7 @@ lua_mailbox_add (lua_State *L)
 {
     int rc, args, table_index;
     lua_State *B;
+    Envelope *envelope;
     Mailbox *mailbox;
     Actor *actor;
     const char *tone;
@@ -197,6 +197,8 @@ lua_mailbox_add (lua_State *L)
     lua_pushstring(B, tone);
     utils_copy_top(B, L);
     lua_call(B, 3, 1);
+
+    envelope = lua_check_envelope(B, -1);
     
     lua_rawseti(B, table_index, luaL_len(B, table_index) + 1);
 

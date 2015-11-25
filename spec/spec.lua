@@ -250,17 +250,38 @@ describe("A Dialogue", function()
         assert.is_equal(e:mailbox(), mailbox)
     end)
 
-    it("allows for its Actors to send messages via their audience", function()
-        local mailbox = dialogue:mailbox()
-
-        assert.is_equal(c:scripts()[1]:probe("durability"), 10)
-        assert.is_equal(d:scripts()[1]:probe("durability"), 10)
-
-        mailbox:add(b, "command", {"attack"})
+    it("allows for Actors to send message by via Tone yell", function()
+        dialogue:yell{"attack"}
         os.execute("sleep " .. tonumber(0.5))
 
+        assert.is_equal(dialogue:scripts()[1]:probe("durability"), 9)
         assert.is_equal(c:scripts()[1]:probe("durability"), 9)
         assert.is_equal(d:scripts()[1]:probe("durability"), 9)
+    end)
+
+    it("allows for Actors to send message by via Tone command", function()
+        b:command{"attack"}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.is_equal(c:scripts()[1]:probe("durability"), 8)
+        assert.is_equal(d:scripts()[1]:probe("durability"), 8)
+    end)
+
+    it("allows for Actors to send message by via Tone say", function()
+        b:say{"move", 1, 1}
+        os.execute("sleep " .. tonumber(0.5))
+
+        assert.are.same(a:scripts()[1]:probe("coordinates"), {3, 5})
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {401, 201})
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {21, 7})
+    end)
+
+    it("allows for Actors to send message by via Tone whisper", function()
+    end)
+
+    it("allows for Actors to send message by via Tone think", function()
+        b:think{"move", -1, -1}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {400, 200})
     end)
 
     it("can handle Actors sending messages which send messages", function()
@@ -270,8 +291,8 @@ describe("A Dialogue", function()
 
         dialogue:yell{"walk"}
         os.execute("sleep " .. tonumber(0.5))
-        assert.are.same(a:scripts()[1]:probe("coordinates"), {4, 6})
+        assert.are.same(a:scripts()[1]:probe("coordinates"), {5, 7})
         assert.are.same(b:scripts()[1]:probe("coordinates"), {404, 204})
-        assert.are.same(e:scripts()[1]:probe("coordinates"), {22, 8})
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {23, 9})
     end)
 end)
