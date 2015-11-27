@@ -382,7 +382,7 @@ lua_actor_abandon (lua_State *L)
 static int
 lua_actor_send (lua_State *L)
 {
-    int argc, message_table, send_rc;
+    int message_table, send_rc;
     lua_State *A;
     Script *script;
     Actor *actor = lua_check_actor(L, 1);
