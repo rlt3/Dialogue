@@ -14,7 +14,7 @@ CFLAGS+=-Wall -Isrc/ -I./ -I/usr/local/include/ -D _BSD_SOURCE -fPIC
 LDFLAGS+=-L./ -L/usr/local/lib -llua -lpthread
 endif
 
-all: clean dialogue
+all: clean build
 
 build: $(SOURCES)
 	$(CC) -g $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
@@ -27,4 +27,4 @@ test:
 	valgrind --leak-check=full -v lua -i stage.lua
 
 clean:
-	rm -f $(EXECUTABLE) *.so src/*o
+	rm -f $(MODULE) *.so src/*o

@@ -1,7 +1,7 @@
 Dialogue = require("Dialogue")
 
 dialogue = Dialogue.new{
-    { {"weapon", "Crown", "North"} },
+    { {"Window", 400, 600} },
     {
         { 
             { {"draw", 2, 4} },

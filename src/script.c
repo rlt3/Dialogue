@@ -18,10 +18,8 @@ lua_check_script (lua_State *L, int index)
  * for error handling.
  */
 void
-script_push_object (Script *script, lua_State *L)
+script_push_object (Script *script)
 {
-    if (!script->is_loaded)
-        luaL_error(L, "Script isn't loaded!");
     lua_rawgeti(script->actor->L, LUA_REGISTRYINDEX, script->object_reference);
 }
 
@@ -154,36 +152,54 @@ lua_script_load (lua_State *L)
 }
 
 /*
+ * Send the message at the given index. Returns SEND_OK if the message was sent
+ * OK, SEND_SKIP if there was no function matching the message's first element,
+ * and SEND_FAIL if there was a function and an error occurred.
+ */
+int
+script_send_message (Script *script, int message_index)
+{
+    int argc;
+    lua_State *A = script->actor->L;
+
+    /* function = object.message_title */
+    script_push_object(script);
+    utils_push_table_head(A, message_index);
+    lua_gettable(A, -2);
+
+    /* it's not an error if the function doesn't exist */
+    if (!lua_isfunction(A, -1))
+        return SEND_SKIP;
+
+    /* push again to reference 'self' */
+    script_push_object(script);
+    argc = utils_push_table_data(A, message_index);
+    if (lua_pcall(A, argc + 1, 0, 0)) 
+        return SEND_FAIL;
+
+    return SEND_OK;
+}
+
+/*
  * Send a script a message from a table.
  * script:send{ "update" }
  */
 static int
 lua_script_send (lua_State *L)
 {
-    int argc, envelope_index;
     lua_State *A;
     Script *script = lua_check_script(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
+    
+    if (!script->is_loaded)
+        luaL_error(L, "Script isn't loaded!");
 
     A = actor_request_stack(script->actor);
 
     utils_copy_table(A, L, 2);
-    envelope_index = lua_gettop(A);
 
-    /* function = object.message_title */
-    script_push_object(script, L);
-    utils_push_table_head(A, envelope_index);
-    lua_gettable(A, -2);
-
-    /* it's not an error if the function doesn't exist */
-    if (!lua_isfunction(A, -1))
-        return 0;
-
-    /* push again to reference 'self' */
-    script_push_object(script, L);
-    argc = utils_push_table_data(A, envelope_index);
-    if (lua_pcall(A, argc + 1, 0, 0)) 
-        luaL_error(L, "Error sending message: %s\n", lua_tostring(L, -1));
+    if (script_send_message(script, lua_gettop(A)) == SEND_FAIL)
+        luaL_error(L, "Error sending message: %s\n", lua_tostring(A, -1));
 
     actor_return_stack(script->actor);
     return 0;

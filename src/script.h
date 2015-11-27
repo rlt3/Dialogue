@@ -6,6 +6,9 @@
 #include <lualib.h>
 
 #define SCRIPT_LIB "Dialogue.Actor.Script"
+#define SEND_OK   0
+#define SEND_SKIP 1
+#define SEND_FAIL 2
 
 typedef struct Script {
     int table_reference;
@@ -23,11 +26,18 @@ Script *
 lua_check_script (lua_State *L, int index);
 
 /*
- * Push the object onto the Actor's state. We pass along the calling state
- * for error handling.
+ * Push the object onto the Actor's state.
  */
 void
-script_push_object (Script *script, lua_State *L);
+script_push_object (Script *script);
+
+/*
+ * Send the message at the given index. Returns SEND_OK if the message was sent
+ * OK, SEND_SKIP if there was no function matching the message's first element,
+ * and SEND_FAIL if there was a function and an error occurred.
+ */
+int
+script_send_message (Script *script, int message_table);
 
 /*
  * Push a table of a Script at index.

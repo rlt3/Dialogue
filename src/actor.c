@@ -94,14 +94,6 @@ actor_remove_script (Actor *actor, Script *removing)
 }
 
 /*
- * From an envelope, send a message to each Script an actor owns.
- */
-void
-actor_send_envelope (Actor *actor, Envelope *envelope)
-{
-}
-
-/*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
 Actor *
@@ -390,7 +382,7 @@ lua_actor_abandon (lua_State *L)
 static int
 lua_actor_send (lua_State *L)
 {
-    int argc, envelope_index;
+    int argc, message_table, send_rc;
     lua_State *A;
     Script *script;
     Actor *actor = lua_check_actor(L, 1);
@@ -398,28 +390,30 @@ lua_actor_send (lua_State *L)
 
     A = actor_request_stack(actor);
 
+    /*
+     * Copy the message table to the Actor stack once and use it to send to
+     * each script that the Actor owns.
+     */
     utils_copy_table(A, L, 2);
-    envelope_index = lua_gettop(A);
+    message_table = lua_gettop(A);
 
     for (script = actor->script; script != NULL; script = script->next) {
-        /* function = object.message_title */
-        script_push_object(script, L);
-        utils_push_table_head(A, envelope_index);
-        lua_gettable(A, -2);
-
-        /* it's not an error if the function doesn't exist */
-        if (!lua_isfunction(A, -1)) {
-            lua_pop(A, 2);
-            continue;
+        if (!script->is_loaded) {
+            lua_pop(A, 1);
+            luaL_error(L, "Script isn't loaded!");
         }
 
-        /* push again to reference 'self' */
-        script_push_object(script, L);
-        argc = utils_push_table_data(A, envelope_index);
-        if (lua_pcall(A, argc + 1, 0, 0)) 
-            luaL_error(L, "Error sending message: %s\n", lua_tostring(L, -1));
+        send_rc = script_send_message(script, message_table);
 
-        lua_pop(A, 1);
+        if (send_rc == SEND_FAIL) {
+            lua_pop(A, 1);
+            luaL_error(L, "Error sending message: %s\n", lua_tostring(A, -1));
+        } else if (send_rc == SEND_SKIP) {
+            lua_pop(A, 2);
+            continue;
+        } else {
+            lua_pop(A, 1);
+        }
     }
 
     actor_return_stack(actor);
