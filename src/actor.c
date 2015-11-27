@@ -422,7 +422,7 @@ lua_actor_send (lua_State *L)
 
 /*
  * Expects an Actor at index 1 and a message table at index 2. If the tone is
- * 'whisper', then a third actor at index 3 (the recipient) is expected as is
+ * 'whisper', then a third Actor at index 3 (the recipient) is expected and is
  * passed along as the last parameter to Mailbox:Add
  */
 void
