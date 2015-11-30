@@ -10,13 +10,35 @@
 #include "tone.h"
 #include "utils.h"
 
+/*
+ * Use the Postman's internal stack and load the recipient and call its 'send'
+ * with the message table at the given index. When there's an error we simply
+ * print it out rather than crashing. The stack is balanced at the end.
+ */
+void
+postman_send (Postman *postman, Actor *author, Actor *recipient, int message_index)
+{
+    lua_State *P = postman->L;
+    utils_push_object(P, recipient, ACTOR_LIB);
+    lua_getfield(P, -1, "send");
+    lua_pushvalue(P, -2);
+    utils_push_object(P, author, ACTOR_LIB);
+    lua_pushvalue(P, message_index);
+    if (lua_pcall(P, 3, 0, 0))
+        printf("%s\n", lua_tostring(P, -1));
+    lua_pop(P, 1);
+}
+
+/*
+ * The Postman gets the next Envelope from the Mailbox and then delivers it by
+ * the tone to the correct audience. If the recipient is already set, then send
+ * to the recipient and the recipient only.
+ */
 void
 postman_deliver (Postman *postman)
 {
     int audience_index;
-    const char *tone;
-    Actor *author;
-    Envelope *envelope;
+    Envelope envelope;
     Mailbox *mailbox = postman->mailbox;
     lua_State *B = mailbox->L;
     lua_State *P = postman->L;
@@ -27,47 +49,36 @@ postman_deliver (Postman *postman)
      * that access to deliver other envelopes!
      */
 
-    int rc = pthread_mutex_lock(&mailbox->mutex);
-
+    pthread_mutex_lock(&mailbox->mutex);
     mailbox_push_next_envelope(mailbox);
-    envelope = lua_check_envelope(B, -1);
-    tone = envelope->tone;
-    author = envelope->author;
+    envelope = *lua_check_envelope(B, -1);
     envelope_push_message(B, -1);
     utils_copy_top(P, B);
     lua_pop(B, 2);
-
-    rc = pthread_mutex_unlock(&mailbox->mutex);
+    pthread_mutex_unlock(&mailbox->mutex);
 
     /* if there's a recipient set, we're assuming we're sending just to it */
-    if (envelope->recipient != NULL) {
-        utils_push_object_method(P, envelope->recipient, ACTOR_LIB, "send");
-        lua_pushvalue(P, 1);
-        utils_push_object(P, author, ACTOR_LIB);
-        lua_call(P, 3, 0);
+    if (envelope.recipient != NULL) {
+        postman_send(postman, envelope.author, envelope.recipient, 1);
+        lua_pop(P, 1); /* message table */
         goto cleanup;
     }
 
     /* Get the author's audience by the tone */
-    audience_filter_tone(P, author, tone);
-
+    audience_filter_tone(P, envelope.author, envelope.tone);
     audience_index = lua_gettop(P);
     luaL_checktype(P, audience_index, LUA_TTABLE);
 
     /* and send each of the actors in the audience the message */
     lua_pushnil(P);
     while (lua_next(P, audience_index)) {
-        lua_check_actor(P, -1);
-        lua_getfield(P, -1, "send");
-        lua_pushvalue(P, -2); /* push the 'self' reference */
-        utils_push_object(P, author, ACTOR_LIB);
-        lua_pushvalue(P, 1);
-        lua_call(P, 3, 0);
+        postman_send(postman, envelope.author, lua_check_actor(P, -1), 1);
         lua_pop(P, 1);
     }
 
-cleanup:
     lua_pop(P, 2); /* audience table, message */
+
+cleanup:
     postman->has_work = 0;
 }
 

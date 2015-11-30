@@ -32,14 +32,14 @@ describe("An Actor", function()
         it("that will fail sending if not loaded", function()
             local errfn = function()
                 script = Dialogue.Actor.Script.new(actor, { "weapon", "axe", "down" })
-                script:send{ "attack" }
+                script:send(actor, { "attack" })
             end
             assert.has_error(errfn, "Script isn't loaded!")
         end)
 
         it("that hold private, internal state responding only to and by messages", function()
             script:load()
-            script:send{ "attack" }
+            script:send(actor, { "attack" })
             assert.is_equal(script:probe("durability"), 9)
         end)
 
@@ -61,7 +61,7 @@ describe("An Actor", function()
 
     it("can be given a script directly, which is automatically loaded", function()
         script = actor:give{ "draw", 2, 4 }
-        script:send{"move", 1, 1}
+        script:send(actor, {"move", 1, 1})
         assert.is_equal(script:probe("coordinates")[1], 3)
         assert.is_equal(script:probe("coordinates")[2], 5)
     end)

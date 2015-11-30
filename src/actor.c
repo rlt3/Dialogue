@@ -444,7 +444,7 @@ actor_mailbox_add_envelope (lua_State *L, const char *tone)
     if (actor->dialogue == NULL)
         luaL_error(L, "Actor isn't in a Dialogue!");
 
-    /* mailbox:add(actor, tone, {table}) */
+    /* mailbox:add(author, tone, {table}) */
     utils_push_object_method(L, actor->mailbox, MAILBOX_LIB, "add");
     utils_push_object(L, actor, ACTOR_LIB);
     lua_pushstring(L, tone);
