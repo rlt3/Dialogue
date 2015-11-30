@@ -43,7 +43,8 @@ postman_deliver (Postman *postman)
     if (envelope->recipient != NULL) {
         utils_push_object_method(P, envelope->recipient, ACTOR_LIB, "send");
         lua_pushvalue(P, 1);
-        lua_call(P, 2, 0);
+        utils_push_object(P, author, ACTOR_LIB);
+        lua_call(P, 3, 0);
         goto cleanup;
     }
 
@@ -59,8 +60,9 @@ postman_deliver (Postman *postman)
         lua_check_actor(P, -1);
         lua_getfield(P, -1, "send");
         lua_pushvalue(P, -2); /* push the 'self' reference */
+        utils_push_object(P, author, ACTOR_LIB);
         lua_pushvalue(P, 1);
-        lua_call(P, 2, 0);
+        lua_call(P, 3, 0);
         lua_pop(P, 1);
     }
 

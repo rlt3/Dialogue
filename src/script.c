@@ -157,7 +157,7 @@ lua_script_load (lua_State *L)
  * and SEND_FAIL if there was a function and an error occurred.
  */
 int
-script_send_message (Script *script, int message_index)
+script_send_message (Script *script, Actor *author, int message_index)
 {
     int argc;
     lua_State *A = script->actor->L;
@@ -171,10 +171,11 @@ script_send_message (Script *script, int message_index)
     if (!lua_isfunction(A, -1))
         return SEND_SKIP;
 
-    /* push again to reference 'self' */
+    /* push `self' reference, args, and the author reference */
     script_push_object(script);
     argc = utils_push_table_data(A, message_index);
-    if (lua_pcall(A, argc + 1, 0, 0)) 
+    utils_push_object(A, author, ACTOR_LIB);
+    if (lua_pcall(A, argc + 2, 0, 0)) 
         return SEND_FAIL;
 
     return SEND_OK;
@@ -189,17 +190,19 @@ lua_script_send (lua_State *L)
 {
     lua_State *A;
     Script *script = lua_check_script(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
+    Actor *author  = lua_check_actor(L, 2);
+    luaL_checktype(L, 3, LUA_TTABLE);
     
     if (!script->is_loaded)
         luaL_error(L, "Script isn't loaded!");
 
     A = actor_request_stack(script->actor);
+    utils_copy_top(A, L);
 
-    utils_copy_table(A, L, 2);
-
-    if (script_send_message(script, lua_gettop(A)) == SEND_FAIL)
+    if (script_send_message(script, author, lua_gettop(A)) == SEND_FAIL) {
+        lua_pop(A, 1);
         luaL_error(L, "Error sending message: %s\n", lua_tostring(A, -1));
+    }
 
     actor_return_stack(script->actor);
     return 0;

@@ -386,7 +386,8 @@ lua_actor_send (lua_State *L)
     lua_State *A;
     Script *script;
     Actor *actor = lua_check_actor(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
+    Actor *author = lua_check_actor(L, 2);
+    luaL_checktype(L, 3, LUA_TTABLE);
 
     A = actor_request_stack(actor);
 
@@ -394,7 +395,7 @@ lua_actor_send (lua_State *L)
      * Copy the message table to the Actor stack once and use it to send to
      * each script that the Actor owns.
      */
-    utils_copy_table(A, L, 2);
+    utils_copy_top(A, L);
     message_table = lua_gettop(A);
 
     for (script = actor->script; script != NULL; script = script->next) {
@@ -403,7 +404,7 @@ lua_actor_send (lua_State *L)
             luaL_error(L, "Script isn't loaded!");
         }
 
-        send_rc = script_send_message(script, message_table);
+        send_rc = script_send_message(script, author, message_table);
 
         if (send_rc == SEND_FAIL) {
             lua_pop(A, 1);

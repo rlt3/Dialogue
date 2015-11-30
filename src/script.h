@@ -37,7 +37,7 @@ script_push_object (Script *script);
  * and SEND_FAIL if there was a function and an error occurred.
  */
 int
-script_send_message (Script *script, int message_table);
+script_send_message (Script *script, Actor *author, int message_index);
 
 /*
  * Push a table of a Script at index.
