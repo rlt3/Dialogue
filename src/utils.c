@@ -92,7 +92,11 @@ utils_copy_top (lua_State *to, lua_State *from)
         break;
 
     default:
-        lua_pushstring(to, lua_tostring(from, -1));
+        lua_getfield(from, -1, "__tostring");
+        lua_pushvalue(from, -2);
+        lua_call(from, 1, 0);
+        utils_copy_top(to, from);
+        lua_pop(from, 1);
         break;
     }
 }
