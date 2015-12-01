@@ -68,6 +68,11 @@ utils_copy_table (lua_State *to, lua_State *from, int index)
 
 /*
  * Copies the value at the top of 'from' to 'to'.
+ *
+ * Copies Number, String, Boolean, and Table types specifically. All other 
+ * types including Userdata are probed for the __tostring metamethod. If it
+ * exists, it uses the string output to copy to the next stack. Else if just
+ * pushes nil.
  */
 void
 utils_copy_top (lua_State *to, lua_State *from)
@@ -93,10 +98,17 @@ utils_copy_top (lua_State *to, lua_State *from)
 
     default:
         lua_getfield(from, -1, "__tostring");
-        lua_pushvalue(from, -2);
-        lua_call(from, 1, 0);
-        utils_copy_top(to, from);
-        lua_pop(from, 1);
+
+        if (lua_isfunction(from, -1)) {
+            lua_pushvalue(from, -2);
+            lua_call(from, 1, 1);
+            utils_copy_top(to, from);
+            lua_pop(from, 1);
+        } else {
+            lua_pop(from, 1);
+            lua_pushnil(to);
+        }
+
         break;
     }
 }

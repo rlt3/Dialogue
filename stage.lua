@@ -30,3 +30,4 @@ dialogue = Dialogue.new{
 mailbox = dialogue:mailbox()
 b = dialogue:children()[2]
 audience = b:audience("say")
+dialogue:whisper({"watch"}, b) 

@@ -19,9 +19,7 @@ function Draw:walk ()
 end
 
 function Draw:watch (author)
-    print(self.follow)
     self.follow = author
-    print(self.follow)
 end
 
 function Draw:update ()
