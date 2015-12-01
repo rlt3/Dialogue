@@ -96,20 +96,17 @@ utils_copy_top (lua_State *to, lua_State *from)
         utils_copy_table(to, from, lua_gettop(from));
         break;
 
-    default:
-        lua_getfield(from, -1, "__tostring");
-
-        if (lua_isfunction(from, -1)) {
-            lua_pushvalue(from, -2);
-            lua_call(from, 1, 1);
-            utils_copy_top(to, from);
-            lua_pop(from, 1);
-        } else {
-            lua_pop(from, 1);
-            lua_pushnil(to);
-        }
-
-        break;
+    case LUA_TNIL:                                                                 
+        lua_pushnil(to);                                                           
+        break;                                                                     
+                                                                                   
+    default:                                                                       
+        lua_getfield(from, -1, "__tostring");                                      
+        lua_pushvalue(from, -2);                                                   
+        lua_call(from, 1, 1);                                                      
+        utils_copy_top(to, from);                                                  
+        lua_pop(from, 1);                                                          
+        break;                                                                     
     }
 }
 

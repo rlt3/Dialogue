@@ -301,6 +301,7 @@ describe("A Dialogue", function()
 
     it("allows for central nodes via the 'author' optional argument for a message", function()
         dialogue:whisper({"watch"}, b) 
+        os.execute("sleep " .. tonumber(0.5))
         assert.are.same(dialogue:__tostring(), b:scripts()[1]:probe("follow"))
     end)
 end)
