@@ -103,6 +103,29 @@ lua_check_actor (lua_State *L, int index)
 }
 
 /*
+ * Each Actor should have its own thread. The reasoning behind this is that
+ * some Lua modules/objects will need a dedicated thread. Therefore we also
+ * initialize all Scripts for an Actor inside the thread as well.
+ */
+void *
+actor_thread (void *arg)
+{
+    int rc;
+    Actor *actor = arg;
+
+    /* Set the scripts from the table passed in */
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor_ref);
+    lua_getfield(L, 2, "scripts");
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor_ref);
+    lua_pushvalue(L, 1);
+    lua_call(L, 2, 1);
+    lua_pop(L, 1);
+
+    luaL_unref(L, LUA_REGISTRYINDEX, actor_ref);
+
+}
+
+/*
  * Create an Actor, which is a glorified lua_State that holds specific scripts.
  * Actor{ {"draw", 400, 200}, {"weapon", "longsword"} };
  */
@@ -113,6 +136,7 @@ lua_actor_new (lua_State *L)
     lua_State *A;
     Actor *actor;
     pthread_mutexattr_t mutex_attr;
+
     luaL_checktype(L, 1, LUA_TTABLE);
 
     actor = lua_newuserdata(L, sizeof(Actor));
@@ -146,15 +170,8 @@ lua_actor_new (lua_State *L)
     utils_push_object(A, actor, ACTOR_LIB);
     lua_setglobal(A, "actor");
 
-    /* Set the scripts from the table passed in */
-    lua_rawgeti(L, LUA_REGISTRYINDEX, actor_ref);
-    lua_getfield(L, 2, "scripts");
-    lua_rawgeti(L, LUA_REGISTRYINDEX, actor_ref);
-    lua_pushvalue(L, 1);
-    lua_call(L, 2, 1);
-    lua_pop(L, 1);
-
-    luaL_unref(L, LUA_REGISTRYINDEX, actor_ref);
+    pthread_create(&actor->thread, NULL, actor_thread, actor);
+    pthread_detach(actor->thread);
 
     return 1;
 }

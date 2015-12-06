@@ -13,7 +13,11 @@ struct Envelope;
 typedef struct Actor {
     lua_State *L;
 
-    pthread_mutex_t mutex;
+    pthread_t thread;
+    pthread_mutex_t thread_mutex;
+    pthread_mutex_t stack_mutex;
+
+    int action;
 
     struct Actor *parent;
     struct Actor *next;
