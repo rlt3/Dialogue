@@ -3,11 +3,12 @@
 
 #include <lua.h>
 #include <pthread.h>
+#include <unistd.h>
 
 struct Actor;
 
 typedef enum Action {
-    LOAD, RECEIVE, SEND, WAIT
+    LOAD, RECEIVE, SEND, WAIT, STOP
 } Action;
 
 /*

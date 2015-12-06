@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "actor_thread.h"
 #include "actor.h"
 #include "utils.h"
@@ -44,15 +45,15 @@ actor_return_state (Actor *actor)
 }
 
 /*
- * Set the action for the given Actor and alert it of its new action.
+ * A blocking function which alerts the Actor to its new action.
  */
 void
 actor_alert_action (Actor *actor, Action action)
 {
     actor_request_state(actor);
     actor->action = action;
-    actor_return_state(actor);
     pthread_cond_signal(&actor->new_action);
+    actor_return_state(actor);
 }
 
 /*
@@ -64,24 +65,51 @@ actor_thread (void *arg)
 {
     Actor *actor = arg;
 
+    printf("Actor thread %p: starting...\n", actor);
+
     pthread_mutex_lock(&actor->state_mutex);
 
     while (actor->on) {
         switch (actor->action) {
         case LOAD:
+            /*
+             * We must handle loading of Scripts because many modules require
+             * all functions be called from a single thread.
+             */
+            printf("Actor thread %p: loading...\n", actor);
+            actor->action = WAIT;
             break;
 
         case RECEIVE:
+            /*
+             * We must handle execution of the Script's methods as per above.
+             */
+            printf("Actor thread %p: receiving...\n", actor);
+            actor->action = WAIT;
             break;
 
         case SEND:
+            /* 
+             * We can use this thread to send to other threads though
+             * actors. Or we can still have an Postman pool & Mailbox to make
+             * sure throughput of the core feature is not bog down.
+             */
+            printf("Actor thread %p: sending...\n", actor);
+            actor->action = WAIT;
+            break;
+
+        case STOP:
+            printf("Actor thread %p: quitting...\n", actor);
+            goto exit;
             break;
 
         default:
+            printf("Actor thread %p: waiting...\n", actor);
             pthread_cond_wait(&actor->new_action, &actor->state_mutex);
             break;
         }
     }
 
+exit:
     return NULL;
 }

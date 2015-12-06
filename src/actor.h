@@ -4,68 +4,34 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-#include <pthread.h>
+#include "actor_thread.h"
 
 #define ACTOR_LIB "Dialogue.Actor"
 
-struct Envelope;
-
 typedef struct Actor {
+    /* for accessing the stack specifically */
+    pthread_mutex_t stack_mutex;
     lua_State *L;
 
+    /* for anything about the actor other than stack */
+    pthread_mutex_t state_mutex;
+    pthread_cond_t new_action;
     pthread_t thread;
-    pthread_mutex_t thread_mutex;
-    pthread_mutex_t stack_mutex;
-
-    int action;
+    Action action;
+    short int on;
 
     struct Actor *parent;
     struct Actor *next;
     struct Actor *child;
 
-    struct Script *script;
+    struct Script *script_head;
+    struct Script *script_tail;
 
     struct Actor *dialogue;
     struct Mailbox *mailbox;
 
     int ref;
 } Actor;
-
-/*
- * Add a script to the given actor, always at the front.
- */
-void
-actor_add_script (Actor *actor, struct Script *script);
-
-/*
- * Add a child to the given actor, always at the front.
- */
-void
-actor_add_child (Actor *actor, Actor *child);
-
-/*
- * From an envelope, send a message to each Script an actor owns.
- */
-void
-actor_send_envelope (Actor *actor, struct Envelope *envelope);
-
-/*
- * Find and remove the Script from the Actor's linked-list of Scripts.
- */
-void
-actor_remove_script (Actor *actor, struct Script *removed);
-
-/*
- * Request the stack from the given actor so that we can have thread-safe apis.
- */
-lua_State*
-actor_request_stack (Actor *actor);
-
-/*
- * Return the stack back to the Actor who can give it out again.
- */
-void
-actor_return_stack (Actor *actor);
 
 /*
  * Check for an Actor at index. Errors if it isn't an Actor.
