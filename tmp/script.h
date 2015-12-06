@@ -5,6 +5,8 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
+#define SCRIPT_LIB "Dialogue.Actor.Script"
+
 typedef struct Script {
     struct Script *next;
     struct Actor *actor;
