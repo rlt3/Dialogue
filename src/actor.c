@@ -184,7 +184,6 @@ lua_actor_gc (lua_State *L)
     return 0;
 }
 
-
 static int
 lua_actor_tostring (lua_State *L)
 {

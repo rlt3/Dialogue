@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include "actor_thread.h"
 #include "actor.h"
+#include "script.h"
 #include "utils.h"
 
 /*
@@ -57,6 +57,61 @@ actor_alert_action (Actor *actor, Action action)
 }
 
 /*
+ * Load each Script an Actor owns.
+ */
+void
+actor_load_scripts (Actor *actor)
+{
+    Script *script;
+
+    /* 
+     * Remember: we already have the state mutex & script_load asks for the 
+     * stack mutex as well
+     */
+    for (script = actor->script_head; script != NULL; script = script->next) {
+        if (script->be_loaded)
+            script_load(script);
+    }
+}
+
+/*
+ * Removes the next envelope from its queue of Envelopes and leaves it at the
+ * top of the Actor stack.
+ */
+void
+actor_push_next_envelope (Actor *actor)
+{
+    lua_State *A = actor->L;
+
+    lua_getglobal(A, "table");
+    lua_getfield(A, -1, "remove");
+    lua_getglobal(A, "__envelopes");
+    lua_pushinteger(A, 1);
+    lua_call(A, 2, 1);
+
+    lua_insert(A, lua_gettop(A) - 1);
+    lua_pop(A, 1);
+}
+
+/*
+ * Look into the Envelopes table and process the next one.
+ */
+void
+actor_process_envelope (Actor *actor)
+{
+    Script *script;
+    lua_State *A; 
+
+    A = actor_request_stack(actor);
+    actor_push_next_envelope(actor);
+    actor_return_stack(actor);
+
+    for (script = actor->script_head; script != NULL; script = script->next)
+        if (script->is_loaded)
+            script_send(script);
+}
+
+/*
  * The Actor's thread which handles receiving messages, loading its initial 
  * state.
  */
@@ -77,6 +132,7 @@ actor_thread (void *arg)
              * all functions be called from a single thread.
              */
             printf("Actor thread %p: loading...\n", actor);
+            actor_load_scripts(actor);
             actor->action = WAIT;
             break;
 
@@ -85,6 +141,7 @@ actor_thread (void *arg)
              * We must handle execution of the Script's methods as per above.
              */
             printf("Actor thread %p: receiving...\n", actor);
+            actor_process_envelope(actor);
             actor->action = WAIT;
             break;
 

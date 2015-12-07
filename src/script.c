@@ -24,6 +24,30 @@ lua_check_script (lua_State *L, int index)
 }
 
 /*
+ * Print the error of a Script with a given prefix. Assumes access to state 
+ * mutex.
+ */
+void
+lua_script_print_error (lua_State *L, Script *s, const char *prefix)
+{
+    luaL_error(L, "%s: %s", prefix, s->error);
+}
+
+/*
+ * Assumes access to state & stack mutexes. Unloads the Script making it exist
+ * as dead weight. It will be skipped by messages and load attempts unless 
+ * changed manually.
+ */
+void
+script_unload (Script *script)
+{
+    lua_State *A = script->actor->L;
+    luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
+    script->is_loaded = 0;
+    script->be_loaded = 0;
+}
+
+/*
  * Create a Script for an Actor from a table in the given Actor's Lua stack. 
  * Returns an unloaded Script.
  *
@@ -52,31 +76,36 @@ lua_script_new (lua_State *L)
     script->actor = actor;
     script->next = NULL;
     script->is_loaded = 0;
+    script->be_loaded = 1;
+    script->error = NULL;
     actor_return_stack(actor);
 
     return 1;
 }
 
 /*
- * Attempt to load the given Script. *Must* be called from the Actor's thread.
+ * Assumes the state mutex has been acquired.  Attempt to load the given
+ * Script. *Must* be called from the Actor's thread.
  *
- * Return Codes:
- *   1 - Calling thread isn't the Actor's thread
- *   2 - The module given to the Script isn't valid or has errors
- *   3 - The function 'new' doesn't exist for the module
- *   4 - Calling the function 'new' failed with the arguments given
+ * Returns: LOAD_OK, LOAD_BAD_THREAD, LOAD_FAIL
+ *
+ * If LOAD_FAIL is returned, the Script is unloaded and turned off.
+ * Additionally, details of the error are set if LOAD_FAIL is returned.
  */
 int
 script_load (Script *script)
 {
     int table_index;
     int args;
-    int ret = 0;
-    lua_State *A = script->actor->L;
+    int ret = LOAD_OK;
+    lua_State *A;
     pthread_t calling_thread = pthread_self();
 
+    A = actor_request_stack(script->actor);
+
     if (calling_thread != script->actor->thread) {
-        ret = 1;
+        script->error = ERR_NOT_CALLING_THREAD;
+        ret = LOAD_BAD_THREAD;
         goto exit;
     }
 
@@ -93,7 +122,8 @@ script_load (Script *script)
     utils_push_table_head(A, table_index);
 
     if (lua_pcall(A, 1, 1, 0)) {
-        ret = 2;
+        script->error = ERR_BAD_MODULE;
+        ret = LOAD_FAIL;
         goto cleanup;
     }
 
@@ -101,14 +131,16 @@ script_load (Script *script)
     lua_getfield(A, -1, "new");
 
     if (!lua_isfunction(A, -1)) {
-        ret = 3;
+        script->error = ERR_NO_MODULE_NEW;
+        ret = LOAD_FAIL;
         goto cleanup;
     }
 
     args = utils_push_table_data(A, table_index);
 
     if (lua_pcall(A, args, 1, 0)) {
-        ret = 4;
+        script->error = ERR_BAD_MODULE_NEW;
+        ret = LOAD_FAIL;
         goto cleanup;
     }
 
@@ -117,6 +149,65 @@ script_load (Script *script)
 
 cleanup:
     lua_pop(A, 2); /* require & table */
+    script->be_loaded = 0;
+    actor_return_stack(script->actor);
+
+exit:
+    return ret;
+}
+
+/*
+ * Assumes the state mutex has been acquired and there is a message at the top
+ * of the stack.
+ *
+ * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
+ *
+ * If SEND_FAIL is returned, the Script is unloaded and turned off.
+ * Additionally, details of the error are set if SEND_FAIL is returned.
+ */
+int
+script_send (Script *script)
+{
+    lua_State *A; 
+    int message_index;
+    int args;
+    int ret = SEND_OK;
+    pthread_t calling_thread = pthread_self();
+
+    if (calling_thread != script->actor->thread) {
+        ret = SEND_BAD_THREAD;
+        goto exit;
+    }
+
+    A = actor_request_stack(script->actor);
+    message_index = lua_gettop(A);
+
+    /* function = object.message_title */
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    utils_push_table_head(A, message_index);
+    lua_gettable(A, -2);
+
+    /* it's not an error if the function doesn't exist */
+    if (!lua_isfunction(A, -1)) {
+        ret = SEND_SKIP;
+        lua_pop(A, 2);
+        goto cleanup;
+    }
+
+    /* push `self' reference, args, and the author reference */
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    args = utils_push_table_data(A, message_index);
+    //utils_push_object(A, author, ACTOR_LIB);
+
+    if (lua_pcall(A, args + 1, 0, 0)) {
+        ret = SEND_FAIL;
+        script->error = lua_tostring(A, -1);
+        script_unload(script);
+        lua_pop(A, 1);
+        goto cleanup;
+    }
+
+cleanup:
     actor_return_stack(script->actor);
 
 exit:
@@ -135,7 +226,6 @@ lua_script_load (lua_State *L)
      * Maybe it's a simple flag -- look for scripts wanting to be reloaded?
      * Also, do I need mutexes for each Script?
      */
-
     actor_alert_action(script->actor, LOAD);
 
     return 0;
@@ -155,6 +245,28 @@ lua_script_probe (lua_State *L)
     Script *script = lua_check_script(L, 1);
     const char *field = luaL_checkstring(L, 2);
 
+    actor_request_state(script->actor);
+
+    if (!script->is_loaded) {
+        actor_return_state(script->actor);
+        lua_script_print_error(L, script, "Cannot Probe");
+    }
+
+    A = actor_request_stack(script->actor);
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    lua_getfield(A, -1, field);
+    utils_copy_top(L, A);
+    lua_pop(A, 2);
+
+    actor_return_stack(script->actor);
+    actor_return_state(script->actor);
+
+    return 1;
+}
+
+static int
+lua_script_remove (lua_State *L)
+{
     /*
      * TODO:
      *
@@ -172,28 +284,22 @@ lua_script_probe (lua_State *L)
      * long as both the stack and state mutexes are acquired first for the 
      * Actor.
      */
+    return 0;
+}
 
-    actor_request_state(script->actor);
-
-    if (!script->is_loaded) {
-        actor_return_state(script->actor);
-        luaL_error(L, "%s %p isn't loaded!", SCRIPT_LIB, script);
-    }
-
-    A = actor_request_stack(script->actor);
-    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
-    lua_getfield(A, -1, field);
-    utils_copy_top(L, A);
-    lua_pop(A, 2);
-
-    actor_return_stack(script->actor);
-    actor_return_state(script->actor);
+static int
+lua_script_tostring (lua_State *L)
+{
+    Script* script = lua_check_script(L, 1);
+    lua_pushfstring(L, "%s %p", SCRIPT_LIB, script);
     return 1;
 }
 
 static const luaL_Reg script_methods[] = {
-    {"load",  lua_script_load},
-    {"probe", lua_script_probe},
+    {"load",       lua_script_load},
+    {"probe",      lua_script_probe},
+    {"remove",     lua_script_remove},
+    {"__tostring", lua_script_tostring},
     { NULL, NULL }
 };
 
