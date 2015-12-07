@@ -217,15 +217,30 @@ exit:
 static int
 lua_script_load (lua_State *L)
 {
+    lua_State *A;
+    int new_definition = 0;
+    int args = lua_gettop(L);
     Script *script = lua_check_script(L, 1);
 
-    /*
-     * TODO: How do we handle loading just a single Script in the Actor thread
-     * and not them all?
-     *
-     * Maybe it's a simple flag -- look for scripts wanting to be reloaded?
-     * Also, do I need mutexes for each Script?
-     */
+    if (args == 2) {
+        lua_check_script_table(L, 2);
+        new_definition = 1;
+    }
+
+    actor_request_state(script->actor);
+    A = actor_request_stack(script->actor);
+
+    if (new_definition) {
+        luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
+        utils_copy_top(A, L);
+        script->table_ref = luaL_ref(A, LUA_REGISTRYINDEX);
+    }
+
+    script->be_loaded = 1;
+
+    actor_return_stack(script->actor);
+    actor_return_state(script->actor);
+
     actor_alert_action(script->actor, LOAD);
 
     return 0;

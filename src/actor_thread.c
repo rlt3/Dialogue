@@ -68,10 +68,9 @@ actor_load_scripts (Actor *actor)
      * Remember: we already have the state mutex & script_load asks for the 
      * stack mutex as well
      */
-    for (script = actor->script_head; script != NULL; script = script->next) {
+    for (script = actor->script_head; script != NULL; script = script->next)
         if (script->be_loaded)
             script_load(script);
-    }
 }
 
 /*
@@ -108,6 +107,7 @@ actor_process_envelope (Actor *actor)
     for (script = actor->script_head; script != NULL; script = script->next)
         if (script->is_loaded)
             script_send(script);
+    lua_pop(A, 1);
 
     actor_return_stack(actor);
 }

@@ -3,7 +3,7 @@ _G.Dialogue = require("Dialogue")
 describe("An Actor", function()
     local actor = actor
 
-    it("is created by passing it a table of the form {'module', arg1, arg2, ..., argn}", function()
+    it("is created by passing it a table of the form {'module' [, arg1, arg2, ..., argn]}", function()
         actor = Dialogue.Actor.new{ {"draw", 400, 600} }
         assert.is_equal(1, #actor:scripts())
     end)
@@ -33,12 +33,35 @@ describe("An Actor", function()
         assert.has_error(errfn, "Cannot Probe: The Script's module isn't valid or has errors.")
     end)
 
-    it("can be sent messages", function()
+    it("can be sent messages of the form {'method' [, arg1, arg2, ..., argn]}", function()
         actor = Dialogue.Actor.new{ {"draw", 1, 2} }
         os.execute("sleep " .. tonumber(0.5))
         actor:send{"move", 1, 1}
         os.execute("sleep " .. tonumber(0.5))
         assert.are.same({2, 3}, actor:scripts()[1]:probe("coordinates"))
+    end)
+
+    it("skips sending messages to Scripts which have errors", function()
+        actor = Dialogue.Actor.new{ {"bad"}, {"draw", 250, 250} }
+        os.execute("sleep " .. tonumber(0.5))
+        actor:send{"move", 1, 1}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({251, 251}, actor:scripts()[2]:probe("coordinates"))
+    end)
+
+    it("can give a bad script a new module and definition to load", function()
+        actor:scripts()[1]:load{"draw", 5, 5}
+        os.execute("sleep " .. tonumber(0.5))
+        actor:send{"move", 1, 1}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({6, 6}, actor:scripts()[1]:probe("coordinates"))
+        assert.are.same({252, 252}, actor:scripts()[2]:probe("coordinates"))
+    end)
+
+    it("can handle manually reloading scripts to its original state for any reason", function()
+        actor:scripts()[2]:load()
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({250, 250}, actor:scripts()[2]:probe("coordinates"))
     end)
 
     pending("can handle removing any script")
