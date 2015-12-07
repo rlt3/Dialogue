@@ -47,6 +47,18 @@ typedef struct Actor {
 } Actor;
 
 /*
+ * Add the Script to the end of the Actor's linked-list of Scripts.
+ */
+void
+actor_add_script (Actor *actor, struct Script *script);
+
+/*
+ * Remove the Script and connect the previous to the next.
+ */
+void
+actor_remove_script (Actor *actor, struct Script *script);
+
+/*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
 Actor *

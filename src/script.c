@@ -75,6 +75,7 @@ lua_script_new (lua_State *L)
     script->table_ref = luaL_ref(A, LUA_REGISTRYINDEX);
     script->actor = actor;
     script->next = NULL;
+    script->prev = NULL;
     script->is_loaded = 0;
     script->be_loaded = 1;
     script->error = NULL;
@@ -279,26 +280,24 @@ lua_script_probe (lua_State *L)
     return 1;
 }
 
+/*
+ * Remove a script from the Actor's state.
+ */
 static int
 lua_script_remove (lua_State *L)
 {
-    /*
-     * TODO:
-     *
-     * The Script is so closely related to an Actor that a Script needs the
-     * Actor's stack mutex to do anything. But the Script still has state (the
-     * next pointer and its previous linked-list node). The Actor has the state
-     * mutex for any changes and the Script linked-list is part of that state.
-     *
-     * How do I remove a Script in place (a splice) from an Actor's linked-list
-     * without causing problems?
-     *
-     * Since the Actor's own thread will handle the receiving, each message is
-     * received asynchronously but not in parallel. Meaning that at no point
-     * will the Actor ever attempt to push a NULL or undefined reference as 
-     * long as both the stack and state mutexes are acquired first for the 
-     * Actor.
-     */
+    lua_State *A;
+    Script *script = lua_check_script(L, 1);
+
+    actor_request_state(script->actor);
+    A = actor_request_stack(script->actor);
+
+    actor_remove_script(script->actor, script);
+    script_unload(script);
+
+    actor_return_stack(script->actor);
+    actor_return_state(script->actor);
+
     return 0;
 }
 

@@ -64,6 +64,12 @@ describe("An Actor", function()
         assert.are.same({250, 250}, actor:scripts()[2]:probe("coordinates"))
     end)
 
-    pending("can handle removing any script")
+    it("can handle removing any script", function()
+        assert.is_equal(2, #actor:scripts())
+        actor:scripts()[1]:remove()
+        os.execute("sleep " .. tonumber(0.5))
+        assert.is_equal(1, #actor:scripts())
+        assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
+    end)
 
 end)

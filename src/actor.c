@@ -24,7 +24,29 @@ actor_add_script (Actor *actor, Script *script)
         actor->script_tail = script;
     } else {
         actor->script_tail->next = script;
+        script->prev = actor->script_tail;
         actor->script_tail = script;
+    }
+}
+
+/*
+ * Remove the Script from the Actor's linked-list.
+ */
+void
+actor_remove_script (Actor *actor, Script *script)
+{
+    if (script->prev == NULL && script->next) {
+        /* it is the head */
+        actor->script_head = script->next;
+        actor->script_head->prev = NULL;
+    } else if (script->next == NULL && script->prev) {
+        /* it is the tail */
+        actor->script_tail = script->prev;
+        actor->script_tail->next = NULL;
+    } else {
+        /* a normal node */
+        script->prev->next = script->next;
+        script->next->prev = script->prev;
     }
 }
 

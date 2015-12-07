@@ -52,8 +52,8 @@ actor_alert_action (Actor *actor, Action action)
 {
     actor_request_state(actor);
     actor->action = action;
-    pthread_cond_signal(&actor->new_action);
     actor_return_state(actor);
+    pthread_cond_signal(&actor->new_action);
 }
 
 /*

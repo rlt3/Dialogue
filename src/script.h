@@ -22,6 +22,7 @@
 #define SEND_FAIL       3
 
 typedef struct Script {
+    struct Script *prev;
     struct Script *next;
     struct Actor *actor;
 
@@ -51,6 +52,13 @@ typedef struct Script {
 int
 script_load (Script *script);
 
+/*
+ * Assumes access to state & stack mutexes. Unloads the Script making it exist
+ * as dead weight. It will be skipped by messages and load attempts unless 
+ * changed manually.
+ */
+void
+script_unload (Script *script);
 
 /*
  * Assumes the state mutex has been acquired and there is a message at the top
