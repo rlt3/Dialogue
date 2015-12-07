@@ -127,16 +127,31 @@ lua_actor_new (lua_State *L)
     return 1;
 }
 
+/*
+ * This is a blocking method. It puts the the given message inside the 
+ * Envelopes table and tells the Actor to process it.
+ */
 static int
-lua_actor_test (lua_State *L)
+lua_actor_send (lua_State *L)
 {
-    lua_check_actor(L, 1);
-    lua_pushstring(L, "fun");
-    return 1;
+    lua_State *A;
+    Actor *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    A = actor_request_stack(actor);
+    lua_getglobal(A, "__envelopes");
+    utils_copy_top(A, L);
+    lua_rawseti(A, 1, luaL_len(A, 1) + 1);
+    lua_pop(A, 1);
+    actor_return_stack(actor);
+
+    actor_alert_action(actor, RECEIVE);
+    
+    return 0;
 }
 
 /*
- * Returns an array of Script objects that an Actor owns.
+ * This is a blocking method. Returns an array of Script references of an actor.
  */
 static int
 lua_actor_scripts (lua_State *L)
@@ -145,12 +160,6 @@ lua_actor_scripts (lua_State *L)
     Script *script;
     Actor *actor = lua_check_actor(L, 1);
 
-    /*
-     * We need access to the Actor's state (because the Scripts are the 
-     * Actor's state) to return an array of reference objects. We don't wait
-     * for each Script's state here because, since we have the Actor's mutex,
-     * that these Scripts aren't going to get removed.
-     */
     actor_request_state(actor);
 
     lua_newtable(L);
@@ -193,7 +202,7 @@ lua_actor_tostring (lua_State *L)
 }
 
 static const luaL_Reg actor_methods[] = {
-    {"test",       lua_actor_test},
+    {"send",       lua_actor_send},
     {"scripts",    lua_actor_scripts},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},

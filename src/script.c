@@ -157,8 +157,8 @@ exit:
 }
 
 /*
- * Assumes the state mutex has been acquired and there is a message at the top
- * of the stack.
+ * Assumes the state & stack mutex have been acquired and there is a message at
+ * the top of the stack.
  *
  * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
  *
@@ -168,10 +168,10 @@ exit:
 int
 script_send (Script *script)
 {
-    lua_State *A; 
     int message_index;
     int args;
     int ret = SEND_OK;
+    lua_State *A = script->actor->L;
     pthread_t calling_thread = pthread_self();
 
     if (calling_thread != script->actor->thread) {
@@ -179,7 +179,6 @@ script_send (Script *script)
         goto exit;
     }
 
-    A = actor_request_stack(script->actor);
     message_index = lua_gettop(A);
 
     /* function = object.message_title */
@@ -191,7 +190,7 @@ script_send (Script *script)
     if (!lua_isfunction(A, -1)) {
         ret = SEND_SKIP;
         lua_pop(A, 2);
-        goto cleanup;
+        goto exit;
     }
 
     /* push `self' reference, args, and the author reference */
@@ -203,17 +202,18 @@ script_send (Script *script)
         ret = SEND_FAIL;
         script->error = lua_tostring(A, -1);
         script_unload(script);
-        lua_pop(A, 1);
-        goto cleanup;
     }
-
-cleanup:
-    actor_return_stack(script->actor);
+    
+    lua_pop(A, 1);
 
 exit:
     return ret;
 }
 
+/*
+ * Manually reload the Script. An optional table can be passed in if a new
+ * table definition is required.
+ */
 static int
 lua_script_load (lua_State *L)
 {

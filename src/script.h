@@ -58,7 +58,8 @@ script_load (Script *script);
  *
  * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
  *
- * Details of the error are set if SEND_FAIL is returned.
+ * If SEND_FAIL is returned, the Script is unloaded and turned off.
+ * Additionally, details of the error are set if SEND_FAIL is returned.
  */
 int
 script_send (Script *script);

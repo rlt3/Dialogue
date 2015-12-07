@@ -103,12 +103,13 @@ actor_process_envelope (Actor *actor)
     lua_State *A; 
 
     A = actor_request_stack(actor);
-    actor_push_next_envelope(actor);
-    actor_return_stack(actor);
 
+    actor_push_next_envelope(actor);
     for (script = actor->script_head; script != NULL; script = script->next)
         if (script->is_loaded)
             script_send(script);
+
+    actor_return_stack(actor);
 }
 
 /*

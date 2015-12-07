@@ -33,7 +33,14 @@ describe("An Actor", function()
         assert.has_error(errfn, "Cannot Probe: The Script's module isn't valid or has errors.")
     end)
 
-    pending("can be sent messages")
+    it("can be sent messages", function()
+        actor = Dialogue.Actor.new{ {"draw", 1, 2} }
+        os.execute("sleep " .. tonumber(0.5))
+        actor:send{"move", 1, 1}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({2, 3}, actor:scripts()[1]:probe("coordinates"))
+    end)
+
     pending("can handle removing any script")
 
 end)
