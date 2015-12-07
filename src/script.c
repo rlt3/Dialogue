@@ -45,9 +45,6 @@ lua_script_new (lua_State *L)
     luaL_getmetatable(L, SCRIPT_LIB);
     lua_setmetatable(L, -2);
 
-    /* Ref the script itself so it doesn't GC */
-    script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-
     /* Copy and ref the Script's table definition so we can reload */
     A = actor_request_stack(actor);
     utils_copy_table(A, L, 2);
@@ -56,8 +53,6 @@ lua_script_new (lua_State *L)
     script->next = NULL;
     script->is_loaded = 0;
     actor_return_stack(actor);
-
-    lua_rawgeti(L, LUA_REGISTRYINDEX, script->ref);
 
     return 1;
 }
@@ -146,6 +141,13 @@ lua_script_load (lua_State *L)
     return 0;
 }
 
+/*
+ * Access a field and get the results from the object inside the Script.
+ *
+ * script:probe("coordinates") => {100, 50}
+ * script:probe("weapon") => "axe"
+ * script:probe("following") => Dialogue.Actor 0x003f9bc39
+ */
 static int
 lua_script_probe (lua_State *L)
 {
@@ -153,16 +155,39 @@ lua_script_probe (lua_State *L)
     Script *script = lua_check_script(L, 1);
     const char *field = luaL_checkstring(L, 2);
 
-    if (!script->is_loaded)
+    /*
+     * TODO:
+     *
+     * The Script is so closely related to an Actor that a Script needs the
+     * Actor's stack mutex to do anything. But the Script still has state (the
+     * next pointer and its previous linked-list node). The Actor has the state
+     * mutex for any changes and the Script linked-list is part of that state.
+     *
+     * How do I remove a Script in place (a splice) from an Actor's linked-list
+     * without causing problems?
+     *
+     * Since the Actor's own thread will handle the receiving, each message is
+     * received asynchronously but not in parallel. Meaning that at no point
+     * will the Actor ever attempt to push a NULL or undefined reference as 
+     * long as both the stack and state mutexes are acquired first for the 
+     * Actor.
+     */
+
+    actor_request_state(script->actor);
+
+    if (!script->is_loaded) {
+        actor_return_state(script->actor);
         luaL_error(L, "%s %p isn't loaded!", SCRIPT_LIB, script);
+    }
 
     A = actor_request_stack(script->actor);
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
     lua_getfield(A, -1, field);
     utils_copy_top(L, A);
     lua_pop(A, 2);
-    actor_return_stack(script->actor);
 
+    actor_return_stack(script->actor);
+    actor_return_state(script->actor);
     return 1;
 }
 

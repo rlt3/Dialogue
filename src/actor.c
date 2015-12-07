@@ -44,6 +44,7 @@ lua_actor_new (lua_State *L)
     const int table_arg = 1;
     const int actor_arg = 2;
     int table_index;
+    int script_index;
     lua_State *A;
     Actor *actor;
     Script *script;
@@ -51,7 +52,7 @@ lua_actor_new (lua_State *L)
 
     luaL_checktype(L, table_arg, LUA_TTABLE);
 
-    actor = lua_newuserdata(L, sizeof(*actor));
+    actor = lua_newuserdata(L, sizeof(Actor));
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
 
@@ -67,6 +68,11 @@ lua_actor_new (lua_State *L)
     actor->action = LOAD;
     actor->on = 1;
 
+    /* 
+     * init mutexes to recursive because its own thread might call a method
+     * which expects to be called from an outside thread sometimes and askes
+     * for a mutex.
+     */
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&actor->stack_mutex, &mutex_attr);
@@ -88,16 +94,19 @@ lua_actor_new (lua_State *L)
     lua_newtable(A);
     lua_setglobal(A, "__envelopes");
 
+    /* Push the Script table to prepare for calling 'new' a bunch */
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Actor");
+    lua_getfield(L, -1, "Script");
+    script_index = lua_gettop(L);
+
     /* Create all the Scripts in this Lua state */
     lua_pushnil(L);
     while (lua_next(L, table_arg)) {
         luaL_checktype(L, -1, LUA_TTABLE);
         table_index = lua_gettop(L);
 
-        lua_getglobal(L, "Dialogue");
-        lua_getfield(L, -1, "Actor");
-        lua_getfield(L, -1, "Script");
-        lua_getfield(L, -1, "new");
+        lua_getfield(L, script_index, "new");
         lua_pushvalue(L, actor_arg);
         lua_pushvalue(L, table_index);
 
@@ -105,20 +114,52 @@ lua_actor_new (lua_State *L)
             luaL_error(L, "Giving script failed: %s", lua_tostring(L, -1));
 
         script = lua_check_script(L, -1);
+        script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
         actor_add_script(actor, script);
 
-        lua_pop(L, 5); /* Key, Return, Dialogue, Actor, Script */
+        lua_pop(L, 1); /* Key */
     }
-    lua_pop(L, 1); /* table */
-
-    printf("Actor %p top: %d\n", actor, lua_gettop(A));
-
-    for (script = actor->script_head; script !=NULL; script = script->next) {
-        printf("\tScript %p\n", script);
-    }
+    lua_pop(L, 3); /* Dialogue, Actor, Script */
 
     pthread_create(&actor->thread, NULL, actor_thread, actor);
     pthread_detach(actor->thread);
+
+    return 1;
+}
+
+static int
+lua_actor_test (lua_State *L)
+{
+    lua_check_actor(L, 1);
+    lua_pushstring(L, "fun");
+    return 1;
+}
+
+/*
+ * Returns an array of Script objects that an Actor owns.
+ */
+static int
+lua_actor_scripts (lua_State *L)
+{
+    int i = 0;
+    Script *script;
+    Actor *actor = lua_check_actor(L, 1);
+
+    /*
+     * We need access to the Actor's state (because the Scripts are the 
+     * Actor's state) to return an array of reference objects. We don't wait
+     * for each Script's state here because, since we have the Actor's mutex,
+     * that these Scripts aren't going to get removed.
+     */
+    actor_request_state(actor);
+
+    lua_newtable(L);
+    for (script = actor->script_head; script != NULL; script = script->next) {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script->ref);
+        lua_rawseti(L, -2, ++i);
+    }
+
+    actor_return_state(actor);
 
     return 1;
 }
@@ -134,6 +175,8 @@ lua_actor_gc (lua_State *L)
 
     actor_alert_action(actor, STOP);
 
+    usleep(1000);
+
     A = actor_request_stack(actor);
     lua_close(A);
     actor_return_stack(actor);
@@ -141,8 +184,20 @@ lua_actor_gc (lua_State *L)
     return 0;
 }
 
+
+static int
+lua_actor_tostring (lua_State *L)
+{
+    Actor* actor = lua_check_actor(L, 1);
+    lua_pushfstring(L, "%s %p", ACTOR_LIB, actor);
+    return 1;
+}
+
 static const luaL_Reg actor_methods[] = {
+    {"test",       lua_actor_test},
+    {"scripts",    lua_actor_scripts},
     {"__gc",       lua_actor_gc},
+    {"__tostring", lua_actor_tostring},
     { NULL, NULL }
 };
 

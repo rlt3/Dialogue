@@ -26,8 +26,5 @@ check:
 test:
 	valgrind --leak-check=full -v lua -i stage.lua
 
-actor: $(TMPSOURCES)
-	$(CC) -g $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
-
 clean:
 	rm -f $(MODULE) *.so src/*o
