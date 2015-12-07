@@ -146,8 +146,29 @@ lua_script_load (lua_State *L)
     return 0;
 }
 
+static int
+lua_script_probe (lua_State *L)
+{
+    lua_State *A;
+    Script *script = lua_check_script(L, 1);
+    const char *field = luaL_checkstring(L, 2);
+
+    if (!script->is_loaded)
+        luaL_error(L, "%s %p isn't loaded!", SCRIPT_LIB, script);
+
+    A = actor_request_stack(script->actor);
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    lua_getfield(A, -1, field);
+    utils_copy_top(L, A);
+    lua_pop(A, 2);
+    actor_return_stack(script->actor);
+
+    return 1;
+}
+
 static const luaL_Reg script_methods[] = {
-    {"load", lua_script_load},
+    {"load",  lua_script_load},
+    {"probe", lua_script_probe},
     { NULL, NULL }
 };
 
