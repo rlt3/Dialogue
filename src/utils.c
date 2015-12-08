@@ -26,6 +26,18 @@ utils_push_object_method (lua_State *L,
 }
 
 /*
+ * Add a slot to a userdata object and modifying its __index.
+ */
+void
+utils_add_method (lua_State *L, int index, lua_CFunction f, const char* field)
+{
+    lua_getfield(L, index, "__index");
+    lua_pushcfunction(L, f);
+    lua_setfield(L, -2, "receive");
+    lua_pop(L, 1);
+}
+
+/*
  * Push the first element of a table at index.
  */
 void

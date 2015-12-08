@@ -205,29 +205,6 @@ lua_actor_scripts (lua_State *L)
 }
 
 /*
- * Make an Actor a Lead actor. This closes its thread which means it doesn't
- * automatically do anything. One must manually call its 'receive' method to
- * process messages and 'load' to reload any Scripts.
- *
- * This is an optional feature which makes it easy for an Actor to be called
- * on the main thread. If Dialogue was compiled with the HEAD (and not 
- * HEADLESS), it will automatically process all Actors marked as Lead in the
- * main thread with the Interpreter.
- */
-int
-lua_actor_lead (lua_State *L)
-{
-    Actor *actor = lua_check_actor(L, 1);
-    
-    actor_alert_action(actor, STOP);
-
-    actor_request_state(actor);
-    actor->manual_call = 1;
-    actor_return_state(actor);
-    return 0;
-}
-
-/*
  * Allows a Lead Actor to process all the messages it its Mailbox.
  */
 int
@@ -243,6 +220,7 @@ lua_actor_receive (lua_State *L)
     actor_return_state(actor);
 
     actor_call_action(actor, RECEIVE);
+
     return 0;
 }
 
@@ -256,6 +234,7 @@ lua_actor_load (lua_State *L)
     Actor *actor = lua_check_actor(L, 1);
 
     actor_request_state(actor);
+
     if (!actor->manual_call) {
         actor_return_state(actor);
         luaL_error(L, "%s %p is not a lead actor!", ACTOR_LIB, actor);
@@ -263,9 +242,39 @@ lua_actor_load (lua_State *L)
 
     for (script = actor->script_head; script != NULL; script = script->next)
         script->be_loaded = 1;
+
     actor_return_state(actor);
 
     actor_call_action(actor, LOAD);
+    return 0;
+}
+
+/*
+ * Make an Actor a Lead actor. This closes its thread which means it doesn't
+ * automatically do anything. 
+ *
+ * One must manually call its 'receive' method to process messages and 'load'
+ * to reload any Scripts. These methods are added to the Actor via this method.
+ *
+ * This is an optional feature which makes it easy for an Actor to be called
+ * on the main thread. If Dialogue was compiled with the HEAD (and not 
+ * HEADLESS), it will automatically process all Actors marked as Lead in the
+ * main thread with the Interpreter.
+ */
+int
+lua_actor_lead (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+
+    actor_alert_action(actor, STOP);
+
+    actor_request_state(actor);
+    actor->manual_call = 1;
+    actor_return_state(actor);
+
+    utils_add_method(L, 1, lua_actor_receive, "receive");
+    utils_add_method(L, 1, lua_actor_load, "load");
+
     return 0;
 }
 
@@ -302,9 +311,9 @@ lua_actor_tostring (lua_State *L)
 static const luaL_Reg actor_methods[] = {
     {"send",       lua_actor_send},
     {"lead",       lua_actor_lead},
-    {"receive",    lua_actor_receive},
-    {"load",       lua_actor_load},
     {"scripts",    lua_actor_scripts},
+    //{"receive",    lua_actor_receive},
+    //{"load",       lua_actor_load},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
     { NULL, NULL }
