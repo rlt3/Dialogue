@@ -12,7 +12,7 @@
 int
 lua_dialogue_lead (lua_State *L)
 {
-    Actor *actor = lua_check_actor(L, 1);
+    //Actor *actor = lua_check_actor(L, 1);
 
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "__lead_actors");

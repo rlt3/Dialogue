@@ -72,4 +72,13 @@ describe("An Actor", function()
         assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
     end)
 
+    it("can turn into a Lead which closes its thread and it has to be called manually", function()
+        actor:lead()
+        actor:send{"move", 2, 2}
+        actor:send{"move", 13, 13}
+        assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
+        actor:receive()
+        assert.are.same({265, 265}, actor:scripts()[1]:probe("coordinates"))
+    end)
+
 end)

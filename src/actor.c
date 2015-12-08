@@ -205,6 +205,71 @@ lua_actor_scripts (lua_State *L)
 }
 
 /*
+ * Make an Actor a Lead actor. This closes its thread which means it doesn't
+ * automatically do anything. One must manually call its 'receive' method to
+ * process messages and 'load' to reload any Scripts.
+ *
+ * This is an optional feature which makes it easy for an Actor to be called
+ * on the main thread. If Dialogue was compiled with the HEAD (and not 
+ * HEADLESS), it will automatically process all Actors marked as Lead in the
+ * main thread with the Interpreter.
+ */
+int
+lua_actor_lead (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    
+    actor_alert_action(actor, STOP);
+
+    actor_request_state(actor);
+    actor->manual_call = 1;
+    actor_return_state(actor);
+    return 0;
+}
+
+/*
+ * Allows a Lead Actor to process all the messages it its Mailbox.
+ */
+int
+lua_actor_receive (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    
+    actor_request_state(actor);
+    if (!actor->manual_call) {
+        actor_return_state(actor);
+        luaL_error(L, "%s %p is not a lead actor!", ACTOR_LIB, actor);
+    }
+    actor_return_state(actor);
+
+    actor_call_action(actor, RECEIVE);
+    return 0;
+}
+
+/*
+ * Allows a Lead Actor to load all of its Scripts in the calling thread.
+ */
+int
+lua_actor_load (lua_State *L)
+{
+    Script *script;
+    Actor *actor = lua_check_actor(L, 1);
+
+    actor_request_state(actor);
+    if (!actor->manual_call) {
+        actor_return_state(actor);
+        luaL_error(L, "%s %p is not a lead actor!", ACTOR_LIB, actor);
+    }
+
+    for (script = actor->script_head; script != NULL; script = script->next)
+        script->be_loaded = 1;
+    actor_return_state(actor);
+
+    actor_call_action(actor, LOAD);
+    return 0;
+}
+
+/*
  * Set the thread's condition to false and close the Lua stack.
  */
 static int
@@ -236,6 +301,9 @@ lua_actor_tostring (lua_State *L)
 
 static const luaL_Reg actor_methods[] = {
     {"send",       lua_actor_send},
+    {"lead",       lua_actor_lead},
+    {"receive",    lua_actor_receive},
+    {"load",       lua_actor_load},
     {"scripts",    lua_actor_scripts},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
