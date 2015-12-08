@@ -27,4 +27,4 @@ test:
 	valgrind --leak-check=full -v lua -i stage.lua
 
 clean:
-	rm -f $(MODULE) *.so src/*o
+	rm -f $(MODULE) src/*o

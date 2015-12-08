@@ -105,6 +105,7 @@ script_load (Script *script)
     A = actor_request_stack(script->actor);
 
     if (calling_thread != script->actor->thread) {
+        printf("ERR_NOT_CALLING_THREAD top: %d\n", lua_gettop(A));
         script->error = ERR_NOT_CALLING_THREAD;
         ret = LOAD_BAD_THREAD;
         goto exit;
@@ -123,6 +124,7 @@ script_load (Script *script)
     utils_push_table_head(A, table_index);
 
     if (lua_pcall(A, 1, 1, 0)) {
+        printf("ERR_BAD_MODULE top: %d\n", lua_gettop(A));
         script->error = ERR_BAD_MODULE;
         ret = LOAD_FAIL;
         goto cleanup;
@@ -132,6 +134,8 @@ script_load (Script *script)
     lua_getfield(A, -1, "new");
 
     if (!lua_isfunction(A, -1)) {
+        lua_pop(A, 1); /* whatever 'new' is */
+        printf("ERR_NO_MODULE_NEW top: %d\n", lua_gettop(A));
         script->error = ERR_NO_MODULE_NEW;
         ret = LOAD_FAIL;
         goto cleanup;
@@ -140,6 +144,8 @@ script_load (Script *script)
     args = utils_push_table_data(A, table_index);
 
     if (lua_pcall(A, args, 1, 0)) {
+        lua_pop(A, 1); /* error */
+        printf("ERR_BAD_MODULE_NEW top: %d\n", lua_gettop(A));
         script->error = ERR_BAD_MODULE_NEW;
         ret = LOAD_FAIL;
         goto cleanup;
@@ -302,6 +308,21 @@ lua_script_remove (lua_State *L)
 }
 
 static int
+lua_script_error (lua_State *L)
+{
+    Script* script = lua_check_script(L, 1);
+
+    actor_request_state(script->actor);
+    if (script->error == NULL) {
+        lua_pushstring(L, "No error");
+    } else {
+        lua_pushstring(L, script->error);
+    }
+    actor_return_state(script->actor);
+    return 1;
+}
+
+static int
 lua_script_tostring (lua_State *L)
 {
     Script* script = lua_check_script(L, 1);
@@ -313,6 +334,7 @@ static const luaL_Reg script_methods[] = {
     {"load",       lua_script_load},
     {"probe",      lua_script_probe},
     {"remove",     lua_script_remove},
+    {"error",      lua_script_error},
     {"__tostring", lua_script_tostring},
     { NULL, NULL }
 };

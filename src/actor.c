@@ -202,6 +202,7 @@ static int
 lua_actor_gc (lua_State *L)
 {
     lua_State *A;
+    Script *script;
     Actor *actor = lua_check_actor(L, 1);
 
     actor_alert_action(actor, STOP);
@@ -209,6 +210,10 @@ lua_actor_gc (lua_State *L)
     usleep(1000);
 
     A = actor_request_stack(actor);
+
+    for (script = actor->script_head; script != NULL; script = script->next)
+        script_unload(script);
+
     lua_close(A);
     actor_return_stack(actor);
 
