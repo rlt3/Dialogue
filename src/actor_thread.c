@@ -22,7 +22,7 @@ actor_request_state (Actor *actor)
  * Return access so it can give it away again.
  */
 void
-actor_return_state (struct Actor *actor)
+actor_return_state (Actor *actor)
 {
     pthread_mutex_unlock(&actor->state_mutex);
 }
@@ -89,6 +89,30 @@ actor_process_envelope (Actor *actor)
         if (script->is_loaded)
             script_send(script);
     lua_pop(A, 1);
+}
+
+/*
+ * Block for the Actor's state and call the appropriate function for the given
+ * Action. This is for doing actions in a specific thread rather than telling
+ * the Actor to process in its own thread.
+ */
+void
+actor_call_action (Actor *actor, Action action)
+{
+    actor_request_state(actor);
+    switch (action) {
+    case LOAD:
+        actor_load_scripts(actor);
+        break;
+
+    case RECEIVE:
+        actor_process_envelope(actor);
+        break;
+
+    default:
+        break;
+    }
+    actor_return_state(actor);
 }
 
 /*

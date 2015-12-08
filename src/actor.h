@@ -25,6 +25,7 @@ typedef struct Actor {
     Action action;
 
     short int on;
+    short int manual_call;
 
     /* Tree nav: go up, horizontally, and down the tree */
     struct Actor *parent;

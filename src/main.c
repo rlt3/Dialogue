@@ -23,6 +23,7 @@ int
 main (int argc, char **argv)
 {
     const char *script;
+    Actor *actor;
     Interpreter *interp;
     lua_State *L;
 
@@ -48,7 +49,15 @@ main (int argc, char **argv)
     printf("Dialogue v0.0 with Lua v5.2\n"
            "    type `exit()` to exit.\n");
 
+    lua_getglobal(L, "actor");
+    actor = lua_check_actor(L, -1);
+    lua_pop(L, 1);
+
+    actor_call_action(actor, LOAD);
+
     while (is_running) {
+        //actor_call_action(actor, RECEIVE);
+
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);
     }

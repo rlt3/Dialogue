@@ -104,10 +104,12 @@ script_load (Script *script)
 
     A = actor_request_state(script->actor);
 
-    if (calling_thread != script->actor->thread) {
-        script->error = ERR_NOT_CALLING_THREAD;
-        ret = LOAD_BAD_THREAD;
-        goto exit;
+    if (!script->actor->manual_call) {
+        if (!pthread_equal(calling_thread, script->actor->thread)) {
+            script->error = ERR_NOT_CALLING_THREAD;
+            ret = LOAD_BAD_THREAD;
+            goto exit;
+        }
     }
 
     if (script->is_loaded) {
@@ -178,9 +180,11 @@ script_send (Script *script)
     lua_State *A = script->actor->L;
     pthread_t calling_thread = pthread_self();
 
-    if (calling_thread != script->actor->thread) {
-        ret = SEND_BAD_THREAD;
-        goto exit;
+    if (!script->actor->manual_call) {
+        if (!pthread_equal(calling_thread, script->actor->thread)) {
+            ret = SEND_BAD_THREAD;
+            goto exit;
+        }
     }
 
     message_index = lua_gettop(A);

@@ -19,6 +19,33 @@ struct Interpreter {
 };
 
 /*
+ * Print the Lua error.
+ */
+void
+lua_printerror (lua_State *L)
+{
+    printf("%s\n", lua_tostring(L, -1));
+}
+
+/*
+ * Interpret the input in the given lua_State*.
+ */
+void
+lua_interpret (lua_State *L, const char *input)
+{
+    lua_getglobal(L, "loadstring");
+    lua_pushstring(L, input);
+    lua_call(L, 1, 1);
+    
+    if (lua_isfunction(L, -1)) {
+        if (lua_pcall(L, 0, 0, 0))
+            lua_printerror(L);
+    } else {
+        lua_pop(L, 1);
+    }
+}
+
+/*
  * Wait for input to be received. When it is, unlock the mutex and wait for the
  * signal to start looking for more input.
  */
@@ -48,15 +75,6 @@ interpreter_thread (void *arg)
     free(interpreter);
 
     return NULL;
-}
-
-/*
- * Print the Lua error.
- */
-void
-lua_printerror (lua_State *L)
-{
-    printf("Error: %s\n", lua_tostring(L, -1));
 }
 
 /*
@@ -116,16 +134,7 @@ interpreter_lua_interpret (Interpreter *interpreter, lua_State *L)
 {
     pthread_mutex_lock(&interpreter->input_mutex);
 
-    lua_getglobal(L, "loadstring");
-    lua_pushstring(L, interpreter->line);
-    lua_call(L, 1, 1);
-    
-    if (lua_isfunction(L, -1)) {
-        lua_call(L, 0, 0);
-    } else {
-        lua_pop(L, 1);
-    }
-
+    lua_interpret(L, interpreter->line);
     interpreter->line = NULL;
     interpreter->new_input = 0;
     interpreter->waiting = 0;

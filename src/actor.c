@@ -65,6 +65,8 @@ lua_actor_new (lua_State *L)
 {
     const int table_arg = 1;
     const int actor_arg = 2;
+
+    int is_manual_call = 0;
     int table_index;
     int script_index;
     lua_State *A;
@@ -73,6 +75,13 @@ lua_actor_new (lua_State *L)
     pthread_mutexattr_t mutex_attr;
 
     luaL_checktype(L, table_arg, LUA_TTABLE);
+
+    /* An optional bool can be passed to make this Actor be called manually */
+    if (lua_gettop(L) == 2) {
+        luaL_checktype(L, 2, LUA_TBOOLEAN);
+        is_manual_call = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
 
     actor = lua_newuserdata(L, sizeof(Actor));
     luaL_getmetatable(L, ACTOR_LIB);
@@ -89,6 +98,7 @@ lua_actor_new (lua_State *L)
     actor->new_action = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
     actor->action = LOAD;
     actor->on = 1;
+    actor->manual_call = is_manual_call;
 
     /* 
      * init mutexes to recursive because its own thread might call a method
@@ -142,8 +152,10 @@ lua_actor_new (lua_State *L)
     }
     lua_pop(L, 3); /* Dialogue, Actor, Script */
 
-    pthread_create(&actor->thread, NULL, actor_thread, actor);
-    pthread_detach(actor->thread);
+    if (!is_manual_call) {
+        pthread_create(&actor->thread, NULL, actor_thread, actor);
+        pthread_detach(actor->thread);
+    }
 
     return 1;
 }
