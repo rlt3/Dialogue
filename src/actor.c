@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "dialogue.h"
 #include "actor.h"
+#include "mailbox.h"
 #include "script.h"
 #include "utils.h"
 
@@ -83,7 +84,7 @@ lua_actor_new (lua_State *L)
         lua_pop(L, 1);
     }
 
-    actor = lua_newuserdata(L, sizeof(Actor));
+    actor = lua_newuserdata(L, sizeof(*actor));
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
 
@@ -121,13 +122,19 @@ lua_actor_new (lua_State *L)
     utils_push_object(A, actor, ACTOR_LIB);
     lua_setglobal(A, "actor");
 
-    /* make a table for envelopes to sit in */
-    lua_newtable(A);
-    lua_setglobal(A, "__envelopes");
-
-    /* Push the Script table to prepare for calling 'new' a bunch */
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Actor");
+
+    lua_getfield(L, -1, "Mailbox");
+    lua_getfield(L, -1, "new");
+    lua_pushvalue(L, actor_arg);
+    if (lua_pcall(L, 1, 1, 0))
+        luaL_error(L, "Creating Mailbox failed: %s", lua_tostring(L, -1));
+
+    actor->mailbox = lua_check_mailbox(L, -1);
+    actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pop(L, 1);
+
     lua_getfield(L, -1, "Script");
     script_index = lua_gettop(L);
 
@@ -142,7 +149,7 @@ lua_actor_new (lua_State *L)
         lua_pushvalue(L, table_index);
 
         if (lua_pcall(L, 2, 1, 0))
-            luaL_error(L, "Giving script failed: %s", lua_tostring(L, -1));
+            luaL_error(L, "Creating Script failed: %s", lua_tostring(L, -1));
 
         script = lua_check_script(L, -1);
         script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -167,17 +174,10 @@ lua_actor_new (lua_State *L)
 static int
 lua_actor_send (lua_State *L)
 {
-    lua_State *A;
     Actor *actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    A = actor_request_state(actor);
-    lua_getglobal(A, "__envelopes");
-    utils_copy_top(A, L);
-    lua_rawseti(A, 1, luaL_len(A, 1) + 1);
-    lua_pop(A, 1);
-    actor_return_state(actor);
-
+    mailbox_send(actor->mailbox, L);
     actor_alert_action(actor, RECEIVE);
     
     return 0;
@@ -245,5 +245,15 @@ static const luaL_Reg actor_methods[] = {
 int 
 luaopen_Dialogue_Actor (lua_State *L)
 {
-    return utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
+    //return utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
+    
+    utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
+    
+    luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);
+    lua_setfield(L, -2, "Script");
+
+    luaL_requiref(L, MAILBOX_LIB, luaopen_Dialogue_Actor_Mailbox, 1);
+    lua_setfield(L, -2, "Mailbox");
+
+    return 1;
 }

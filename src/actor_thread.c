@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "actor.h"
+#include "mailbox.h"
 #include "script.h"
 #include "utils.h"
 
@@ -57,44 +58,38 @@ actor_load_scripts (Actor *actor)
 }
 
 /*
- * Removes the next envelope from its queue of Envelopes and leaves it at the
- * top of the Actor stack.
+ * Assumes the Actor mutex is acquired. Blocks for the Mailbox mutex. Processes
+ * all envelopes currently held by the Mailbox.
  */
 void
-actor_push_next_envelope (Actor *actor)
-{
-    lua_State *A = actor->L;
-
-    lua_getglobal(A, "table");
-    lua_getfield(A, -1, "remove");
-    lua_getglobal(A, "__envelopes");
-    lua_pushinteger(A, 1);
-    lua_call(A, 2, 1);
-
-    lua_insert(A, lua_gettop(A) - 1);
-    lua_pop(A, 1);
-}
-
-/*
- * Look into the Envelopes table and process the next one.
- */
-void
-actor_process_envelope (Actor *actor)
+actor_process_mailbox (Actor *actor)
 {
     Script *script;
+    Mailbox *mailbox = actor->mailbox;
     lua_State *A = actor->L;
+    lua_State *B = mailbox->L;
+    pthread_mutex_lock(&mailbox->mutex);
 
-    actor_push_next_envelope(actor);
-
-    if (lua_isnil(A, -1))
+    if (mailbox->envelope_count <= 0)
         goto cleanup;
 
-    for (script = actor->script_head; script != NULL; script = script->next)
-        if (script->is_loaded)
-            script_send(script);
+    while (mailbox->envelope_count > 0) {
+        mailbox_push_next_envelope(mailbox);
+        utils_copy_top(A, B);
+        lua_pop(B, 1);
+
+        if (lua_isnil(A, -1))
+            goto next;
+
+        for (script = actor->script_head; script != NULL; script = script->next)
+            if (script->is_loaded)
+                script_send(script);
+next:
+        lua_pop(A, 1);
+    }
 
 cleanup:
-    lua_pop(A, 1);
+    pthread_mutex_unlock(&mailbox->mutex);
 }
 
 /*
@@ -112,7 +107,7 @@ actor_call_action (Actor *actor, Action action)
         break;
 
     case RECEIVE:
-        actor_process_envelope(actor);
+        actor_process_mailbox(actor);
         break;
 
     default:
@@ -151,7 +146,7 @@ actor_thread (void *arg)
              * We must handle execution of the Script's methods as per above.
              */
             printf("Actor thread %p: receiving...\n", actor);
-            actor_process_envelope(actor);
+            actor_process_mailbox(actor);
             actor->action = WAIT;
             break;
 
