@@ -17,10 +17,7 @@ typedef struct Actor {
 
     pthread_t thread;
 
-    /* for accessing the stack (Lua state) specifically */
-    pthread_mutex_t stack_mutex;
-
-    /* for anything about the actor other than stack */
+    /* for anything about the actor other than the Mailbox & structure */
     pthread_mutex_t state_mutex;
 
     /* Action is the condition to be set to tell the thread what to do */

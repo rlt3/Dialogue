@@ -4,42 +4,25 @@
 #include "utils.h"
 
 /*
- * Request access to the Lua stack from the Actor (and only the stack).
+ * Request access to the Actor's state with a convinient return of the stack.
  */
 lua_State *
-actor_request_stack (Actor *actor)
+actor_request_state (Actor *actor)
 {
     /*
      * TODO: What if something is waiting on the Lua stack after the Actor
      * gets gc'd? Error codes or check for NULL?
      */
-    pthread_mutex_lock(&actor->stack_mutex);
+    pthread_mutex_lock(&actor->state_mutex);
     return actor->L;
 }
 
-/*
- * Return the stack back to the Actor who can give it out again.
- */
-void
-actor_return_stack (Actor *actor)
-{
-    pthread_mutex_unlock(&actor->stack_mutex);
-}
 
 /*
- * Request access to the Actor's state (but not the Lua stack).
+ * Return access so it can give it away again.
  */
 void
-actor_request_state (Actor *actor)
-{
-    pthread_mutex_lock(&actor->state_mutex);
-}
-
-/*
- * Return access to the Actor's state.
- */
-void
-actor_return_state (Actor *actor)
+actor_return_state (struct Actor *actor)
 {
     pthread_mutex_unlock(&actor->state_mutex);
 }
@@ -99,17 +82,13 @@ void
 actor_process_envelope (Actor *actor)
 {
     Script *script;
-    lua_State *A; 
-
-    A = actor_request_stack(actor);
+    lua_State *A = actor->L;
 
     actor_push_next_envelope(actor);
     for (script = actor->script_head; script != NULL; script = script->next)
         if (script->is_loaded)
             script_send(script);
     lua_pop(A, 1);
-
-    actor_return_stack(actor);
 }
 
 /*
@@ -169,5 +148,6 @@ actor_thread (void *arg)
     }
 
 exit:
+    pthread_mutex_unlock(&actor->state_mutex);
     return NULL;
 }

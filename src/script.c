@@ -70,7 +70,7 @@ lua_script_new (lua_State *L)
     lua_setmetatable(L, -2);
 
     /* Copy and ref the Script's table definition so we can reload */
-    A = actor_request_stack(actor);
+    A = actor_request_state(actor);
     utils_copy_table(A, L, 2);
     script->table_ref = luaL_ref(A, LUA_REGISTRYINDEX);
     script->actor = actor;
@@ -79,7 +79,7 @@ lua_script_new (lua_State *L)
     script->is_loaded = 0;
     script->be_loaded = 1;
     script->error = NULL;
-    actor_return_stack(actor);
+    actor_return_state(actor);
 
     return 1;
 }
@@ -102,10 +102,9 @@ script_load (Script *script)
     lua_State *A;
     pthread_t calling_thread = pthread_self();
 
-    A = actor_request_stack(script->actor);
+    A = actor_request_state(script->actor);
 
     if (calling_thread != script->actor->thread) {
-        printf("ERR_NOT_CALLING_THREAD top: %d\n", lua_gettop(A));
         script->error = ERR_NOT_CALLING_THREAD;
         ret = LOAD_BAD_THREAD;
         goto exit;
@@ -124,7 +123,6 @@ script_load (Script *script)
     utils_push_table_head(A, table_index);
 
     if (lua_pcall(A, 1, 1, 0)) {
-        printf("ERR_BAD_MODULE top: %d\n", lua_gettop(A));
         script->error = ERR_BAD_MODULE;
         ret = LOAD_FAIL;
         goto cleanup;
@@ -135,7 +133,6 @@ script_load (Script *script)
 
     if (!lua_isfunction(A, -1)) {
         lua_pop(A, 1); /* whatever 'new' is */
-        printf("ERR_NO_MODULE_NEW top: %d\n", lua_gettop(A));
         script->error = ERR_NO_MODULE_NEW;
         ret = LOAD_FAIL;
         goto cleanup;
@@ -157,15 +154,15 @@ script_load (Script *script)
 cleanup:
     lua_pop(A, 2); /* require & table */
     script->be_loaded = 0;
-    actor_return_stack(script->actor);
+    actor_return_state(script->actor);
 
 exit:
     return ret;
 }
 
 /*
- * Assumes the state & stack mutex have been acquired and there is a message at
- * the top of the stack.
+ * Assumes the state has been acquired and there is a message at the top of the
+ * stack.
  *
  * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
  *
@@ -234,8 +231,7 @@ lua_script_load (lua_State *L)
         new_definition = 1;
     }
 
-    actor_request_state(script->actor);
-    A = actor_request_stack(script->actor);
+    A = actor_request_state(script->actor);
 
     if (new_definition) {
         luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
@@ -245,9 +241,7 @@ lua_script_load (lua_State *L)
 
     script->be_loaded = 1;
 
-    actor_return_stack(script->actor);
     actor_return_state(script->actor);
-
     actor_alert_action(script->actor, LOAD);
 
     return 0;
@@ -267,20 +261,18 @@ lua_script_probe (lua_State *L)
     Script *script = lua_check_script(L, 1);
     const char *field = luaL_checkstring(L, 2);
 
-    actor_request_state(script->actor);
+    A = actor_request_state(script->actor);
 
     if (!script->is_loaded) {
         actor_return_state(script->actor);
         lua_script_print_error(L, script, "Cannot Probe");
     }
 
-    A = actor_request_stack(script->actor);
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
     lua_getfield(A, -1, field);
     utils_copy_top(L, A);
     lua_pop(A, 2);
 
-    actor_return_stack(script->actor);
     actor_return_state(script->actor);
 
     return 1;
@@ -295,13 +287,9 @@ lua_script_remove (lua_State *L)
     lua_State *A;
     Script *script = lua_check_script(L, 1);
 
-    actor_request_state(script->actor);
-    A = actor_request_stack(script->actor);
-
+    A = actor_request_state(script->actor);
     actor_remove_script(script->actor, script);
     script_unload(script);
-
-    actor_return_stack(script->actor);
     actor_return_state(script->actor);
 
     return 0;

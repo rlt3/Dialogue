@@ -12,25 +12,13 @@ typedef enum Action {
 } Action;
 
 /*
- * Request access to the Lua stack from the Actor (and only the stack).
+ * Request access to the Actor's state with a convinient return of the stack.
  */
 lua_State *
-actor_request_stack (struct Actor *actor);
-
-/*
- * Return the stack back to the Actor who can give it out again.
- */
-void
-actor_return_stack (struct Actor *actor);
-
-/*
- * Request access to the Actor's state (but not the Lua stack).
- */
-void
 actor_request_state (struct Actor *actor);
 
 /*
- * Return access to the Actor's state.
+ * Return access so it can give it away again.
  */
 void
 actor_return_state (struct Actor *actor);

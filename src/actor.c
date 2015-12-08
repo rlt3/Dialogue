@@ -97,7 +97,6 @@ lua_actor_new (lua_State *L)
      */
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&actor->stack_mutex, &mutex_attr);
     pthread_mutex_init(&actor->state_mutex, &mutex_attr);
 
     actor->L = luaL_newstate();
@@ -160,12 +159,12 @@ lua_actor_send (lua_State *L)
     Actor *actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    A = actor_request_stack(actor);
+    A = actor_request_state(actor);
     lua_getglobal(A, "__envelopes");
     utils_copy_top(A, L);
     lua_rawseti(A, 1, luaL_len(A, 1) + 1);
     lua_pop(A, 1);
-    actor_return_stack(actor);
+    actor_return_state(actor);
 
     actor_alert_action(actor, RECEIVE);
     
@@ -183,13 +182,11 @@ lua_actor_scripts (lua_State *L)
     Actor *actor = lua_check_actor(L, 1);
 
     actor_request_state(actor);
-
     lua_newtable(L);
     for (script = actor->script_head; script != NULL; script = script->next) {
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->ref);
         lua_rawseti(L, -2, ++i);
     }
-
     actor_return_state(actor);
 
     return 1;
@@ -206,16 +203,13 @@ lua_actor_gc (lua_State *L)
     Actor *actor = lua_check_actor(L, 1);
 
     actor_alert_action(actor, STOP);
-
     usleep(1000);
 
-    A = actor_request_stack(actor);
-
+    A = actor_request_state(actor);
     for (script = actor->script_head; script != NULL; script = script->next)
         script_unload(script);
-
     lua_close(A);
-    actor_return_stack(actor);
+    actor_return_state(actor);
 
     return 0;
 }
