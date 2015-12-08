@@ -30,9 +30,6 @@ interpreter_thread (void *arg)
 
     pthread_mutex_lock(&interpreter->input_mutex);
 
-    printf("Dialogue v0.0 with Lua v5.2\n"
-           "    type `exit()` to exit.\n");
-
     while (*interpreter->is_running) {
         printf("> ");
         if (fgets(line, sizeof(line), stdin) != NULL) {
@@ -49,7 +46,6 @@ interpreter_thread (void *arg)
     }
 
     free(interpreter);
-    printf("Goodbye.\n");
 
     return NULL;
 }
@@ -126,9 +122,8 @@ interpreter_lua_interpret (Interpreter *interpreter, lua_State *L)
     
     if (lua_isfunction(L, -1)) {
         lua_call(L, 0, 0);
-        lua_pop(L, 1);
     } else {
-        lua_pop(L, 2);
+        lua_pop(L, 1);
     }
 
     interpreter->line = NULL;

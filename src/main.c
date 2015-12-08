@@ -45,10 +45,15 @@ main (int argc, char **argv)
 
     interp = interpreter_create(L, &is_running);
 
+    printf("Dialogue v0.0 with Lua v5.2\n"
+           "    type `exit()` to exit.\n");
+
     while (is_running) {
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);
     }
+
+    printf("Goodbye.\n");
 
     lua_close(L);
 
