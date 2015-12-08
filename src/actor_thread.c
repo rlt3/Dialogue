@@ -85,9 +85,15 @@ actor_process_envelope (Actor *actor)
     lua_State *A = actor->L;
 
     actor_push_next_envelope(actor);
+
+    if (lua_isnil(A, -1))
+        goto cleanup;
+
     for (script = actor->script_head; script != NULL; script = script->next)
         if (script->is_loaded)
             script_send(script);
+
+cleanup:
     lua_pop(A, 1);
 }
 

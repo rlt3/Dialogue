@@ -56,7 +56,7 @@ main (int argc, char **argv)
     actor_call_action(actor, LOAD);
 
     while (is_running) {
-        //actor_call_action(actor, RECEIVE);
+        actor_call_action(actor, RECEIVE);
 
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);
