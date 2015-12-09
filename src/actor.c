@@ -378,6 +378,60 @@ lua_actor_gc (lua_State *L)
     return 0;
 }
 
+/*
+ * The template for sending a message. We expect an actor & message at their
+ * given arg index and also a tone.
+ */
+void
+actor_lua_send (lua_State *L, 
+        const int actor_arg, 
+        const int msg_arg, 
+        const char *tone)
+{
+    int audience_table;
+
+    Actor *actor = lua_check_actor(L, actor_arg);
+    luaL_checktype(L, msg_arg, LUA_TTABLE);
+
+    if (!actor_is_dialogue(actor))
+        luaL_error(L, "Actor must be part of a Dialogue!");
+
+    audience_filter_tone(L, actor, tone);
+    audience_table = lua_gettop(L);
+
+    lua_pushnil(L);
+    while (lua_next(L, audience_table)) {
+        lua_getfield(L, -1, "send");
+        lua_pushvalue(L, -2);
+        lua_pushvalue(L, msg_arg);
+        lua_call(L, 2, 0);
+        lua_pop(L, 1);
+    }
+
+    lua_pop(L, 1);
+}
+
+static int
+lua_actor_say (lua_State *L)
+{
+    actor_lua_send(L, 1, 2, "say");
+    return 0;
+}
+
+static int
+lua_actor_command (lua_State *L)
+{
+    actor_lua_send(L, 1, 2, "command");
+    return 0;
+}
+
+static int
+lua_actor_yell (lua_State *L)
+{
+    actor_lua_send(L, 1, 2, "yell");
+    return 0;
+}
+
 static int
 lua_actor_tostring (lua_State *L)
 {
@@ -393,6 +447,10 @@ static const luaL_Reg actor_methods[] = {
     {"lead",       lua_actor_lead},
     {"scripts",    lua_actor_scripts},
     {"load",       lua_actor_load},
+    {"say",        lua_actor_say},
+    {"command",    lua_actor_command},
+    {"yell",       lua_actor_yell},
+    {"think",      lua_actor_send},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
     { NULL, NULL }

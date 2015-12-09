@@ -41,15 +41,15 @@ describe("An Actor", function()
         assert.are.same({2, 3}, actor:scripts()[1]:probe("coordinates"))
     end)
 
-    it(", if busy, processes any messages received on the next check", function()
-        actor:send{"wait_move", 3, 2}
-        os.execute("sleep " .. tonumber(0.5))
-        actor:send{"move", 2, 2}
-        assert.are.same({5, 5}, actor:scripts()[1]:probe("coordinates"))
-        actor:send{"move", -7, -7}
-        os.execute("sleep " .. tonumber(0.5))
-        assert.are.same({0, 0}, actor:scripts()[1]:probe("coordinates"))
-    end)
+    --it(", if busy, processes any messages received on the next check", function()
+    --    actor:send{"wait_move", 3, 2}
+    --    os.execute("sleep " .. tonumber(0.5))
+    --    actor:send{"move", 2, 2}
+    --    assert.are.same({5, 5}, actor:scripts()[1]:probe("coordinates"))
+    --    actor:send{"move", -7, -7}
+    --    os.execute("sleep " .. tonumber(0.5))
+    --    assert.are.same({0, 0}, actor:scripts()[1]:probe("coordinates"))
+    --end)
 
     it("skips sending messages to Scripts which have errors", function()
         actor = Dialogue.Actor.new{ {"bad"}, {"draw", 250, 250} }
@@ -201,4 +201,41 @@ describe("A Dialogue", function()
         assert.is_equal(audience[5]:__tostring(), d:__tostring())
         assert.is_equal(audience[6]:__tostring(), e:__tostring())
     end)
+
+    it("allows for Actors to send message by via Tone yell", function()
+        dialogue:yell{"attack"}
+        os.execute("sleep " .. tonumber(0.5))
+
+        assert.is_equal(dialogue:scripts()[1]:probe("durability"), 9)
+        assert.is_equal(c:scripts()[1]:probe("durability"), 9)
+        assert.is_equal(d:scripts()[1]:probe("durability"), 9)
+    end)
+
+    it("allows for Actors to send message by via Tone command", function()
+        b:command{"attack"}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.is_equal(c:scripts()[1]:probe("durability"), 8)
+        assert.is_equal(d:scripts()[1]:probe("durability"), 8)
+    end)
+
+    it("allows for Actors to send message by via Tone say", function()
+        b:say{"move", 1, 1}
+        os.execute("sleep " .. tonumber(0.5))
+
+        assert.are.same(a:scripts()[1]:probe("coordinates"), {3, 5})
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {401, 201})
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {21, 7})
+    end)
+
+    it("allows for Actors to send message by via Tone think", function()
+        b:think{"move", -1, -1}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {400, 200})
+    end)
+
+    --it("allows for Actors to send message by via Tone whisper", function()
+    --    b:whisper({"move", -1, -1}, e)
+    --    os.execute("sleep " .. tonumber(0.5))
+    --    assert.are.same(e:scripts()[1]:probe("coordinates"), {20, 6})
+    --end)
 end)
