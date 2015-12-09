@@ -3,6 +3,7 @@
 #include "actor.h"
 #include "mailbox.h"
 #include "script.h"
+#include "tone.h"
 #include "utils.h"
 
 /*
@@ -12,6 +13,40 @@ Actor *
 lua_check_actor (lua_State *L, int index)
 {
     return (Actor *) luaL_checkudata(L, index, ACTOR_LIB);
+}
+
+/*
+ * Returns 1 if an Actor is part of Dialogue and 0 if not.
+ */
+int
+actor_is_dialogue (Actor *actor)
+{
+    return (actor->dialogue != NULL);
+}
+
+/*
+ * Add a child to the end of the Actor's linked-list of children.
+ */
+void
+actor_add_child (Actor *actor, Actor *child)
+{
+    Actor *sibling;
+
+    if (actor->child == NULL) {
+        actor->child = child;
+        goto set_actor_child;
+    }
+
+    for (sibling = actor->child; child != NULL; sibling = sibling->next) {
+        if (sibling->next == NULL) {
+            sibling->next = child;
+            goto set_actor_child;
+        }
+    }
+
+set_actor_child:
+    child->parent = actor;
+    child->dialogue = actor->dialogue;
 }
 
 /*
@@ -281,6 +316,46 @@ lua_actor_lead (lua_State *L)
 }
 
 /*
+ * Return a list of Actors which are the audience filtered by the tone given as
+ * a string.
+ * actor:audience("say") => { actor, actor, ... }
+ * actor:audience("command") => { child, child, ... }
+ */
+static int
+lua_actor_audience (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    const char *tone = luaL_checkstring(L, 2);
+
+    if (!actor_is_dialogue(actor))
+        luaL_error(L, "Actor must be part of a Dialogue!");
+
+    audience_filter_tone(L, actor, tone);
+
+    return 1;
+}
+
+/*
+ * Return an array of children an Actor owns.
+ */
+static int
+lua_actor_children (lua_State *L)
+{
+    int i = 0;
+    Actor *child, *actor = lua_check_actor(L, 1);
+
+    actor_request_state(actor);
+    lua_newtable(L);
+    for (child = actor->child; child != NULL; child = child->next) {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, child->ref);
+        lua_rawseti(L, -2, ++i);
+    }
+    actor_return_state(actor);
+
+    return 1;
+}
+
+/*
  * Set the thread's condition to false and close the Lua stack.
  */
 static int
@@ -311,6 +386,8 @@ lua_actor_tostring (lua_State *L)
 }
 
 static const luaL_Reg actor_methods[] = {
+    {"audience",   lua_actor_audience},
+    {"children",   lua_actor_children},
     {"send",       lua_actor_send},
     {"lead",       lua_actor_lead},
     {"scripts",    lua_actor_scripts},

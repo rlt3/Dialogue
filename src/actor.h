@@ -45,6 +45,12 @@ typedef struct Actor {
 } Actor;
 
 /*
+ * Add a child to the end of the Actor's linked-list of children.
+ */
+void
+actor_add_child (Actor *actor, Actor *child);
+
+/*
  * Add the Script to the end of the Actor's linked-list of Scripts.
  */
 void

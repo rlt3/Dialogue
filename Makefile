@@ -3,12 +3,14 @@ CC=clang
 
 ifeq ($(DIALOGUE_HEADLESS), true)
   MODULE=Dialogue.so
-  SOURCES=src/dialogue.o src/actor.o src/actor_thread.o src/script.o src/mailbox.o src/utils.o
+  SOURCES=src/dialogue.o src/actor.o src/actor_thread.o \
+		  src/script.o src/mailbox.o src/utils.o \
+		  src/tone.o
 else
   MODULE=dialogue
-  SOURCES=src/main.o src/dialogue.o src/actor.o \
-		  src/actor_thread.o src/script.o src/mailbox.o \
-		  src/interpreter.o src/utils.o
+  SOURCES=src/dialogue.o src/actor.o src/actor_thread.o \
+		  src/script.o src/mailbox.o src/utils.o \
+		  src/tone.o src/main.o src/interpreter.o
 endif
 
 ifeq ($(UNAME), Linux)

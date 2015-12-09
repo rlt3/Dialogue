@@ -109,3 +109,59 @@ describe("An Actor", function()
     end)
 
 end)
+
+describe("A Dialogue", function()
+    local dialogue = Dialogue.new{
+        { {"weapon", "Crown", "North"} },
+        {
+            { 
+                { {"draw", 2, 4} },
+                {}
+            },
+            { 
+                { {"draw", 400, 200} },
+                {
+                    { 
+                        { {"weapon", "bullet", "south"} },
+                        {}
+                    },
+                    { 
+                        { {"weapon", "bomb", "south-east"} },
+                        {}
+                    }
+                }
+            },
+            { 
+                { {"draw", 20, 6} },
+                {}
+            }
+        }
+    }
+
+    -- The 'form' of the tree:
+    --    dialogue
+    --     / | \
+    --    a  b  e
+    --      / \
+    --     c   d
+    
+    local a = a
+    local b = b
+    local c = c
+    local d = d
+    local e = e
+
+    it("is a tree of Actors", function()
+        a = dialogue:children()[1]
+        b = dialogue:children()[2]
+        c = b:children()[1]
+        d = b:children()[2]
+        e = dialogue:children()[3]
+
+        assert.are.same({a, b, e}, dialogue:children());
+        assert.are.same({c, d}, b:children());
+    end)
+
+    pending("allows for scoping of messages through audience")
+
+end)

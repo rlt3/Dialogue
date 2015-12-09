@@ -34,6 +34,9 @@ lua_printerror (lua_State *L)
 void
 lua_interpret (lua_State *L, const char *input)
 {
+    if (input == NULL)
+        return;
+
     lua_getglobal(L, "loadstring");
     lua_pushstring(L, input);
     lua_call(L, 1, 1);
@@ -58,6 +61,9 @@ interpreter_thread (void *arg)
 
     pthread_mutex_lock(&interpreter->input_mutex);
 
+    printf("Dialogue v0.0 with Lua v5.2\n"
+           "    type `exit()` to exit.\n");
+
     while (*interpreter->is_running) {
 
         input = readline("> ");
@@ -72,6 +78,7 @@ interpreter_thread (void *arg)
         }
     }
 
+    printf("Goodbye.\n");
     free(interpreter);
 
     return NULL;

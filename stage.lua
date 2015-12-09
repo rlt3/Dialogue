@@ -1,5 +1,6 @@
-actor = Dialogue.Actor.new({ {"Graphics", 0, 0} }, true)
+actor = Dialogue.Actor.new{ {"draw", 400, 600} }
 
+--actor = Dialogue.Actor.new({ {"Graphics", 0, 0} }, true)
 --actor:send{"clear"}
 --actor:send{"set_color", 128, 128, 128, 255}
 --print(actor:scripts()[1]:error())
