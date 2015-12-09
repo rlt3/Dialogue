@@ -1,3 +1,4 @@
+#include "dialogue.h"
 #include "mailbox.h"
 #include "envelope.h"
 #include "script.h"
@@ -31,6 +32,10 @@ lua_mailbox_new (lua_State *L)
     B = mailbox->L;
     luaL_openlibs(B);
 
+    /* load this module (the one you're reading) into the Actor's state */
+    luaL_requiref(B, "Dialogue", luaopen_Dialogue, 1);
+    lua_pop(B, 1);
+
     lua_newtable(B);
     lua_setglobal(B, "__envelopes");
 
@@ -46,11 +51,12 @@ lua_mailbox_new (lua_State *L)
  * from top of stack to the Mailbox's queue.
  */
 void
-mailbox_send (Mailbox *mailbox, lua_State *L)
+mailbox_send (Mailbox *mailbox, Actor *author, lua_State *L)
 {
     lua_State *B = mailbox->L;
 
     pthread_mutex_lock(&mailbox->mutex);
+
     lua_getglobal(B, "Dialogue");
     lua_getfield(B, -1, "Actor");
     lua_getfield(B, -1, "Mailbox");
@@ -58,7 +64,7 @@ mailbox_send (Mailbox *mailbox, lua_State *L)
 
     lua_getglobal(B, "__envelopes");
     lua_getfield(B, -2, "new");
-    utils_push_object(B, mailbox->actor, ACTOR_LIB);
+    utils_push_object(B, author, ACTOR_LIB);
     utils_copy_top(B, L);
 
     if (lua_pcall(B, 2, 1, 0)) {
@@ -72,6 +78,8 @@ mailbox_send (Mailbox *mailbox, lua_State *L)
 
 cleanup:
     pthread_mutex_unlock(&mailbox->mutex);
+
+    actor_alert_action(mailbox->actor, RECEIVE);
 }
 
 /*

@@ -26,11 +26,11 @@ Mailbox *
 lua_check_mailbox (lua_State *L, int index);
 
 /*
- * Block for the Mailbox. Expects a message on top of given stack copy message
+ * Block for the Mailbox. Expects a message on top of given stack. Copy message
  * from top of stack to the Mailbox's queue.
  */
 void
-mailbox_send (Mailbox *mailbox, lua_State *L);
+mailbox_send (Mailbox *mailbox, struct Actor *author, lua_State *L);
 
 /*
  * Assumes Mailbox mutex is acquired. Removes the next Envelope from its queue

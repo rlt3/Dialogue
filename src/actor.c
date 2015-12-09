@@ -212,10 +212,7 @@ lua_actor_send (lua_State *L)
 {
     Actor *actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
-
-    mailbox_send(actor->mailbox, L);
-    actor_alert_action(actor, RECEIVE);
-    
+    mailbox_send(actor->mailbox, actor, L);
     return 0;
 }
 
@@ -390,6 +387,7 @@ actor_lua_send (lua_State *L,
 {
     int audience_table;
 
+    Actor *recipient;
     Actor *actor = lua_check_actor(L, actor_arg);
     luaL_checktype(L, msg_arg, LUA_TTABLE);
 
@@ -401,11 +399,10 @@ actor_lua_send (lua_State *L,
 
     lua_pushnil(L);
     while (lua_next(L, audience_table)) {
-        lua_getfield(L, -1, "send");
-        lua_pushvalue(L, -2);
+        recipient = lua_check_actor(L, -1);
         lua_pushvalue(L, msg_arg);
-        lua_call(L, 2, 0);
-        lua_pop(L, 1);
+        mailbox_send(recipient->mailbox, actor, L);
+        lua_pop(L, 2);
     }
 
     lua_pop(L, 1);
@@ -433,6 +430,16 @@ lua_actor_yell (lua_State *L)
 }
 
 static int
+lua_actor_whisper (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    Actor *recipient = lua_check_actor(L, 2);
+    luaL_checktype(L, 3, LUA_TTABLE);
+    mailbox_send(recipient->mailbox, actor, L);
+    return 0;
+}
+
+static int
 lua_actor_tostring (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
@@ -449,8 +456,9 @@ static const luaL_Reg actor_methods[] = {
     {"load",       lua_actor_load},
     {"say",        lua_actor_say},
     {"command",    lua_actor_command},
-    {"yell",       lua_actor_yell},
     {"think",      lua_actor_send},
+    {"whisper",    lua_actor_whisper},
+    {"yell",       lua_actor_yell},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
     { NULL, NULL }
