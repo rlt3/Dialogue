@@ -6,6 +6,7 @@ env:
 branches:
   only:
     - master
+    - actor-thread
 
 install:
   - sudo apt-get install lua5.2
