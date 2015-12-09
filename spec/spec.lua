@@ -41,6 +41,16 @@ describe("An Actor", function()
         assert.are.same({2, 3}, actor:scripts()[1]:probe("coordinates"))
     end)
 
+    it(", if busy, processes any messages received on the next check", function()
+        actor:send{"wait_move", 3, 2}
+        os.execute("sleep " .. tonumber(0.5))
+        actor:send{"move", 2, 2}
+        assert.are.same({5, 5}, actor:scripts()[1]:probe("coordinates"))
+        actor:send{"move", -7, -7}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({0, 0}, actor:scripts()[1]:probe("coordinates"))
+    end)
+
     it("skips sending messages to Scripts which have errors", function()
         actor = Dialogue.Actor.new{ {"bad"}, {"draw", 250, 250} }
         os.execute("sleep " .. tonumber(0.5))

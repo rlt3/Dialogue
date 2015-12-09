@@ -50,11 +50,11 @@ main (int argc, char **argv)
     actor = lua_check_actor(L, -1);
     lua_pop(L, 1);
 
-    actor_call_action(actor, LOAD);
+    //actor_call_action(actor, LOAD);
 
     while (is_running) {
-        actor_call_action(actor, RECEIVE);
-        lua_interpret(L, "actor:send{'update'}");
+        //actor_call_action(actor, RECEIVE);
+        //lua_interpret(L, "actor:send{'update'}");
 
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);
