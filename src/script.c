@@ -143,9 +143,8 @@ script_load (Script *script)
     args = utils_push_table_data(A, table_index);
 
     if (lua_pcall(A, args, 1, 0)) {
+        script->error = lua_tostring(A, -1);
         lua_pop(A, 1); /* error */
-        printf("ERR_BAD_MODULE_NEW top: %d\n", lua_gettop(A));
-        script->error = ERR_BAD_MODULE_NEW;
         ret = LOAD_FAIL;
         goto cleanup;
     }
