@@ -92,7 +92,7 @@ describe("An Actor", function()
         actor:send{"move", 13, 13}
         assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
         actor:receive()
-        --assert.are.same({265, 265}, actor:scripts()[1]:probe("coordinates"))
+        assert.are.same({265, 265}, actor:scripts()[1]:probe("coordinates"))
     end)
 
 end)

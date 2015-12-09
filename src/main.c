@@ -58,15 +58,7 @@ main (int argc, char **argv)
     while (is_running) {
         actor_call_action(actor, RECEIVE);
 
-        lua_getglobal(L, "actor");
-        lua_getfield(L, -1, "send");
-        lua_getglobal(L, "actor");
-        lua_newtable(L);
-        lua_pushstring(L, "update");
-        lua_rawseti(L, -2, 1);
-        if (lua_pcall(L, 2, 0, 0))
-            printf("Failed to send {\"update\"}\n");
-        lua_pop(L, 1);
+        lua_interpret(L, "actor:send{'update'}");
 
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);

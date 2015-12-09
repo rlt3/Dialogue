@@ -268,6 +268,8 @@ lua_actor_lead (lua_State *L)
 
     actor_alert_action(actor, STOP);
 
+    usleep(1000);
+
     actor_request_state(actor);
     actor->manual_call = 1;
     actor_return_state(actor);

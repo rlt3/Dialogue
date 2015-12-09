@@ -33,7 +33,7 @@ utils_add_method (lua_State *L, int index, lua_CFunction f, const char* field)
 {
     lua_getfield(L, index, "__index");
     lua_pushcfunction(L, f);
-    lua_setfield(L, -2, "receive");
+    lua_setfield(L, -2, field);
     lua_pop(L, 1);
 }
 
