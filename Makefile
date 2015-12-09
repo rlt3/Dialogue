@@ -16,7 +16,7 @@ ifeq ($(UNAME), Linux)
     SOFLAGS=-shared
   endif
   CFLAGS+=-Wall -Isrc/ -I./ -I/usr/include/lua5.2/ -D _BSD_SOURCE -fPIC
-  LDFLAGS+=-L./ -L/usr/local/lib -llua5.2 -lpthread
+  LDFLAGS+=-L./ -L/usr/local/lib -llua5.2 -lpthread -lreadline
 endif
 
 ifeq ($(UNAME), Darwin)
@@ -24,7 +24,7 @@ ifeq ($(UNAME), Darwin)
     SOFLAGS=-bundle -undefined dynamic_lookup
   endif
   CFLAGS+=-Wall -Isrc/ -I./ -I/usr/local/include/ -D _BSD_SOURCE -fPIC
-  LDFLAGS+=-L./ -L/usr/local/lib -llua -lpthread
+  LDFLAGS+=-L./ -L/usr/local/lib -llua -lpthread -lreadline
 endif
 
 all: clean build

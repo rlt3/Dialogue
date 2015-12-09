@@ -4,6 +4,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 #include "interpreter.h"
 
 #define LINE_SIZE 256
@@ -13,7 +15,6 @@ struct Interpreter {
     pthread_mutex_t input_mutex;
     pthread_cond_t wait_cond;
     short int waiting;
-    short int new_input;
     short int *is_running;
     const char *line;
 };
@@ -52,23 +53,22 @@ lua_interpret (lua_State *L, const char *input)
 void *
 interpreter_thread (void *arg)
 {
-    char line[LINE_SIZE];
+    char *input;
     Interpreter *interpreter = arg;
 
     pthread_mutex_lock(&interpreter->input_mutex);
 
     while (*interpreter->is_running) {
-        printf("> ");
-        if (fgets(line, sizeof(line), stdin) != NULL) {
 
-            interpreter->line = line;
-            interpreter->new_input = 1;
-            interpreter->waiting = 1;
+        input = readline("> ");
+        add_history(input);
 
-            while (interpreter->waiting) {
-                pthread_cond_wait(&interpreter->wait_cond, 
-                        &interpreter->input_mutex);
-            }
+        interpreter->line = input;
+        interpreter->waiting = 1;
+
+        while (interpreter->waiting) {
+            pthread_cond_wait(&interpreter->wait_cond, 
+                    &interpreter->input_mutex);
         }
     }
 
@@ -113,16 +113,13 @@ lua_eval (lua_State *L)
 int
 interpreter_poll (Interpreter *interpreter)
 {
-    int new_input;
     int rc = pthread_mutex_trylock(&interpreter->input_mutex);
 
     if (rc == EBUSY)
         return 0;
 
-    new_input = interpreter->new_input;
     pthread_mutex_unlock(&interpreter->input_mutex);
-
-    return new_input;
+    return 1;
 }
 
 /*
@@ -136,7 +133,6 @@ interpreter_lua_interpret (Interpreter *interpreter, lua_State *L)
 
     lua_interpret(L, interpreter->line);
     interpreter->line = NULL;
-    interpreter->new_input = 0;
     interpreter->waiting = 0;
 
     pthread_mutex_unlock(&interpreter->input_mutex);
@@ -159,7 +155,6 @@ interpreter_create (lua_State *L, short int *is_running_ptr)
 
     interpreter->is_running = is_running_ptr;
     interpreter->line = NULL;
-    interpreter->new_input = 0;
     interpreter->waiting = 0;
     interpreter->wait_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 
