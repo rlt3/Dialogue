@@ -25,42 +25,25 @@ envelope_check_table (lua_State *L, int index)
 }
 
 /*
- * Push the message from an Envelope at index.
- */
-void
-envelope_push_message (lua_State *L, int index)
-{
-    Envelope *envelope = lua_check_envelope(L, index);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->message_ref);
-}
-
-/*
- * Put a message (Table) inside an Envelope with the author and tone so it can
- * be sent to the right recipients.
+ * Create an Envelope with the message and author attached to it.
  *
- * Envelope.new(author, tone, { "movement", 20, 40 })
+ * Envelope.new(author, {"update", 0.54})
  */
 static int
 lua_envelope_new (lua_State *L)
 {
-    int message_ref;
     Envelope *envelope;
-
     Actor *author = lua_check_actor(L, 1);
-    const char *tone = luaL_checkstring(L, 2);
-    envelope_check_table(L, 3);
-
-    message_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    envelope_check_table(L, 2);
 
     envelope = lua_newuserdata(L, sizeof(Envelope));
     luaL_getmetatable(L, ENVELOPE_LIB);
     lua_setmetatable(L, -2);
 
+    /* push envelope down and bring message up */
+    lua_insert(L, 2);
+    envelope->message_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     envelope->author = author;
-    envelope->tone = tone;
-    envelope->message_ref = message_ref;
-    envelope->mailbox = NULL;
-    envelope->recipient = NULL;
 
     return 1;
 }
@@ -79,7 +62,8 @@ lua_envelope_tostring (lua_State *L)
 static int
 lua_envelope_message (lua_State *L)
 {
-    envelope_push_message(L, 1);
+    Envelope *envelope = lua_check_envelope(L, 1);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, envelope->message_ref);
     return 1;
 }
 
@@ -90,7 +74,7 @@ static const luaL_Reg envelope_methods[] = {
 };
 
 int 
-luaopen_Dialogue_Envelope (lua_State *L)
+luaopen_Dialogue_Actor_Mailbox_Envelope (lua_State *L)
 {
     return utils_lua_meta_open(L, ENVELOPE_LIB, envelope_methods, lua_envelope_new);
 }

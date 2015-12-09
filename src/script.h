@@ -70,7 +70,7 @@ script_unload (Script *script);
  * Additionally, details of the error are set if SEND_FAIL is returned.
  */
 int
-script_send (Script *script);
+script_send (Script *script, struct Actor *author);
 
 /*
  * Check for a Script at index. Errors if it isn't a Script.

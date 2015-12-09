@@ -80,6 +80,7 @@ void
 actor_process_mailbox (Actor *actor)
 {
     Script *script;
+    Actor *author;
     Mailbox *mailbox = actor->mailbox;
     lua_State *A = actor->L;
     lua_State *B = mailbox->L;
@@ -89,7 +90,7 @@ actor_process_mailbox (Actor *actor)
         goto cleanup;
 
     while (mailbox->envelope_count > 0) {
-        mailbox_push_next_envelope(mailbox);
+        author = mailbox_push_next_envelope(mailbox);
         utils_copy_top(A, B);
         lua_pop(B, 1);
 
@@ -98,7 +99,7 @@ actor_process_mailbox (Actor *actor)
 
         for (script = actor->script_head; script != NULL; script = script->next)
             if (script->is_loaded)
-                script_send(script);
+                script_send(script, author);
 next:
         lua_pop(A, 1);
     }

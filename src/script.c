@@ -162,8 +162,7 @@ exit:
 }
 
 /*
- * Assumes the state has been acquired and there is a message at the top of the
- * stack.
+ * Assumes the state has been acquired and a message table at index -1.
  *
  * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
  *
@@ -171,7 +170,7 @@ exit:
  * Additionally, details of the error are set if SEND_FAIL is returned.
  */
 int
-script_send (Script *script)
+script_send (Script *script, Actor *author)
 {
     int message_index;
     int args;
@@ -203,9 +202,9 @@ script_send (Script *script)
     /* push `self' reference, args, and the author reference */
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
     args = utils_push_table_data(A, message_index);
-    //utils_push_object(A, author, ACTOR_LIB);
+    utils_push_object(A, author, ACTOR_LIB);
 
-    if (lua_pcall(A, args + 1, 0, 0)) {
+    if (lua_pcall(A, args + 2, 0, 0)) {
         ret = SEND_FAIL;
         script->error = lua_tostring(A, -1);
         script_unload(script);

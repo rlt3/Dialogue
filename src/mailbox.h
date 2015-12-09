@@ -33,11 +33,11 @@ void
 mailbox_send (Mailbox *mailbox, lua_State *L);
 
 /*
- * Assumes Mailbox mutex is acquired. Removes the next envelope from its queue
- * of Envelopes and leaves it at the top of the Mailbox stack. Can leave nil if
- * no envelopes.
+ * Assumes Mailbox mutex is acquired. Removes the next Envelope from its queue
+ * of Envelopes. It gets the Author information and pushes the message and
+ * leaves it on top of the stack. Returns author pointer.
  */
-void
+Actor *
 mailbox_push_next_envelope (Mailbox *mailbox);
 
 int 

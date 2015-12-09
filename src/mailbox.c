@@ -1,4 +1,5 @@
 #include "mailbox.h"
+#include "envelope.h"
 #include "script.h"
 #include "utils.h"
 
@@ -50,34 +51,66 @@ mailbox_send (Mailbox *mailbox, lua_State *L)
     lua_State *B = mailbox->L;
 
     pthread_mutex_lock(&mailbox->mutex);
+    lua_getglobal(B, "Dialogue");
+    lua_getfield(B, -1, "Actor");
+    lua_getfield(B, -1, "Mailbox");
+    lua_getfield(B, -1, "Envelope");
+
     lua_getglobal(B, "__envelopes");
+    lua_getfield(B, -2, "new");
+    utils_push_object(B, mailbox->actor, ACTOR_LIB);
     utils_copy_top(B, L);
-    lua_rawseti(B, 1, mailbox->envelope_count + 1);
-    lua_pop(B, 1);
+
+    if (lua_pcall(B, 2, 1, 0)) {
+        lua_pop(L, 4);
+        goto cleanup;
+    }
+
+    lua_rawseti(B, -2, mailbox->envelope_count + 1);
+    lua_pop(B, 5);
     mailbox->envelope_count++;
+
+cleanup:
     pthread_mutex_unlock(&mailbox->mutex);
 }
 
 /*
- * Assumes Mailbox mutex is acquired. Removes the next envelope from its queue
- * of Envelopes and leaves it at the top of the Mailbox stack. Can leave nil if
- * no envelopes.
+ * Assumes Mailbox mutex is acquired. Removes the next Envelope from its queue
+ * of Envelopes. It gets the Author information and pushes the message and
+ * leaves it on top of the stack. Returns author pointer.
  */
-void
+Actor *
 mailbox_push_next_envelope (Mailbox *mailbox)
 {
+    Actor *author;
+    Envelope *envelope;
+    int message_ref;
     lua_State *B = mailbox->L;
 
+    /* remove like queue LIFO */
     lua_getglobal(B, "table");
     lua_getfield(B, -1, "remove");
     lua_getglobal(B, "__envelopes");
     lua_pushinteger(B, 1);
     lua_call(B, 2, 1);
 
+    /* move the 'table' on top to pop */
     lua_insert(B, lua_gettop(B) - 1);
     lua_pop(B, 1);
 
+    /* get all the relevant info before popping and gcing envelope */
+    envelope = lua_check_envelope(B, -1);
+    message_ref = envelope->message_ref;
+    author = envelope->author;
+    lua_pop(B, 1);
+
+    /* finally push table and unref it */
+    lua_rawgeti(B, LUA_REGISTRYINDEX, message_ref);
+    luaL_unref(B, LUA_REGISTRYINDEX, message_ref);
+
     mailbox->envelope_count--;
+
+    return envelope->author;
 }
 
 int
@@ -98,5 +131,10 @@ static const luaL_Reg mailbox_methods[] = {
 int 
 luaopen_Dialogue_Actor_Mailbox (lua_State *L)
 {
-    return utils_lua_meta_open(L, MAILBOX_LIB, mailbox_methods, lua_mailbox_new);
+    utils_lua_meta_open(L, MAILBOX_LIB, mailbox_methods, lua_mailbox_new);
+
+    luaL_requiref(L, ENVELOPE_LIB, luaopen_Dialogue_Actor_Mailbox_Envelope, 1);
+    lua_setfield(L, -2, "Envelope");
+
+    return 1;
 }
