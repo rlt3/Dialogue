@@ -21,6 +21,12 @@ utils_push_object_method (lua_State *L,
         const char *method);
 
 /*
+ * Push an object reference and prep a method call.
+ */
+void
+utils_push_objref_method (lua_State *L, int ref, const char *method);
+
+/*
  * Add a slot to a userdata object and modifying its __index.
  */
 void

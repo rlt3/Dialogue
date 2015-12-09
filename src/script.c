@@ -218,8 +218,8 @@ exit:
 }
 
 /*
- * Manually reload the Script. An optional table can be passed in if a new
- * table definition is required.
+ * Sets the Script to be reloaded. If an optional table is passed it, this
+ * method uses that table as the definition table from which it is loaded.
  */
 static int
 lua_script_load (lua_State *L)
@@ -299,21 +299,6 @@ lua_script_remove (lua_State *L)
 }
 
 static int
-lua_script_error (lua_State *L)
-{
-    Script* script = lua_check_script(L, 1);
-
-    actor_request_state(script->actor);
-    if (script->error == NULL) {
-        lua_pushstring(L, "No error");
-    } else {
-        lua_pushstring(L, script->error);
-    }
-    actor_return_state(script->actor);
-    return 1;
-}
-
-static int
 lua_script_tostring (lua_State *L)
 {
     Script* script = lua_check_script(L, 1);
@@ -325,7 +310,6 @@ static const luaL_Reg script_methods[] = {
     {"load",       lua_script_load},
     {"probe",      lua_script_probe},
     {"remove",     lua_script_remove},
-    {"error",      lua_script_error},
     {"__tostring", lua_script_tostring},
     { NULL, NULL }
 };

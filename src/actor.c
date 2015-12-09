@@ -205,6 +205,37 @@ lua_actor_scripts (lua_State *L)
 }
 
 /*
+ * Reload all Scripts. If the Actor is a Lead Actor the load happens on this
+ * call. Otherwise is it an asynchronous operation.
+ */
+int
+lua_actor_load (lua_State *L)
+{
+    int manual_call;
+    Script *script;
+    Actor *actor = lua_check_actor(L, 1);
+
+    actor_request_state(actor);
+
+    for (script = actor->script_head; script != NULL; script = script->next) {
+        utils_push_objref_method (L, script->ref, "load");
+        lua_call(L, 1, 0);
+    }
+
+    manual_call = actor->manual_call;
+    actor_return_state(actor);
+
+    /* 
+     * If this was a manual call, we make the LOAD action happen here, now.
+     * Otherwise, all the scripts have told the Actor to load them.
+     */
+    if (manual_call)
+        actor_call_action(actor, LOAD);
+
+    return 0;
+}
+
+/*
  * Allows a Lead Actor to process all the messages it its Mailbox.
  */
 int
@@ -225,41 +256,11 @@ lua_actor_receive (lua_State *L)
 }
 
 /*
- * Allows a Lead Actor to load all of its Scripts in the calling thread.
- */
-int
-lua_actor_load (lua_State *L)
-{
-    Script *script;
-    Actor *actor = lua_check_actor(L, 1);
-
-    actor_request_state(actor);
-
-    if (!actor->manual_call) {
-        actor_return_state(actor);
-        luaL_error(L, "%s %p is not a lead actor!", ACTOR_LIB, actor);
-    }
-
-    for (script = actor->script_head; script != NULL; script = script->next)
-        script->be_loaded = 1;
-
-    actor_return_state(actor);
-
-    actor_call_action(actor, LOAD);
-    return 0;
-}
-
-/*
- * Make an Actor a Lead actor. This closes its thread which means it doesn't
- * automatically do anything. 
+ * Make an Actor a Lead actor. This closes its thread and adds the 'receive' 
+ * method. With no thread, this Actor calls 'receive' to process its Mailbox.
  *
- * One must manually call its 'receive' method to process messages and 'load'
- * to reload any Scripts. These methods are added to the Actor via this method.
- *
- * This is an optional feature which makes it easy for an Actor to be called
- * on the main thread. If Dialogue was compiled with the HEAD (and not 
- * HEADLESS), it will automatically process all Actors marked as Lead in the
- * main thread with the Interpreter.
+ * By shutting down the thread gracefully and making some of these concessions,
+ * we now have an Actor which can be called from the Main thread synchronously.
  */
 int
 lua_actor_lead (lua_State *L)
@@ -275,7 +276,6 @@ lua_actor_lead (lua_State *L)
     actor_return_state(actor);
 
     utils_add_method(L, 1, lua_actor_receive, "receive");
-    utils_add_method(L, 1, lua_actor_load, "load");
 
     return 0;
 }
@@ -314,8 +314,7 @@ static const luaL_Reg actor_methods[] = {
     {"send",       lua_actor_send},
     {"lead",       lua_actor_lead},
     {"scripts",    lua_actor_scripts},
-    //{"receive",    lua_actor_receive},
-    //{"load",       lua_actor_load},
+    {"load",       lua_actor_load},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
     { NULL, NULL }
@@ -324,8 +323,6 @@ static const luaL_Reg actor_methods[] = {
 int 
 luaopen_Dialogue_Actor (lua_State *L)
 {
-    //return utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
-    
     utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
     
     luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);

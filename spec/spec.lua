@@ -72,27 +72,40 @@ describe("An Actor", function()
         assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
     end)
 
+    it("can reload all of its scripts", function()
+        actor:load()
+        os.execute("sleep " .. tonumber(0.5))
+        assert.is_equal(1, #actor:scripts())
+        actor:send{"move", -250, -250}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({0, 0}, actor:scripts()[1]:probe("coordinates"))
+    end)
+
     it("has special 'Lead Actor-only' methods", function()
         local errfn = function()
             actor:receive()
         end
 
         assert.has_error(errfn, "attempt to call method 'receive' (a nil value)")
-
-        errfn = function()
-            actor:load()
-        end
-
-        assert.has_error(errfn, "attempt to call method 'load' (a nil value)")
     end)
 
-    it("can turn into a Lead which closes its thread and it has to be called manually", function()
-        actor:lead()
-        actor:send{"move", 2, 2}
-        actor:send{"move", 13, 13}
-        assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
-        actor:receive()
-        assert.are.same({265, 265}, actor:scripts()[1]:probe("coordinates"))
+    describe("A Lead Actor", function()
+        it("is created from a regular actor, which closes its thread", function()
+            actor:lead()
+            actor:send{"move", 2, 2}
+            actor:send{"move", 13, 13}
+            assert.are.same({0, 0}, actor:scripts()[1]:probe("coordinates"))
+        end)
+
+        it("has to process its messages manually", function()
+            actor:receive()
+            assert.are.same({15, 15}, actor:scripts()[1]:probe("coordinates"))
+        end)
+
+        it("can be reloaded too", function()
+            actor:load()
+            assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
+        end)
     end)
 
 end)

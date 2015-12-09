@@ -26,6 +26,17 @@ utils_push_object_method (lua_State *L,
 }
 
 /*
+ * Push an object reference and prep a method call.
+ */
+void
+utils_push_objref_method (lua_State *L, int ref, const char *method)
+{
+    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    lua_getfield(L, -1, method);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+}
+
+/*
  * Add a slot to a userdata object and modifying its __index.
  */
 void
