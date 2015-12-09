@@ -21,6 +21,7 @@ typedef struct Actor {
     pthread_mutex_t state_mutex;
 
     /* Action is the condition to be set to tell the thread what to do */
+    pthread_mutex_t action_mutex;
     pthread_cond_t new_action;
     Action action;
 

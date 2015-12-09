@@ -144,6 +144,7 @@ lua_actor_new (lua_State *L)
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&actor->state_mutex, &mutex_attr);
+    pthread_mutex_init(&actor->action_mutex, &mutex_attr);
 
     actor->L = luaL_newstate();
     A = actor->L;

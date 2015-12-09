@@ -34,10 +34,25 @@ actor_return_state (Actor *actor)
 void
 actor_alert_action (Actor *actor, Action action)
 {
-    actor_request_state(actor);
+    pthread_mutex_lock(&actor->action_mutex);
     actor->action = action;
-    actor_return_state(actor);
+    pthread_mutex_unlock(&actor->action_mutex);
     pthread_cond_signal(&actor->new_action);
+}
+
+/*
+ * A blocking function which returns the current action and sets the Actor's
+ * action to WAIT, so it can do the next action.
+ */
+Action
+actor_next_action (Actor *actor)
+{
+    Action action;
+    pthread_mutex_lock(&actor->action_mutex);
+    action = actor->action;
+    actor->action = WAIT;
+    pthread_mutex_unlock(&actor->action_mutex);
+    return action;
 }
 
 /*
@@ -123,6 +138,7 @@ actor_call_action (Actor *actor, Action action)
 void *
 actor_thread (void *arg)
 {
+    Action action;
     Actor *actor = arg;
 
     printf("Actor thread %p: starting...\n", actor);
@@ -130,7 +146,10 @@ actor_thread (void *arg)
     pthread_mutex_lock(&actor->state_mutex);
 
     while (actor->on) {
-        switch (actor->action) {
+
+        action = actor_next_action(actor);
+
+        switch (action) {
         case LOAD:
             /*
              * We must handle loading of Scripts because many modules require
@@ -138,7 +157,6 @@ actor_thread (void *arg)
              */
             printf("Actor thread %p: loading...\n", actor);
             actor_load_scripts(actor);
-            actor->action = WAIT;
             break;
 
         case RECEIVE:
@@ -147,17 +165,6 @@ actor_thread (void *arg)
              */
             printf("Actor thread %p: receiving...\n", actor);
             actor_process_mailbox(actor);
-            actor->action = WAIT;
-            break;
-
-        case SEND:
-            /* 
-             * We can use this thread to send to other threads though
-             * actors. Or we can still have an Postman pool & Mailbox to make
-             * sure throughput of the core feature is not bog down.
-             */
-            printf("Actor thread %p: sending...\n", actor);
-            actor->action = WAIT;
             break;
 
         case STOP:
@@ -165,9 +172,12 @@ actor_thread (void *arg)
             goto exit;
             break;
 
-        default:
+        case WAIT:
             printf("Actor thread %p: waiting...\n", actor);
             pthread_cond_wait(&actor->new_action, &actor->state_mutex);
+            break;
+
+        default:
             break;
         }
     }

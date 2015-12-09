@@ -8,7 +8,7 @@
 struct Actor;
 
 typedef enum Action {
-    LOAD, RECEIVE, SEND, WAIT, STOP
+    LOAD, RECEIVE, SEND, PENDING, WAIT, STOP
 } Action;
 
 /*
