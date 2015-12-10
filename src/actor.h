@@ -46,6 +46,19 @@ typedef struct Actor {
 } Actor;
 
 /*
+ * Leave the Lead Actor table on top of the stack. Creates it if it doesn't
+ * exist. Will throw an error if not called on Main thread.
+ */
+void
+actor_lead_table (lua_State *L);
+
+/*
+ * Put the Actor inside the Lead actor table.
+ */
+void
+actor_assign_lead (Actor *actor, lua_State *L);
+
+/*
  * Add a child to the end of the Actor's linked-list of children.
  */
 void

@@ -87,6 +87,44 @@ actor_remove_script (Actor *actor, Script *script)
 }
 
 /*
+ * Leave the Lead Actor table on top of the stack. Creates it if it doesn't
+ * exist. Will throw an error if not called on Main thread.
+ */
+void
+actor_lead_table (lua_State *L)
+{
+    static short int defined = 0;
+
+    lua_getglobal(L, "__main_thread");
+
+    if (lua_isnil(L, -1)) {
+        luaL_error(L, "Lead Actor table only exists in Main thread!");
+    } else {
+        lua_pop(L, 1);
+    }
+
+    if (!defined) {
+        lua_newtable(L);
+        lua_setglobal(L, "__lead_actor");
+        defined = 1;
+    }
+
+    lua_getglobal(L, "__lead_actor");
+}
+
+/*
+ * Put the Actor inside the Lead actor table.
+ */
+void
+actor_assign_lead (Actor *actor, lua_State *L)
+{
+    actor_lead_table(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
+    lua_rawseti(L, -2, luaL_len(L, -2) + 1);
+    lua_pop(L, 1);
+}
+
+/*
  * Create an Actor which has its own thread. It initializes all Scripts and 
  * handles all messages (send/receive) in its own thread because many Lua 
  * modules and objects aren't thread-safe.
@@ -95,6 +133,9 @@ actor_remove_script (Actor *actor, Script *script)
  * any variables needed to initialize it.
  *
  * Actor{ {"draw", 400, 200}, {"weapon", "longsword"} }
+ *
+ * Optionally, one can call like Actor({ {"draw", 0, 0} }, false) to make this
+ * a lead Actor from the start.
  */
 static int
 lua_actor_new (lua_State *L)
@@ -198,6 +239,8 @@ lua_actor_new (lua_State *L)
     if (!is_manual_call) {
         pthread_create(&actor->thread, NULL, actor_thread, actor);
         pthread_detach(actor->thread);
+    } else {
+        actor_assign_lead(actor, L);
     }
 
     return 1;
@@ -299,9 +342,9 @@ int
 lua_actor_lead (lua_State *L)
 {
     Actor *actor = lua_check_actor(L, 1);
+    actor_assign_lead(actor, L);
 
     actor_alert_action(actor, STOP);
-
     usleep(1000);
 
     actor_request_state(actor);
