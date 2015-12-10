@@ -23,7 +23,7 @@ lua_dialogue_new (lua_State *L)
 {
     Actor *actor, *child;
     int dialogue_table = 1;
-    int thread_count = 8;
+    //int thread_count = 8;
     int children_table;
     int args = lua_gettop(L);
 
@@ -46,18 +46,8 @@ lua_dialogue_new (lua_State *L)
      */
     if (args == 1) {
         actor->dialogue = actor;
-        actor->mailbox = NULL;
-        lua_getglobal(L, "Dialogue");
-        lua_getfield(L, -1, "Mailbox");
-        lua_getfield(L, -1, "new");
-        lua_pushinteger(L, thread_count);
-        lua_call(L, 1, 1);
-        actor->mailbox = lua_check_mailbox(L, -1);
-        actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        lua_pop(L, 2);
     } else {
         actor->dialogue = lua_check_actor(L, 2);
-        actor->mailbox = actor->dialogue->mailbox;
         lua_pop(L, 1);
     }
 
@@ -73,9 +63,10 @@ lua_dialogue_new (lua_State *L)
         lua_call(L, 2, 1);
 
         child = lua_check_actor(L, -1);
+        child->ref = luaL_ref(L, LUA_REGISTRYINDEX);
         actor_add_child(actor, child);
 
-        lua_pop(L, 3); /* child, Dialogue table, and table value */
+        lua_pop(L, 2); /* key & Dialogue */
     }
     lua_pop(L, 1);
 
@@ -83,6 +74,21 @@ lua_dialogue_new (lua_State *L)
     lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
 
     return 1;
+}
+
+/*
+ * Set a Lead actor in the Dialogue. This causes that Actor to be processed on
+ * the main thread with the interpreter.
+ */
+int
+lua_dialogue_lead (lua_State *L)
+{
+    //Actor *actor = lua_check_actor(L, 1);
+
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "__lead_actors");
+
+    return 0;
 }
 
 int
@@ -96,18 +102,11 @@ luaopen_Dialogue (lua_State *L)
     luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor, 1);
     lua_setfield(L, t_index, "Actor");
 
-    lua_getfield(L, t_index, "Actor");
-    luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor_Script, 1);
-    lua_setfield(L, -2, "Script");
-    lua_pop(L, 1);
-    
-    luaL_requiref(L, MAILBOX_LIB, luaopen_Dialogue_Mailbox, 1);
-    lua_setfield(L, t_index, "Mailbox");
+    lua_pushcfunction(L, lua_dialogue_lead);
+    lua_setfield(L, t_index, "lead");
 
-    lua_getfield(L, t_index, "Mailbox");
-    luaL_requiref(L, ENVELOPE_LIB, luaopen_Dialogue_Envelope, 1);
-    lua_setfield(L, -2, "Envelope");
-    lua_pop(L, 1);
+    lua_newtable(L);
+    lua_setfield(L, t_index, "__lead_actors");
 
     lua_pushcfunction(L, lua_dialogue_new);
     lua_setfield(L, t_index, "new");

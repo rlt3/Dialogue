@@ -1,40 +1,46 @@
 #ifndef DIALOGUE_MAILBOX
 #define DIALOGUE_MAILBOX
 
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
-#include <pthread.h>
+#include "actor.h"
 
-#define MAILBOX_LIB "Dialogue.Mailbox"
+#define MAILBOX_LIB "Dialogue.Actor.Mailbox"
 
+/*
+ * The Mailbox has its own state and mutex. It collects the messages for an
+ * Actor while the Actor does other things. When an Actor is ready to process
+ * the messages, the Mailbox locks, the Actor locks, and they processed until
+ * there are no messages.
+ */
 typedef struct Mailbox {
     lua_State *L;
-    int processing;
+    Actor *actor;
     pthread_mutex_t mutex;
-    pthread_cond_t new_envelope;
-    pthread_t thread;
-    struct Postman **postmen;
-    int postmen_count;
-    int envelopes_table;
     int envelope_count;
     int ref;
 } Mailbox;
 
 /*
- * Make sure the argument at index N is a Mailbox and return it if it is.
+ * Check for a Mailbox at index. Errors if it isn't a Mailbox.
  */
 Mailbox *
 lua_check_mailbox (lua_State *L, int index);
 
 /*
- * Removes the next envelope from its queue of Envelopes and leaves it at the top
- * of the Mailbox stack. Must have a lock on the Mailbox first.
+ * Block for the Mailbox. Expects a message on top of given stack. Copy message
+ * from top of stack to the Mailbox's queue.
  */
 void
+mailbox_send (Mailbox *mailbox, struct Actor *author, lua_State *L);
+
+/*
+ * Assumes Mailbox mutex is acquired. Removes the next Envelope from its queue
+ * of Envelopes. It gets the Author information and pushes the message and
+ * leaves it on top of the stack. Returns author pointer.
+ */
+Actor *
 mailbox_push_next_envelope (Mailbox *mailbox);
 
 int 
-luaopen_Dialogue_Mailbox (lua_State * L);
+luaopen_Dialogue_Actor_Mailbox (lua_State *L);
 
 #endif

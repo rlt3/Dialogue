@@ -21,6 +21,18 @@ utils_push_object_method (lua_State *L,
         const char *method);
 
 /*
+ * Push an object reference and prep a method call.
+ */
+void
+utils_push_objref_method (lua_State *L, int ref, const char *method);
+
+/*
+ * Add a slot to a userdata object and modifying its __index.
+ */
+void
+utils_add_method (lua_State *L, int index, lua_CFunction f, const char* field);
+
+/*
  * Push the first element of a table at index.
  */
 void

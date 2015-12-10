@@ -26,6 +26,29 @@ utils_push_object_method (lua_State *L,
 }
 
 /*
+ * Push an object reference and prep a method call.
+ */
+void
+utils_push_objref_method (lua_State *L, int ref, const char *method)
+{
+    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    lua_getfield(L, -1, method);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+}
+
+/*
+ * Add a slot to a userdata object and modifying its __index.
+ */
+void
+utils_add_method (lua_State *L, int index, lua_CFunction f, const char* field)
+{
+    lua_getfield(L, index, "__index");
+    lua_pushcfunction(L, f);
+    lua_setfield(L, -2, field);
+    lua_pop(L, 1);
+}
+
+/*
  * Push the first element of a table at index.
  */
 void

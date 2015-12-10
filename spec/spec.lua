@@ -1,163 +1,123 @@
 _G.Dialogue = require("Dialogue")
 
 describe("An Actor", function()
-    local actor = Dialogue.Actor.new{}
+    local actor = actor
 
-    describe("can have scripts", function()
-        local script = script
-
-        it("that need at least one element in table given", function()
-           local errfn = function()
-                script = Dialogue.Actor.Script.new(actor, {})
-            end
-            assert.has_error(errfn, "bad argument #2 to 'new' (Table needs to have a module name!)")
-        end)
-
-        it("that need that one element to be the name of a valid Lua module", function()
-            local errfn = function()
-                script = Dialogue.Actor.Script.new(actor, { "invalid_module" })
-                script:load()
-            end
-            assert.has_error(errfn, "Require failed for module 'invalid_module'")
-        end)
-
-        it("that need that module to return a table with function element new", function()
-            local errfn = function()
-                script = Dialogue.Actor.Script.new(actor, { "valid_module_no_new" })
-                script:load()
-            end
-            assert.has_error(errfn, "valid_module_no_new.new() failed")
-        end)
-
-        it("that will fail sending if not loaded", function()
-            local errfn = function()
-                script = Dialogue.Actor.Script.new(actor, { "weapon", "axe", "down" })
-                script:send(actor, { "attack" })
-            end
-            assert.has_error(errfn, "Script isn't loaded!")
-        end)
-
-        it("that hold private, internal state responding only to and by messages", function()
-            script:load()
-            script:send(actor, { "attack" })
-            assert.is_equal(script:probe("durability"), 9)
-        end)
-
-        it("that can be reloaded to their initial states", function()
-            script:load()
-            assert.is_equal(script:probe("durability"), 10)
-        end)
-
-        it("that can be reloaded by giving new initial states", function()
-            script:load{ "weapon", "sword", "up" }
-            assert.is_equal(script:probe("weapon"), "sword")
-        end)
+    it("is created by passing it a table of the form {'module' [, arg1, arg2, ..., argn]}", function()
+        actor = Dialogue.Actor.new{ {"draw", 400, 600} }
+        assert.is_equal(1, #actor:scripts())
     end)
 
-    it("can remove all the scripts it owns", function()
-        assert.is_equal(actor:drop(), 3)
-        assert.is_equal(#actor:scripts(), 0)
-    end)
-
-    it("can be given a script directly, which is automatically loaded", function()
-        script = actor:give{ "draw", 2, 4 }
-        script:send(actor, {"move", 1, 1})
-        assert.is_equal(script:probe("coordinates")[1], 3)
-        assert.is_equal(script:probe("coordinates")[2], 5)
-    end)
-
-    it("can have any number of any script", function()
-        actor:give{ "weapon", "axe", "up" }
-        actor:give{ "draw", 400, 600 }
-        assert.is_equal(#actor:scripts(), 3)
-    end)
-
-    it("keeps each script mutually exclusive", function()
-        local scripts = actor:scripts()
-        assert.is_equal(scripts[1]:probe("coordinates")[1], 3)
-        assert.is_equal(scripts[1]:probe("coordinates")[2], 5)
-
-        assert.is_equal(scripts[2]:probe("weapon"), "axe")
-
-        assert.is_equal(scripts[3]:probe("coordinates")[1], 400)
-        assert.is_equal(scripts[3]:probe("coordinates")[2], 600)
-    end)
-
-    it("can be given a list of scripts, which overwrite any previous scripts owned", function()
-        local scripts = actor:scripts{ {"weapon", "flail", "north"}, {"draw", 128, 256} }
-        assert.is_equal(#scripts, 2)
-        assert.is_equal(scripts[1]:probe("weapon"), "flail")
-        assert.is_equal(scripts[2]:probe("coordinates")[1], 128)
-        assert.is_equal(scripts[2]:probe("coordinates")[2], 256)
-    end)
-
-    it("can be created from a list of scripts", function()
-        actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
-        local scripts = actor:scripts()
-        assert.is_equal(#scripts, 2)
-        assert.is_equal(scripts[1]:probe("coordinates")[1], 1)
-        assert.is_equal(scripts[1]:probe("coordinates")[2], 1)
-        assert.is_equal(scripts[2]:probe("weapon"), "dagger")
-        assert.is_equal(scripts[2]:probe("direction"), "down")
-    end)
-
-    it("can create a child", function()
-        local child = actor:child{ {"draw", 2, 4} }
-        assert.is_equal(child:scripts()[1]:probe("coordinates")[1], 2)
-        assert.is_equal(actor:children()[1]:scripts()[1]:probe("coordinates")[1], 2)
-    end)
-
-    it("can abandon its children", function()
-        assert.is_equal(actor:abandon(), 1)
-        assert.is_equal(#actor:children(), 0)
-    end)
-
-    it("can be given a list of children, which overwrites any children created", function()
-        local children = actor:children{ 
-            { {"weapon", "sword & board", "down"}, {"draw", 128, 256} },
-            { {"weapon", "magic missile", "up"}, {"draw", 120, 250} },
-            { {"weapon", "stupid bow", "up"}, {"draw", 115, 245} },
-        }
-        assert.is_equal(#children, 3)
-        assert.is_equal(#actor:children(), 3)
-
-        assert.is_equal(children[1]:scripts()[1]:probe("weapon"), "sword & board")
-        assert.is_equal(children[2]:scripts()[1]:probe("weapon"), "magic missile")
-        assert.is_equal(children[3]:scripts()[1]:probe("weapon"), "stupid bow")
-    end)
-
-    pending("cannot recieve a message without a mailbox")
-    pending("cannot send a message without a mailbox")
-    pending("can be given a mailbox")
-end)
-
-describe("A Mailbox", function()
-    local actor = Dialogue.Actor.new{ {"draw", 1, 1}, {"weapon"} }
-    local mailbox = Dialogue.Mailbox.new(8)
-    
-    describe("can have Envelopes", function()
-        local envelope = Dialogue.Mailbox.Envelope.new(actor, "think", {"move", 20, 1000})
-
-        it("that hold the message inside", function()
-            assert.are.same(envelope:message(), {"move", 20, 1000})
-        end)
-    end)
-
-    it("can accept an envelope", function()
-        mailbox:add(actor, "think", {"move", 20, 1000})
-
+    it("is loaded almost immediately in its own thread", function()
         os.execute("sleep " .. tonumber(0.5))
-        assert.are.same(actor:scripts()[1]:probe("coordinates"), {21, 1001})
+        local script = actor:scripts()[1]
+        assert.are.same({400, 600}, script:probe("coordinates"))
     end)
 
-    it("processes the Envelopes it receives automatically", function()
-        mailbox:add(actor, "think", {"move", 15, 20})
-        mailbox:add(actor, "think", {"move", 5, 0})
-
+    it("can handle being garbage collected", function()
+        actor = nil
+        collectgarbage()
+        actor = Dialogue.Actor.new{ {"draw", 1, 2}, {"draw", 3, 4} }
         os.execute("sleep " .. tonumber(0.5))
-        assert.is_equal(mailbox:count(), 0)
-        assert.are.same(actor:scripts()[1]:probe("coordinates"), {41, 1021})
+        assert.is_equal(2, #actor:scripts())
+        assert.are.same({1, 2}, actor:scripts()[1]:probe("coordinates"))
+        assert.are.same({3, 4}, actor:scripts()[2]:probe("coordinates"))
     end)
+
+    it("can handle Scripts erroring out gracefully", function()
+        local errfn = function()
+            actor = Dialogue.Actor.new{ {"bad", 2, 4} }
+            os.execute("sleep " .. tonumber(0.5))
+            actor:scripts()[1]:probe("coordinates")
+        end
+        assert.has_error(errfn, "Cannot Probe: The Script's module isn't valid or has errors.")
+    end)
+
+    it("can be sent messages of the form {'method' [, arg1, arg2, ..., argn]}", function()
+        actor = Dialogue.Actor.new{ {"draw", 1, 2} }
+        os.execute("sleep " .. tonumber(0.5))
+        actor:send{"move", 1, 1}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({2, 3}, actor:scripts()[1]:probe("coordinates"))
+    end)
+
+    it("skips sending messages to Scripts which have errors", function()
+        actor = Dialogue.Actor.new{ {"bad"}, {"draw", 250, 250} }
+        os.execute("sleep " .. tonumber(0.5))
+        actor:send{"move", 1, 1}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({251, 251}, actor:scripts()[2]:probe("coordinates"))
+    end)
+
+    it("can give a bad script a new module and definition to load", function()
+        actor:scripts()[1]:load{"draw", 5, 5}
+        os.execute("sleep " .. tonumber(0.5))
+        actor:send{"move", 1, 1}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({6, 6}, actor:scripts()[1]:probe("coordinates"))
+        assert.are.same({252, 252}, actor:scripts()[2]:probe("coordinates"))
+    end)
+
+    it("can handle manually reloading scripts to its original state for any reason", function()
+        actor:scripts()[2]:load()
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({250, 250}, actor:scripts()[2]:probe("coordinates"))
+    end)
+
+    it("can handle removing any script", function()
+        assert.is_equal(2, #actor:scripts())
+        actor:scripts()[1]:remove()
+        os.execute("sleep " .. tonumber(0.5))
+        assert.is_equal(1, #actor:scripts())
+        assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
+    end)
+
+    it("can reload all of its scripts", function()
+        actor:load()
+        os.execute("sleep " .. tonumber(0.5))
+        assert.is_equal(1, #actor:scripts())
+        actor:send{"move", -250, -250}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same({0, 0}, actor:scripts()[1]:probe("coordinates"))
+    end)
+
+    it("has special 'Lead Actor-only' methods", function()
+        local errfn = function()
+            actor:receive()
+        end
+
+        assert.has_error(errfn, "attempt to call method 'receive' (a nil value)")
+    end)
+
+    describe("A Lead Actor", function()
+        
+        it("must be created from the main thread, which needs a global flag", function()
+            local errfn = function()
+                actor:lead()
+            end
+
+            assert.has_error(errfn, "Lead Actor table only exists in Main thread!")
+        end)
+
+        it("is created from a regular actor, which closes its thread", function()
+            _G.__main_thread = 1
+            actor:lead()
+            actor:send{"move", 2, 2}
+            actor:send{"move", 13, 13}
+            assert.are.same({0, 0}, actor:scripts()[1]:probe("coordinates"))
+        end)
+
+        it("has to process its messages manually", function()
+            actor:receive()
+            assert.are.same({15, 15}, actor:scripts()[1]:probe("coordinates"))
+        end)
+
+        it("can be reloaded too", function()
+            actor:load()
+            assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
+        end)
+    end)
+
 end)
 
 describe("A Dialogue", function()
@@ -195,28 +155,27 @@ describe("A Dialogue", function()
     --      / \
     --     c   d
     
-    local a = dialogue:children()[1]
-    local b = dialogue:children()[2]
-    local c = b:children()[1]
-    local d = b:children()[2]
-    local e = dialogue:children()[3]
+    local a = a
+    local b = b
+    local c = c
+    local d = d
+    local e = e
 
-    it("can be created from a table of tables", function()
-        assert.is_equal(dialogue:scripts()[1]:probe("weapon"), "Crown")
-        assert.are.same(a:scripts()[1]:probe("coordinates"), {2, 4})
-        assert.are.same(b:scripts()[1]:probe("coordinates"), {400, 200})
-        assert.is_equal(c:scripts()[1]:probe("weapon"), "bullet")
-        assert.is_equal(d:scripts()[1]:probe("weapon"), "bomb")
-        assert.are.same(e:scripts()[1]:probe("coordinates"), {20, 6})
+    it("is a tree of Actors", function()
+        a = dialogue:children()[1]
+        b = dialogue:children()[2]
+        c = b:children()[1]
+        d = b:children()[2]
+        e = dialogue:children()[3]
+
+        assert.are.same({a, b, e}, dialogue:children());
+        assert.are.same({c, d}, b:children());
     end)
 
-    it("has a method 'audience' which returns a list of actors filtered by the tone", function()
-        -- Since we're working with objects (Actors, Scripts, Envelopes, &c)
-        -- which get transfered (by pointer) through many Lua stacks, our 
-        -- heavy userdata might be represented as light userdata as it has 
-        -- made rounds through the system. Since the __eq metamethod doesn't
-        -- get called for comparison of heavy vs light userdata, we simply
-        -- do this string comparison of output to see they are the same.
+    it("allows for scoping of messages through audience", function()
+        -- Since our Audience method exists for many threads/lua_States to call
+        -- so we can't push references, but lightuserdata pointers. __eq will
+        -- not get called on lightuserdata vs userdata
         local audience = b:audience("say")
         assert.is_equal(#audience, 4)
         assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
@@ -229,6 +188,10 @@ describe("A Dialogue", function()
         assert.is_equal(audience[1]:__tostring(), c:__tostring())
         assert.is_equal(audience[2]:__tostring(), d:__tostring())
 
+        audience = b:audience("think")
+        assert.is_equal(#audience, 1)
+        assert.is_equal(audience[1]:__tostring(), b:__tostring())
+
         audience = b:audience("yell")
         assert.is_equal(#audience, 6)
         assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
@@ -237,17 +200,6 @@ describe("A Dialogue", function()
         assert.is_equal(audience[4]:__tostring(), c:__tostring())
         assert.is_equal(audience[5]:__tostring(), d:__tostring())
         assert.is_equal(audience[6]:__tostring(), e:__tostring())
-    end)
-
-    it("has a Mailbox which can be accessed by every Actor", function()
-        local mailbox = dialogue:mailbox()
-
-        assert.is_equal(a:mailbox(), mailbox)
-        assert.is_equal(a:mailbox(), mailbox)
-        assert.is_equal(b:mailbox(), mailbox)
-        assert.is_equal(c:mailbox(), mailbox)
-        assert.is_equal(d:mailbox(), mailbox)
-        assert.is_equal(e:mailbox(), mailbox)
     end)
 
     it("allows for Actors to send message by via Tone yell", function()
@@ -275,16 +227,16 @@ describe("A Dialogue", function()
         assert.are.same(e:scripts()[1]:probe("coordinates"), {21, 7})
     end)
 
-    it("allows for Actors to send message by via Tone whisper", function()
-        b:whisper({"move", -1, -1}, e)
-        os.execute("sleep " .. tonumber(0.5))
-        assert.are.same(e:scripts()[1]:probe("coordinates"), {20, 6})
-    end)
-
     it("allows for Actors to send message by via Tone think", function()
         b:think{"move", -1, -1}
         os.execute("sleep " .. tonumber(0.5))
         assert.are.same(b:scripts()[1]:probe("coordinates"), {400, 200})
+    end)
+
+    it("allows for Actors to send message by via Tone whisper", function()
+        b:whisper(e, {"move", -1, -1})
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {20, 6})
     end)
 
     it("can handle Actors sending messages which send messages", function()
@@ -298,9 +250,9 @@ describe("A Dialogue", function()
         assert.are.same(b:scripts()[1]:probe("coordinates"), {404, 204})
         assert.are.same(e:scripts()[1]:probe("coordinates"), {22, 8})
     end)
-
-    it("allows for central nodes via the 'author' optional argument for a message", function()
-        dialogue:whisper({"watch"}, b) 
+ 
+    it("has an optional 'author' argument", function()
+        dialogue:whisper(b, {"watch"})
         os.execute("sleep " .. tonumber(0.5))
         assert.are.same(dialogue:__tostring(), b:scripts()[1]:probe("follow"))
     end)

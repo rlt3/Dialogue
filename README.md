@@ -7,19 +7,12 @@ Dialogue is a framework for Lua5.2. It is an intersection of the
 [Entity Component System](https://en.wikipedia.org/wiki/Entity_component_system) 
 (ECS) with a way to scope messages so that Actors may talk to one another.
 
-An Actor is the core piece of Dialogue. An Actor is an empty container which
-can receive messages. It responds to these messsages via the Scripts which are
-given to it. These Scripts are analogous to Components in an ECS.
+## What is Dialogue?
 
-A Dialogue is simply a tree of Actors. It is the tree which provides the scope
-mechanisms for messages. A Script might tell an Actor to 'whisper' a message to
-another Actor. Or the Script might tell the Actor to 'yell' the message to the
-entire Actor tree. I call these scopes 'Tones'.
-
-Each Actor has its own internal state (where all of its Scripts are contained)
-which allows messages to be sent asychronously and potentially in parallel.
-
-The Scripts are what you as a user would define.
+Dialogue is an asynchronous framework designed for objects to talk to each 
+other. It does this by creating a tree of empty containers. We call the tree a
+Dialogue and the containers Actors. We give the Actors Scripts to define
+them just as you would give an entity some components to define them.
 
 ## Terminology
 
