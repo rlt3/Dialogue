@@ -57,20 +57,23 @@ main (int argc, char **argv)
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
 
-    if (luaL_loadfile(L, script) || lua_pcall(L, 0, 0, 0))
-        fprintf(stderr, "File: %s could not load: %s\n", script, 
+    if (luaL_loadfile(L, script) || lua_pcall(L, 0, 0, 0)) {
+        fprintf(stderr, "File: %s could not load: %s\n", script,
                 lua_tostring(L, -1));
+        goto exit;
+    }
 
     lead_actors_do_action(L, LOAD);
     
     interp = interpreter_create(L, &is_running);
     while (is_running) {
-        lead_actors_do_action(L, RECEIVE);
+        //lead_actors_do_action(L, RECEIVE);
 
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);
     }
-    lua_close(L);
 
+exit:
+    lua_close(L);
     return 0;
 }

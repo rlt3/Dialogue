@@ -124,13 +124,11 @@ actor_assign_lead (Actor *actor, lua_State *L)
     int top = actor_lead_table(L);
     int len = luaL_len(L, top);
 
-    printf("len (%d) before %p\n", len, actor);
-
     lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
     lua_rawseti(L, top, len + 1);
+
     lua_pop(L, 1);
 
-    printf("len (%d) after %p\n", luaL_len(L, top), actor);
 }
 
 /*
@@ -172,6 +170,10 @@ lua_actor_new (lua_State *L)
     actor = lua_newuserdata(L, sizeof(*actor));
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
+
+    /* Create a reference so it doesn't GC */
+    actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
 
     actor->parent = NULL;
     actor->next = NULL;
