@@ -23,10 +23,7 @@ void
 lead_actors_do_action (lua_State *L, Action action)
 {
     Actor *actor;
-    int table_index;
-
-    actor_lead_table(L);
-    table_index = lua_gettop(L);
+    int table_index = actor_lead_table(L);
 
     lua_pushnil(L);
     while (lua_next(L, table_index)) {
@@ -34,6 +31,7 @@ lead_actors_do_action (lua_State *L, Action action)
         actor_call_action(actor, action);
         lua_pop(L, 1);
     }
+    lua_pop(L, 1);
 }
 
 int

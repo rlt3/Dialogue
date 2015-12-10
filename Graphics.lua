@@ -22,10 +22,12 @@ function Graphics:move (x, y)
 end
 
 function Graphics:update ()
-    self.window:clear()
-    self.window:set_color(128, 128, 128, 255)
-    self.window:draw(self.coordinates[1], self.coordinates[2], 50, 50)
-    self.window:render()
+    if self.window:per_second(1) then
+        self.window:clear()
+        self.window:set_color(128, 128, 128, 255)
+        self.window:draw(self.coordinates[1], self.coordinates[2], 50, 50)
+        self.window:render()
+    end
 end
 
 return Graphics

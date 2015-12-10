@@ -88,9 +88,10 @@ actor_remove_script (Actor *actor, Script *script)
 
 /*
  * Leave the Lead Actor table on top of the stack. Creates it if it doesn't
- * exist. Will throw an error if not called on Main thread.
+ * exist. Will throw an error if not called on Main thread. Returns its
+ * position on the stack.
  */
-void
+int
 actor_lead_table (lua_State *L)
 {
     static short int defined = 0;
@@ -98,6 +99,7 @@ actor_lead_table (lua_State *L)
     lua_getglobal(L, "__main_thread");
 
     if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
         luaL_error(L, "Lead Actor table only exists in Main thread!");
     } else {
         lua_pop(L, 1);
@@ -110,6 +112,7 @@ actor_lead_table (lua_State *L)
     }
 
     lua_getglobal(L, "__lead_actor");
+    return lua_gettop(L);
 }
 
 /*
@@ -118,10 +121,16 @@ actor_lead_table (lua_State *L)
 void
 actor_assign_lead (Actor *actor, lua_State *L)
 {
-    actor_lead_table(L);
+    int top = actor_lead_table(L);
+    int len = luaL_len(L, top);
+
+    printf("len (%d) before %p\n", len, actor);
+
     lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
-    lua_rawseti(L, -2, luaL_len(L, -2) + 1);
+    lua_rawseti(L, top, len + 1);
     lua_pop(L, 1);
+
+    printf("len (%d) after %p\n", luaL_len(L, top), actor);
 }
 
 /*
@@ -341,17 +350,21 @@ lua_actor_receive (lua_State *L)
 int
 lua_actor_lead (lua_State *L)
 {
+    Script *script;
     Actor *actor = lua_check_actor(L, 1);
-    actor_assign_lead(actor, L);
 
     actor_alert_action(actor, STOP);
     usleep(1000);
 
     actor_request_state(actor);
     actor->manual_call = 1;
+    for (script = actor->script_head; script != NULL; script = script->next)
+        script->be_loaded = 1;
     actor_return_state(actor);
 
     utils_add_method(L, 1, lua_actor_receive, "receive");
+
+    actor_assign_lead(actor, L);
 
     return 0;
 }
