@@ -6,28 +6,28 @@ function Graphics.new (x, y)
    local table = {}
    setmetatable(table, Graphics)
    table.window = Window.new(400, 600)
-   table.coordinates = {x, y} or {0, 0}
+   table.to_draw = {}
    return table
 end
 
-function Graphics:draw ()
+function Graphics:draw (definition)
+    table.insert(self.to_draw, definition)
+end
+
+function Graphics:render ()
     self.window:clear()
     self.window:set_color(128, 128, 128, 255)
-    self.window:draw(0, 0, 50, 50)
-end
-
-function Graphics:move (x, y)
-    self.coordinates[1] = self.coordinates[1] + x
-    self.coordinates[2] = self.coordinates[2] + y
-end
-
-function Graphics:update ()
-    if self.window:per_second(1) then
-        self.window:clear()
-        self.window:set_color(128, 128, 128, 255)
-        self.window:draw(self.coordinates[1], self.coordinates[2], 50, 50)
-        self.window:render()
+    for i, definition in ipairs(self.to_draw) do
+        self.window:draw(unpack(definition))
     end
+    self.window:render()
+end
+
+function Graphics:main ()
+    --if self.window:per_second(1) then
+    --    io.write("second\n")
+    --end
+    self:render()
 end
 
 return Graphics

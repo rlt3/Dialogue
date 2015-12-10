@@ -3,6 +3,7 @@
 #include "dialogue.h"
 #include "actor.h"
 #include "interpreter.h"
+#include "utils.h"
 
 static short int is_running = 1;
 
@@ -29,6 +30,16 @@ lead_actors_do_action (lua_State *L, Action action)
     while (lua_next(L, table_index)) {
         actor = lua_check_actor(L, -1);
         actor_call_action(actor, action);
+
+        if (action == RECEIVE) {
+            utils_push_objref_method(L, actor->ref, "send");
+            lua_newtable(L);
+            lua_pushstring(L, "main");
+            lua_rawseti(L, -2, 1);
+            lua_call(L, 2, 0);
+            lua_pop(L, 1);
+        }
+
         lua_pop(L, 1);
     }
     lua_pop(L, 1);
@@ -67,7 +78,7 @@ main (int argc, char **argv)
     
     interp = interpreter_create(L, &is_running);
     while (is_running) {
-        //lead_actors_do_action(L, RECEIVE);
+        lead_actors_do_action(L, RECEIVE);
 
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);
