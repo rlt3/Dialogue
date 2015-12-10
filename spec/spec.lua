@@ -238,6 +238,18 @@ describe("A Dialogue", function()
         os.execute("sleep " .. tonumber(0.5))
         assert.are.same(e:scripts()[1]:probe("coordinates"), {20, 6})
     end)
+
+    it("can handle Actors sending messages which send messages", function()
+        b:think{"move", 2, 2}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {402, 202})
+
+        dialogue:yell{"walk"}
+        os.execute("sleep " .. tonumber(0.5))
+        assert.are.same(a:scripts()[1]:probe("coordinates"), {5, 7})
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {404, 204})
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {22, 8})
+    end)
  
     it("has an optional 'author' argument", function()
         dialogue:whisper(b, {"watch"})
