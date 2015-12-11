@@ -15,7 +15,7 @@ install:
   - ./travis.sh
       - sudo luarocks install busted
       
-script: make && make DIALOGUE_HEADLESS=true && make DIALOGUE_HEADLESS=true check
+script: make && make DIALOGUE_HEADLESS=true check
 
 notifications:
   recipients:
