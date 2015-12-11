@@ -95,22 +95,14 @@ mailbox_push_next_envelope (Mailbox *mailbox)
     int message_ref;
     lua_State *B = mailbox->L;
 
-    /* remove like queue LIFO */
-    lua_getglobal(B, "table");
-    lua_getfield(B, -1, "remove");
     lua_getglobal(B, "__envelopes");
-    lua_pushinteger(B, 1);
-    lua_call(B, 2, 1);
-
-    /* move the 'table' on top to pop */
-    lua_insert(B, lua_gettop(B) - 1);
-    lua_pop(B, 1);
+    utils_pop_table_head(B, lua_gettop(B));
 
     /* get all the relevant info before popping and gcing envelope */
     envelope = lua_check_envelope(B, -1);
     message_ref = envelope->message_ref;
     author = envelope->author;
-    lua_pop(B, 1);
+    lua_pop(B, 2); /* envelope & envelope table */
 
     /* finally push table and unref it */
     lua_rawgeti(B, LUA_REGISTRYINDEX, message_ref);

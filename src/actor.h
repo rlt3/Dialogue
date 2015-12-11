@@ -26,7 +26,7 @@ typedef struct Actor {
     Action action;
 
     short int on;
-    short int manual_call;
+    short int is_lead;
 
     /* Tree nav: go up, horizontally, and down the tree */
     struct Actor *parent;
@@ -47,9 +47,10 @@ typedef struct Actor {
 
 /*
  * Leave the Lead Actor table on top of the stack. Creates it if it doesn't
- * exist. Will throw an error if not called on Main thread.
+ * exist. Will throw an error if not called on Main thread. Returns its
+ * position on the stack.
  */
-void
+int
 actor_lead_table (lua_State *L);
 
 /*

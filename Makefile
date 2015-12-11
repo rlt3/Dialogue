@@ -30,16 +30,14 @@ ifeq ($(UNAME), Darwin)
 endif
 
 all: clean build
+check: clean build test
 
 build: $(SOURCES)
 	$(CC) -g $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
-check:
+test:
 	cp $(MODULE) spec/
 	cd spec/ && busted spec.lua
-
-test:
-	valgrind --leak-check=full -v lua -i stage.lua
 
 clean:
 	rm -f $(MODULE) src/*o

@@ -36,8 +36,7 @@ lua_dialogue_new (lua_State *L)
     utils_push_table_head(L, dialogue_table);
     lua_call(L, 1, 1);
     actor = lua_check_actor(L, -1);
-    actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 2);
+    lua_pop(L, 3);
 
     /*
      * The recursion relies on sending the first created Actor (the head) to
@@ -63,10 +62,9 @@ lua_dialogue_new (lua_State *L)
         lua_call(L, 2, 1);
 
         child = lua_check_actor(L, -1);
-        child->ref = luaL_ref(L, LUA_REGISTRYINDEX);
         actor_add_child(actor, child);
 
-        lua_pop(L, 2); /* key & Dialogue */
+        lua_pop(L, 3); /* chidl, key, Dialogue */
     }
     lua_pop(L, 1);
 

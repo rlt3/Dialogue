@@ -33,6 +33,12 @@ void
 utils_add_method (lua_State *L, int index, lua_CFunction f, const char* field);
 
 /*
+ * Remove the first element in a table at given index and leave it on stack.
+ */
+void
+utils_pop_table_head (lua_State *L, int index);
+
+/*
  * Push the first element of a table at index.
  */
 void
