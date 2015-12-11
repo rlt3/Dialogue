@@ -13,9 +13,9 @@ install:
   - sudo apt-get install luarocks
   - chmod +x travis.sh
   - ./travis.sh
-  - sudo luarocks install busted
-  
-script: make && make DIALOGUE_HEADLESS=true && make check
+      - sudo luarocks install busted
+      
+script: make && make DIALOGUE_HEADLESS=true && make DIALOGUE_HEADLESS=true check
 
 notifications:
   recipients:
