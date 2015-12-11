@@ -49,6 +49,24 @@ utils_add_method (lua_State *L, int index, lua_CFunction f, const char* field)
 }
 
 /*
+ * Remove the first element in a table at given index and leave it on stack.
+ */
+void
+utils_pop_table_head (lua_State *L, int index)
+{
+    /* remove like queue LIFO */
+    lua_getglobal(L, "table");
+    lua_getfield(L, -1, "remove");
+    lua_pushvalue(L, index);
+    lua_pushinteger(L, 1);
+    lua_call(L, 2, 1);
+
+    /* move the 'table' on top to pop */
+    lua_insert(L, lua_gettop(L) - 1);
+    lua_pop(L, 1);
+}
+
+/*
  * Push the first element of a table at index.
  */
 void

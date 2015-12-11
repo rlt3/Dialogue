@@ -73,8 +73,6 @@ main (int argc, char **argv)
                 lua_tostring(L, -1));
         goto exit;
     }
-
-    lead_actors_do_action(L, LOAD);
     
     interp = interpreter_create(L, &is_running);
     while (is_running) {

@@ -104,7 +104,7 @@ script_load (Script *script)
 
     A = actor_request_state(script->actor);
 
-    if (!script->actor->manual_call) {
+    if (!script->actor->is_lead) {
         if (!pthread_equal(calling_thread, script->actor->thread)) {
             script->error = ERR_NOT_CALLING_THREAD;
             ret = LOAD_BAD_THREAD;
@@ -178,7 +178,7 @@ script_send (Script *script, Actor *author)
     lua_State *A = script->actor->L;
     pthread_t calling_thread = pthread_self();
 
-    if (!script->actor->manual_call) {
+    if (!script->actor->is_lead) {
         if (!pthread_equal(calling_thread, script->actor->thread)) {
             ret = SEND_BAD_THREAD;
             goto exit;

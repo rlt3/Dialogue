@@ -95,11 +95,10 @@ describe("An Actor", function()
             local errfn = function()
                 actor:lead()
             end
-
             assert.has_error(errfn, "Lead Actor table only exists in Main thread!")
         end)
 
-        it("is created from a regular actor, which closes its thread", function()
+        it("can be created from a regular actor, closing its thread", function()
             _G.__main_thread = 1
             actor:lead()
             actor:send{"move", 2, 2}
@@ -107,7 +106,14 @@ describe("An Actor", function()
             assert.are.same({0, 0}, actor:scripts()[1]:probe("coordinates"))
         end)
 
+        it("can be created Lead-Actor-only by passing in an option", function()
+            actor = nil
+            actor = Dialogue.Actor.new{ "Lead", {"draw", 250, 250} }
+            assert.are.same({250, 250}, actor:scripts()[1]:probe("coordinates"))
+        end)
+
         it("has to process its messages manually", function()
+            actor:send{"move", -235, -235}
             actor:receive()
             assert.are.same({15, 15}, actor:scripts()[1]:probe("coordinates"))
         end)
@@ -125,7 +131,7 @@ describe("A Dialogue", function()
         { {"weapon", "Crown", "North"} },
         {
             { 
-                { {"draw", 2, 4} },
+                { "Lead", {"draw", 2, 4} },
                 {}
             },
             { 
@@ -202,6 +208,10 @@ describe("A Dialogue", function()
         assert.is_equal(audience[6]:__tostring(), e:__tostring())
     end)
 
+    it("can be created from a mix of Lead and regular Actors", function()
+        assert.are.same(a:scripts()[1]:probe("coordinates"), {2, 4})
+    end)
+
     it("allows for Actors to send message by via Tone yell", function()
         dialogue:yell{"attack"}
         os.execute("sleep " .. tonumber(0.5))
@@ -222,6 +232,7 @@ describe("A Dialogue", function()
         b:say{"move", 1, 1}
         os.execute("sleep " .. tonumber(0.5))
 
+        a:receive()
         assert.are.same(a:scripts()[1]:probe("coordinates"), {3, 5})
         assert.are.same(b:scripts()[1]:probe("coordinates"), {401, 201})
         assert.are.same(e:scripts()[1]:probe("coordinates"), {21, 7})
@@ -246,6 +257,7 @@ describe("A Dialogue", function()
 
         dialogue:yell{"walk"}
         os.execute("sleep " .. tonumber(0.5))
+        a:receive()
         assert.are.same(a:scripts()[1]:probe("coordinates"), {5, 7})
         assert.are.same(b:scripts()[1]:probe("coordinates"), {404, 204})
         assert.are.same(e:scripts()[1]:probe("coordinates"), {22, 8})

@@ -121,14 +121,13 @@ actor_lead_table (lua_State *L)
 void
 actor_assign_lead (Actor *actor, lua_State *L)
 {
-    int top = actor_lead_table(L);
-    int len = luaL_len(L, top);
+    const int top = actor_lead_table(L);
+    const int len = luaL_len(L, top);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
     lua_rawseti(L, top, len + 1);
 
     lua_pop(L, 1);
-
 }
 
 /*
@@ -141,16 +140,14 @@ actor_assign_lead (Actor *actor, lua_State *L)
  *
  * Actor{ {"draw", 400, 200}, {"weapon", "longsword"} }
  *
- * Optionally, one can call like Actor({ {"draw", 0, 0} }, false) to make this
- * a lead Actor from the start.
+ * Optionally, one can call like Actor{ "Lead", {"draw", 0, 0} }, which creates
+ * the Actor as a Lead Actor and loads all of its Scripts here.
  */
 static int
 lua_actor_new (lua_State *L)
 {
     const int table_arg = 1;
     const int actor_arg = 2;
-
-    int is_manual_call = 0;
     int table_index;
     int script_index;
     lua_State *A;
@@ -160,16 +157,21 @@ lua_actor_new (lua_State *L)
 
     luaL_checktype(L, table_arg, LUA_TTABLE);
 
-    /* An optional bool can be passed to make this Actor be called manually */
-    if (lua_gettop(L) == 2) {
-        luaL_checktype(L, 2, LUA_TBOOLEAN);
-        is_manual_call = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
     actor = lua_newuserdata(L, sizeof(*actor));
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
+
+    /* push first element of table to see if we're doing Actor */
+    lua_rawgeti(L, table_arg, 1);
+    if (lua_isstring(L, -1)) {
+        lua_pop(L, 1);
+        utils_pop_table_head(L, table_arg);
+        actor->is_lead = 1;
+        actor_assign_lead(actor, L);
+    } else {
+        actor->is_lead = 0;
+    }
+    lua_pop(L, 1); /* either pop table or string from utils_pop_table_head */
 
     /* Create a reference so it doesn't GC */
     actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -183,11 +185,6 @@ lua_actor_new (lua_State *L)
     actor->mailbox = NULL;
     actor->dialogue = NULL;
 
-    actor->new_action = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
-    actor->action = LOAD;
-    actor->on = 1;
-    actor->manual_call = is_manual_call;
-
     /* 
      * init mutexes to recursive because its own thread might call a method
      * which expects to be called from an outside thread sometimes and askes
@@ -197,6 +194,10 @@ lua_actor_new (lua_State *L)
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&actor->state_mutex, &mutex_attr);
     pthread_mutex_init(&actor->action_mutex, &mutex_attr);
+
+    actor->new_action = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    actor->action = LOAD;
+    actor->on = 1;
 
     actor->L = luaL_newstate();
     A = actor->L;
@@ -247,11 +248,12 @@ lua_actor_new (lua_State *L)
     }
     lua_pop(L, 3); /* Dialogue, Actor, Script */
 
-    if (!is_manual_call) {
+    /* Then load Scripts in its own thread or here in the Main thread */
+    if (!actor->is_lead) {
         pthread_create(&actor->thread, NULL, actor_thread, actor);
         pthread_detach(actor->thread);
     } else {
-        actor_assign_lead(actor, L);
+        actor_call_action(actor, LOAD);
     }
 
     return 1;
@@ -298,7 +300,7 @@ lua_actor_scripts (lua_State *L)
 int
 lua_actor_load (lua_State *L)
 {
-    int manual_call;
+    int is_lead;
     Script *script;
     Actor *actor = lua_check_actor(L, 1);
 
@@ -309,14 +311,14 @@ lua_actor_load (lua_State *L)
         lua_call(L, 1, 0);
     }
 
-    manual_call = actor->manual_call;
+    is_lead = actor->is_lead;
     actor_return_state(actor);
 
     /* 
      * If this was a manual call, we make the LOAD action happen here, now.
      * Otherwise, all the scripts have told the Actor to load them.
      */
-    if (manual_call)
+    if (is_lead)
         actor_call_action(actor, LOAD);
 
     return 0;
@@ -331,7 +333,7 @@ lua_actor_receive (lua_State *L)
     Actor *actor = lua_check_actor(L, 1);
     
     actor_request_state(actor);
-    if (!actor->manual_call) {
+    if (!actor->is_lead) {
         actor_return_state(actor);
         luaL_error(L, "%s %p is not a lead actor!", ACTOR_LIB, actor);
     }
@@ -359,13 +361,13 @@ lua_actor_lead (lua_State *L)
     usleep(1000);
 
     actor_request_state(actor);
-    actor->manual_call = 1;
+    actor->is_lead = 1;
+
     for (script = actor->script_head; script != NULL; script = script->next)
         script->be_loaded = 1;
     actor_return_state(actor);
 
     utils_add_method(L, 1, lua_actor_receive, "receive");
-
     actor_assign_lead(actor, L);
 
     return 0;
@@ -421,8 +423,10 @@ lua_actor_gc (lua_State *L)
     Script *script;
     Actor *actor = lua_check_actor(L, 1);
 
-    actor_alert_action(actor, STOP);
-    usleep(1000);
+    if (!actor->is_lead) {
+        actor_alert_action(actor, STOP);
+        usleep(1000);
+    }
 
     A = actor_request_state(actor);
     for (script = actor->script_head; script != NULL; script = script->next)
