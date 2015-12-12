@@ -207,6 +207,7 @@ script_send (Script *script, Actor *author)
     if (lua_pcall(A, args + 2, 0, 0)) {
         ret = SEND_FAIL;
         script->error = lua_tostring(A, -1);
+        printf("%s\n", script->error);
         script_unload(script);
     }
     
