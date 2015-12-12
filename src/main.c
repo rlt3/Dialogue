@@ -72,7 +72,7 @@ main (int argc, char **argv)
     
     interp = interpreter_create(L, &is_running);
     while (is_running) {
-        lead_actors_receive_update (L);
+        lead_actors_receive_update(L);
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);
     }

@@ -255,12 +255,10 @@ describe("A Dialogue", function()
         os.execute("sleep " .. tonumber(0.5))
         assert.are.same(b:scripts()[1]:probe("coordinates"), {402, 202})
 
-        dialogue:yell{"walk"}
+        b:whisper(e, {"bump"})
         os.execute("sleep " .. tonumber(0.5))
-        a:receive()
-        assert.are.same(a:scripts()[1]:probe("coordinates"), {5, 7})
-        assert.are.same(b:scripts()[1]:probe("coordinates"), {404, 204})
-        assert.are.same(e:scripts()[1]:probe("coordinates"), {22, 8})
+        assert.are.same(e:scripts()[1]:probe("coordinates"), {19, 5})
+        assert.are.same(b:scripts()[1]:probe("coordinates"), {401, 201})
     end)
  
     it("has an optional 'author' argument", function()

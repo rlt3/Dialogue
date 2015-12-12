@@ -167,7 +167,6 @@ lua_actor_new (lua_State *L)
         lua_pop(L, 1);
         utils_pop_table_head(L, table_arg);
         actor->is_lead = 1;
-        actor_assign_lead(actor, L);
     } else {
         actor->is_lead = 0;
     }
@@ -253,6 +252,7 @@ lua_actor_new (lua_State *L)
         pthread_create(&actor->thread, NULL, actor_thread, actor);
         pthread_detach(actor->thread);
     } else {
+        actor_assign_lead(actor, L);
         actor_call_action(actor, LOAD);
     }
 

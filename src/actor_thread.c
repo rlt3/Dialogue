@@ -141,40 +141,24 @@ actor_thread (void *arg)
 {
     Action action;
     Actor *actor = arg;
-
-    printf("Actor thread %p: starting...\n", actor);
-
     pthread_mutex_lock(&actor->state_mutex);
 
     while (actor->on) {
-
         action = actor_next_action(actor);
-
         switch (action) {
         case LOAD:
-            /*
-             * We must handle loading of Scripts because many modules require
-             * all functions be called from a single thread.
-             */
-            printf("Actor thread %p: loading...\n", actor);
             actor_load_scripts(actor);
             break;
 
         case RECEIVE:
-            /*
-             * We must handle execution of the Script's methods as per above.
-             */
-            printf("Actor thread %p: receiving...\n", actor);
             actor_process_mailbox(actor);
             break;
 
         case STOP:
-            printf("Actor thread %p: quitting...\n", actor);
             goto exit;
             break;
 
         case WAIT:
-            printf("Actor thread %p: waiting...\n", actor);
             pthread_cond_wait(&actor->new_action, &actor->state_mutex);
             break;
 

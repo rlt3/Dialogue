@@ -14,14 +14,9 @@ function Draw:move (x, y, author)
     self.coordinates[2] = self.coordinates[2] + y
 end
 
-function Draw:wait_move (x, y)
-    os.execute("sleep " .. tonumber(2))
-    self.coordinates[1] = self.coordinates[1] + x
-    self.coordinates[2] = self.coordinates[2] + y
-end
-
-function Draw:walk ()
-    actor:think{"move", 2, 2}
+function Draw:bump (author)
+    self:move(-1, -1)
+    actor:whisper(author, {"move", -1, -1})
 end
 
 function Draw:watch (author)
