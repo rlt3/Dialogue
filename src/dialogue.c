@@ -3,6 +3,7 @@
 #include "envelope.h"
 #include "script.h"
 #include "mailbox.h"
+#include "post.h"
 #include "utils.h"
 
 /* 
@@ -99,6 +100,9 @@ luaopen_Dialogue (lua_State *L)
 
     luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor, 1);
     lua_setfield(L, t_index, "Actor");
+
+    luaL_requiref(L, POST_LIB, luaopen_Dialogue_Post, 1);
+    lua_setfield(L, t_index, "Post");
 
     lua_pushcfunction(L, lua_dialogue_lead);
     lua_setfield(L, t_index, "lead");

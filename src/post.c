@@ -1,5 +1,9 @@
+#include <stdlib.h>
+#include <pthread.h>
+#include <errno.h>
+#include <unistd.h>
 #include "post.h"
-#include "mailbox.h"
+#include "tone.h"
 #include "utils.h"
 
 /*
@@ -12,13 +16,14 @@ postman_thread (void *arg)
 {
     Actor *recipient;
     Postman *postman = arg;
+    lua_State *P = postman->L;
     const int message_index = 1;
     const int audience_index = 2;
 
     pthread_mutex_trylock(&postman->lock);
 
     while (postman->working) {
-        if (!lua_istable(L, message_index) || 
+        if (!lua_istable(P, message_index) || 
             postman->author == NULL || 
             postman->tone == NULL)
             goto wait_for_work;
@@ -51,8 +56,9 @@ postman_start ()
     pthread_mutexattr_t mutex_attr;
     Postman *postman = malloc(sizeof(*postman));
 
-    postman->author = NULL
-    postman->tone = NULL
+    postman->working = 1;
+    postman->author = NULL;
+    postman->tone = NULL;
     postman->L = luaL_newstate();
     P = postman->L;
     luaL_openlibs(P);
@@ -60,7 +66,7 @@ postman_start ()
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&postman->lock, &mutex_attr);
-    postman->wait_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    postman->work_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 
     pthread_create(&postman->thread, NULL, postman_thread, postman);
     pthread_detach(postman->thread);
@@ -74,11 +80,11 @@ postman_start ()
  * delivers it.
  */
 void
-post_deliver (Post *post, Actor *author, const char *tone)
+post_deliver_lua_top (Post *post, Actor *author, const char *tone)
 {
     Postman *postman;
-    lua_State *P, *A = author->L;
-    int i, len, rc;
+    lua_State *A = author->L;
+    int i, rc;
 
     if (post == NULL || post->postmen == NULL)
         return;
@@ -90,18 +96,8 @@ post_deliver (Post *post, Actor *author, const char *tone)
             continue;
 
         postman = post->postmen[i];
-        P = postman->L;
 
-        /* 
-         * We've somehow locked the mutex after the postman is done waiting for
-         * work and before it has locked itself to do work.
-         */
-        if (!postman->waiting) {
-            pthread_mutex_unlock(&postman->lock);
-            continue;
-        }
-        
-        utils_copy_top(P, A);
+        utils_copy_top(postman->L, A);
         postman->author = author;
         postman->tone = tone;
 
@@ -125,7 +121,7 @@ lua_post_new (lua_State *L)
     post->postmen_count = 0;
     post->postmen = malloc(sizeof(Postman*) * postmen_count);
 
-    if (postmen == NULL)
+    if (post->postmen == NULL)
         luaL_error(L, "Not enough memory to create Postmen");
 
     for (i = 0; i < postmen_count; i++)
@@ -134,7 +130,7 @@ lua_post_new (lua_State *L)
     return 1;
 }
 
-static const luaL_Reg post_method[] = {
+static const luaL_Reg post_methods[] = {
     /*
     {"play",       lua_actor_play},
     {"pause",      lua_actor_pause},
