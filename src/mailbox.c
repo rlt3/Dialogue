@@ -68,7 +68,7 @@ mailbox_send (Mailbox *mailbox, Actor *author, lua_State *L)
     utils_copy_top(B, L);
 
     if (lua_pcall(B, 2, 1, 0)) {
-        lua_pop(L, 4);
+        lua_pop(B, 4);
         goto cleanup;
     }
 

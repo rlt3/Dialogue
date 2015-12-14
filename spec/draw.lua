@@ -23,6 +23,11 @@ function Draw:watch (author)
     self.follow = author
 end
 
+function Draw:main ()
+    actor:yell{"bump"}
+    actor:yell{"move", 1, 1}
+end
+
 function Draw:update ()
     io.write("Drawing at " .. self.coordinates[1] .. ", " .. self.coordinates[2] .. "\n");
 end
