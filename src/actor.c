@@ -183,6 +183,7 @@ lua_actor_new (lua_State *L)
     actor->script_tail = NULL;
     actor->mailbox = NULL;
     actor->dialogue = NULL;
+    actor->post = NULL;
 
     /* 
      * init mutexes to recursive because its own thread might call a method

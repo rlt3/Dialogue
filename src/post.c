@@ -134,7 +134,7 @@ lua_post_new (lua_State *L)
     luaL_getmetatable(L, POST_LIB);
     lua_setmetatable(L, -2);
 
-    post->postmen_count = 0;
+    post->postmen_count = postmen_count;
     post->postmen = malloc(sizeof(Postman*) * postmen_count);
 
     if (post->postmen == NULL)
@@ -142,6 +142,10 @@ lua_post_new (lua_State *L)
 
     for (i = 0; i < postmen_count; i++)
         post->postmen[i] = postman_start();
+
+    /* create a ref so we can control gc */
+    post->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, post->ref);
     
     return 1;
 }

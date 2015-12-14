@@ -40,6 +40,7 @@ typedef struct Actor {
     struct Script *script_tail;
 
     struct Mailbox *mailbox;
+    struct Post *post;
 
     /* A place for a parent to set their reference */
     int ref;

@@ -32,7 +32,11 @@ typedef struct Postman {
 typedef struct Post {
     Postman **postmen;
     int postmen_count;
+    int ref;
 } Post;
+
+Post *
+lua_check_post (lua_State *L, int index);
 
 /*
  * Delivers the message on top of the Actor's stack.  The Post finds a free
