@@ -13,12 +13,16 @@
  */
 typedef struct Postman {
     lua_State *L;
+
     pthread_t thread;
+    short int working;
+
     pthread_mutex_t lock;
-    pthread_cond_t work_cond;
+    pthread_cond_t wait_cond;
+    short int waiting;
+
     Actor *author;
     const char *tone;
-    short int working;
 } Postman;
 
 /*

@@ -20,9 +20,11 @@ postman_thread (void *arg)
     const int message_index = 1;
     const int audience_index = 2;
 
-    pthread_mutex_trylock(&postman->lock);
+    printf("Postman %p [BOOT]\n", postman);
+    pthread_mutex_lock(&postman->lock);
 
     while (postman->working) {
+        printf("Postman %p [SENDING] ...\n", postman);
         if (!lua_istable(P, message_index) || 
             postman->author == NULL || 
             postman->tone == NULL)
@@ -42,10 +44,14 @@ postman_thread (void *arg)
 wait_for_work:
         postman->author = NULL;
         postman->tone = NULL;
-        while (postman->author == NULL)
-            pthread_cond_wait(&postman->work_cond, &postman->lock);
+        postman->waiting = 1;
+        printf("Postman %p [WAITING] ...\n", postman);
+        while (postman->waiting)
+            pthread_cond_wait(&postman->wait_cond, &postman->lock);
     }
 
+    printf("Postman %p [QUIT]\n", postman);
+    pthread_mutex_unlock(&postman->lock);
     return NULL;
 }
 
@@ -57,6 +63,7 @@ postman_start ()
     Postman *postman = malloc(sizeof(*postman));
 
     postman->working = 1;
+    postman->waiting = 1;
     postman->author = NULL;
     postman->tone = NULL;
     postman->L = luaL_newstate();
@@ -66,7 +73,7 @@ postman_start ()
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&postman->lock, &mutex_attr);
-    postman->work_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    postman->wait_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 
     pthread_create(&postman->thread, NULL, postman_thread, postman);
     pthread_detach(postman->thread);
@@ -102,12 +109,21 @@ post_deliver_actor_top (Post *post, Actor *author, const char *tone)
         postman->tone = tone;
 
         pthread_mutex_unlock(&postman->lock);
-        pthread_cond_signal(&postman->work_cond);
+        pthread_cond_signal(&postman->wait_cond);
 
         break;
     }
 }
 
+Post *
+lua_check_post (lua_State *L, int index)
+{
+    return (Post *) luaL_checkudata(L, index, POST_LIB);
+}
+
+/*
+ * Create a new Post -- a collection of Postmen.
+ */
 int
 lua_post_new (lua_State *L)
 {
@@ -130,14 +146,54 @@ lua_post_new (lua_State *L)
     return 1;
 }
 
+/*
+ * Wait and lock each of the Postmen. Then turn off their loops and signal it 
+ * to come back on.
+ */
+int
+lua_post_gc (lua_State *L)
+{
+    Post *post = lua_check_post(L, 1);
+    int i, rc, lock_count = 0;
+
+    for (i = 0; lock_count < post->postmen_count; i = i % post->postmen_count) {
+        rc = pthread_mutex_trylock(&post->postmen[i]->lock);
+        if (rc == EBUSY)
+            continue;
+        lock_count++;
+    }
+
+    for (i = 0; i < post->postmen_count; i++) {
+        post->postmen[i]->waiting = 0;
+        post->postmen[i]->working = 0;
+        pthread_mutex_unlock(&post->postmen[i]->lock);
+        pthread_cond_signal(&post->postmen[i]->wait_cond);
+        usleep(1000);
+        lua_close(post->postmen[i]->L);
+        free(post->postmen[i]);
+    }
+
+    free(post->postmen);
+
+    return 0;
+}
+
+int
+lua_post_tostring (lua_State *L)
+{
+    Post *post = lua_check_post(L, 1);
+    lua_pushfstring(L, "%s %p", POST_LIB, post);
+    return 1;
+}
+
 static const luaL_Reg post_methods[] = {
     /*
-    {"play",       lua_actor_play},
-    {"pause",      lua_actor_pause},
-    {"stop",       lua_actor_stop},
-    {"__gc",       lua_actor_gc},
-    {"__tostring", lua_actor_tostring},
+    {"play",       lua_post_play},
+    {"pause",      lua_post_pause},
+    {"stop",       lua_post_stop},
     */
+    {"__gc",       lua_post_gc},
+    {"__tostring", lua_post_tostring},
     { NULL, NULL }
 };
 
