@@ -75,12 +75,12 @@ postman_start ()
 }
 
 /*
- * Expects a message on top of the Actor's Lua stack. The Post finds a free
- * Postman and creates an Envelope in the Postman's state and the Postman
- * delivers it.
+ * Delivers the message on top of the Actor's stack.  The Post finds a free
+ * Postman, copies the message from the Actor's stack to the Postman's
+ * stack. Then it delivers it to the correct audience, given by the tone.
  */
 void
-post_deliver_lua_top (Post *post, Actor *author, const char *tone)
+post_deliver_actor_top (Post *post, Actor *author, const char *tone)
 {
     Postman *postman;
     lua_State *A = author->L;
