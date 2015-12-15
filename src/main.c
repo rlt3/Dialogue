@@ -100,12 +100,12 @@ main (int argc, char **argv)
     
     interp = interpreter_create(L, &is_running);
     lead_actors_set_exit(L, interp);
-
     while (is_running) {
         lead_actors_receive_update(L);
         if (interpreter_poll(interp))
             interpreter_lua_interpret(interp, L);
     }
+    interpreter_free(interp);
 
 exit:
     lua_close(L);

@@ -22,6 +22,12 @@ Interpreter *
 interpreter_create (lua_State *L, short int *done_ptr);
 
 /*
+ * Free any resources of the interpreter outside of its loop.
+ */
+void
+interpreter_free (Interpreter *interpreter);
+
+/*
  * Set the exit() functions in the Lua state for the Interpreter.
  */
 void
