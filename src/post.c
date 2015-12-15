@@ -40,7 +40,7 @@ postman_thread (void *arg)
         while (lua_next(P, audience_index)) {
             recipient = lua_check_actor(P, -1);
             lua_pushvalue(P, message_index);
-            mailbox_send(recipient->mailbox, postman->author, P);
+            mailbox_send_lua_top(P, recipient->mailbox, postman->author);
             lua_pop(P, 2); /* key & message table */
         }
         lua_pop(P, 2); /* audience table & message */

@@ -435,7 +435,7 @@ lua_actor_send (lua_State *L)
 {
     Actor *actor = lua_check_actor(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
-    mailbox_send(actor->mailbox, actor, L);
+    mailbox_send_lua_top(L, actor->mailbox, actor);
     return 0;
 }
 
