@@ -114,6 +114,18 @@ lua_eval (lua_State *L)
 }
 
 /*
+ * Set the exit() functions in the Lua state for the Interpreter.
+ */
+void
+interpreter_set_lua_exit (lua_State *L, Interpreter *interpreter)
+{
+    lua_pushlightuserdata(L, interpreter);
+    lua_setglobal(L, "__interpreter");
+    
+    lua_pushcfunction(L, lua_exit);
+    lua_setglobal(L, "exit");  
+}
+/*
  * Polls the interpreter to see if it has any input. If there's no input 
  * available it returns 0. If there is, returns 1.
  */
@@ -167,15 +179,11 @@ interpreter_create (lua_State *L, short int *is_running_ptr)
 
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutex_init(&interpreter->input_mutex, &mutex_attr);
-
-    lua_pushlightuserdata(L, interpreter);
-    lua_setglobal(L, "__interpreter");
     
     lua_pushcfunction(L, lua_eval);
     lua_setglobal(L, "eval");  
-    
-    lua_pushcfunction(L, lua_exit);
-    lua_setglobal(L, "exit");  
+
+    interpreter_set_lua_exit(L, interpreter);
 
     pthread_create(&interpreter->thread, NULL, interpreter_thread, interpreter);
     pthread_detach(interpreter->thread);

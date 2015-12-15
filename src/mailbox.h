@@ -30,7 +30,7 @@ lua_check_mailbox (lua_State *L, int index);
  * from top of stack to the Mailbox's queue.
  */
 void
-mailbox_send (Mailbox *mailbox, struct Actor *author, lua_State *L);
+mailbox_send_lua_top (lua_State *L, Mailbox *mailbox, Actor *author);
 
 /*
  * Assumes Mailbox mutex is acquired. Removes the next Envelope from its queue

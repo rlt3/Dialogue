@@ -51,7 +51,7 @@ lua_mailbox_new (lua_State *L)
  * from top of stack to the Mailbox's queue.
  */
 void
-mailbox_send (Mailbox *mailbox, Actor *author, lua_State *L)
+mailbox_send_lua_top (lua_State *L, Mailbox *mailbox, Actor *author)
 {
     lua_State *B = mailbox->L;
 
@@ -68,7 +68,7 @@ mailbox_send (Mailbox *mailbox, Actor *author, lua_State *L)
     utils_copy_top(B, L);
 
     if (lua_pcall(B, 2, 1, 0)) {
-        lua_pop(L, 4);
+        lua_pop(B, 4);
         goto cleanup;
     }
 

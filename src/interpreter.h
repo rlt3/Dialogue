@@ -22,6 +22,12 @@ Interpreter *
 interpreter_create (lua_State *L, short int *done_ptr);
 
 /*
+ * Set the exit() functions in the Lua state for the Interpreter.
+ */
+void
+interpreter_set_lua_exit (lua_State *L, Interpreter *interpreter);
+
+/*
  * Polls the interpreter to see if it has any input. If there's no input 
  * available it returns 0. If there is, returns 1.
  */

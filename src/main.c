@@ -20,6 +20,33 @@ usage (const char *program)
     exit(1);
 }
 
+/*
+ * Set the exit() funciton for the Lead Actors.
+ */
+void
+lead_actors_set_exit (lua_State *L, Interpreter *interpreter)
+{
+    lua_State *A;
+    Actor *actor;
+    int table_index = actor_lead_table(L);
+
+    lua_pushnil(L);
+    while (lua_next(L, table_index)) {
+        actor = lua_check_actor(L, -1);
+
+        A = actor_request_state(actor);
+        interpreter_set_lua_exit(A, interpreter);
+        actor_return_state(actor);
+
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+}
+
+/*
+ * Have the Lead Actors process their mail and then send each Lead Actor the
+ * message {"main"}.
+ */
 void
 lead_actors_receive_update (lua_State *L)
 {
@@ -36,6 +63,7 @@ lead_actors_receive_update (lua_State *L)
         lua_pushstring(L, "main");
         lua_rawseti(L, -2, 1);
         lua_call(L, 2, 0);
+
         lua_pop(L, 2);
     }
     lua_pop(L, 1);
@@ -71,6 +99,8 @@ main (int argc, char **argv)
     }
     
     interp = interpreter_create(L, &is_running);
+    lead_actors_set_exit(L, interp);
+
     while (is_running) {
         lead_actors_receive_update(L);
         if (interpreter_poll(interp))

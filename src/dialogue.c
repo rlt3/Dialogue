@@ -3,6 +3,7 @@
 #include "envelope.h"
 #include "script.h"
 #include "mailbox.h"
+#include "post.h"
 #include "utils.h"
 
 /* 
@@ -23,7 +24,7 @@ lua_dialogue_new (lua_State *L)
 {
     Actor *actor, *child;
     int dialogue_table = 1;
-    //int thread_count = 8;
+    int thread_count = 8;
     int children_table;
     int args = lua_gettop(L);
 
@@ -45,8 +46,18 @@ lua_dialogue_new (lua_State *L)
      */
     if (args == 1) {
         actor->dialogue = actor;
+
+        lua_getglobal(L, "Dialogue");
+        lua_getfield(L, -1, "Post");
+        lua_getfield(L, -1, "new");
+        lua_pushinteger(L, thread_count);
+        lua_call(L, 1, 1);
+        actor->post = lua_check_post(L, -1);
+        lua_pop(L, 3);
+
     } else {
         actor->dialogue = lua_check_actor(L, 2);
+        actor->post = actor->dialogue->post;
         lua_pop(L, 1);
     }
 
@@ -99,6 +110,9 @@ luaopen_Dialogue (lua_State *L)
 
     luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor, 1);
     lua_setfield(L, t_index, "Actor");
+
+    luaL_requiref(L, POST_LIB, luaopen_Dialogue_Post, 1);
+    lua_setfield(L, t_index, "Post");
 
     lua_pushcfunction(L, lua_dialogue_lead);
     lua_setfield(L, t_index, "lead");
