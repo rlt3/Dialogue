@@ -22,6 +22,7 @@ typedef struct Postman {
     short int waiting;
 
     Actor *author;
+    Actor *recipient;
     const char *tone;
 } Postman;
 

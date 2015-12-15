@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
@@ -8,9 +9,9 @@
 #include "utils.h"
 
 /*
- * Assume there is a message, which is a table, at index 1 each loop. We send 
- * that message to each Actor in an audience determined by the tone. When we
- * get done sending the message to the mailbox, we 
+ * Every loop the thread expects a message at index 1 in its Lua state. It also
+ * expects for its author & tone information to exist. It sends the message to
+ * the audience and then waits for a new message.
  */
 void *
 postman_thread (void *arg)
@@ -21,24 +22,23 @@ postman_thread (void *arg)
     const int message_index = 1;
     const int audience_index = 2;
 
-    printf("Postman %p [BOOT]\n", postman);
     pthread_mutex_lock(&postman->lock);
 
     while (postman->working) {
-        printf("Postman %p [SENDING] ...\n", postman);
         if (!lua_istable(P, message_index)
            || postman->author == NULL
            || postman->tone == NULL)
             goto wait_for_work;
 
-        printf("Postman %p top: %d\n", postman, lua_gettop(P));
-        printf("Postman %p [filtering] ...\n", postman);
         audience_filter_tone(P, postman->author, postman->tone);
+
+        /* the audience doesn't provide any recipients for tone 'whisper' */
+        if (postman->recipient != NULL)
+            audience_set(P, postman->recipient, 1);
 
         lua_pushnil(P);
         while (lua_next(P, audience_index)) {
             recipient = lua_check_actor(P, -1);
-            printf("Postman %p [sending %p] ...\n", postman, recipient);
             lua_pushvalue(P, message_index);
             mailbox_send(recipient->mailbox, postman->author, P);
             lua_pop(P, 2); /* key & message table */
@@ -46,15 +46,14 @@ postman_thread (void *arg)
         lua_pop(P, 2); /* audience table & message */
 
 wait_for_work:
+        postman->recipient = NULL;
         postman->author = NULL;
         postman->tone = NULL;
         postman->waiting = 1;
-        printf("Postman %p [WAITING] ...\n", postman);
         while (postman->waiting)
             pthread_cond_wait(&postman->wait_cond, &postman->lock);
     }
 
-    printf("Postman %p [QUIT]\n", postman);
     pthread_mutex_unlock(&postman->lock);
     return NULL;
 }
@@ -69,6 +68,7 @@ postman_start ()
     postman->working = 1;
     postman->waiting = 1;
     postman->author = NULL;
+    postman->recipient = NULL;
     postman->tone = NULL;
     postman->L = luaL_newstate();
     P = postman->L;
@@ -89,10 +89,10 @@ postman_start ()
 }
 
 /*
- * Expects a message on top of the given Lua state. The Post finds a free
- * Postman, copies the message from the Lua stack to the Postman's stack.  Then
- * it delivers it to the correct audience, given by the tone. Pops the message
- * on top.
+ * Delivers the message on top of the given Lua stack. If the tone is 'whisper'
+ * we assume there is a recipient Actor on top and a message beneath. The Post
+ * copies all the needed data, balances the given Lua stack and sets a Postman
+ * to send the message.
  */
 void
 post_deliver_lua_top (lua_State *L, Post *post, Actor *author, const char *tone)
@@ -102,8 +102,6 @@ post_deliver_lua_top (lua_State *L, Post *post, Actor *author, const char *tone)
 
     if (post == NULL || post->postmen == NULL)
         return;
-
-    printf("Post %p receiving Actor's %p message.\n", post, author);
 
     for (i = 0; i < post->postmen_count; i = (i + 1) % post->postmen_count) {
         postman = post->postmen[i];
@@ -118,15 +116,15 @@ post_deliver_lua_top (lua_State *L, Post *post, Actor *author, const char *tone)
             continue;
         }
 
-        /*
-        Post 0x7ff7a1c945b8 receiving Actor's 0x7ff7a1c0a5a8 message.
-        Postman 0x7ff7a1c94a10 is free.
-        Post 0x7ff7a1c945b8 receiving Actor's 0x7ff7a1c0a5a8 message.
-        */
-
-        printf("Postman %p is free.\n", postman);
-
+        /* expecting the message on top of L */
         utils_copy_top(postman->L, L);
+        
+        if (strcmp(tone, "whisper") == 0) {
+            /* pop the message and get the recipient beneath */
+            lua_pop(L, 1); 
+            postman->recipient = lua_check_actor(L, -1);
+        }
+
         postman->author = author;
         postman->tone = tone;
         postman->waiting = 0;
@@ -136,7 +134,7 @@ post_deliver_lua_top (lua_State *L, Post *post, Actor *author, const char *tone)
         break;
     }
 
-    lua_pop(L, 1); /* the argument expected on top */
+    lua_pop(L, 1); /* the on top */
 }
 
 Post *

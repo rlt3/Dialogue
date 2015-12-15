@@ -75,6 +75,7 @@ audience_filter_tone (lua_State *L, struct Actor *actor, const char *tone)
         break;
 
     case 'w':
+        tone_whisper(L, actor);
         break;
 
     case 't':
@@ -124,6 +125,7 @@ tone_say (lua_State *L, Actor *actor)
 void
 tone_whisper (lua_State *L, Actor *actor)
 {
+    lua_newtable(L);
 }
 
 /*

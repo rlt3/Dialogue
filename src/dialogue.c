@@ -57,6 +57,7 @@ lua_dialogue_new (lua_State *L)
 
     } else {
         actor->dialogue = lua_check_actor(L, 2);
+        actor->post = actor->dialogue->post;
         lua_pop(L, 1);
     }
 

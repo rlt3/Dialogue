@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "dialogue.h"
 #include "actor.h"
 #include "mailbox.h"
@@ -427,45 +428,54 @@ lua_actor_gc (lua_State *L)
 }
 
 /*
- * The template for sending a message. We expect an actor & message at their
- * given arg index and also a tone.
+ * From the calling thread, have the Actor send to itself.
+ */
+static int
+lua_actor_send (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    mailbox_send(actor->mailbox, actor, L);
+    return 0;
+}
+
+/*
+ * A template to send messages to the Post which handles sending the mesages
+ * to the Actors' mailboxes.
  */
 void
-actor_lua_send (lua_State *L, 
-        const int actor_arg, 
-        const int msg_arg, 
-        const char *tone)
+actor_lua_send (lua_State *L, const char *tone)
 {
-    Actor *actor = lua_check_actor(L, actor_arg);
-    luaL_checktype(L, msg_arg, LUA_TTABLE);
+    Actor *actor = lua_check_actor(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
     post_deliver_lua_top(L, actor->post, actor, tone);
 }
 
 static int
 lua_actor_think (lua_State *L)
 {
-    actor_lua_send(L, 1, 2, "think");
+    actor_lua_send(L, "think");
     return 0;
 }
 
 static int
 lua_actor_say (lua_State *L)
 {
-    actor_lua_send(L, 1, 2, "say");
+    actor_lua_send(L, "say");
     return 0;
 }
 
 static int
 lua_actor_command (lua_State *L)
 {
-    actor_lua_send(L, 1, 2, "command");
+    actor_lua_send(L, "command");
     return 0;
 }
 
 static int
 lua_actor_yell (lua_State *L)
 {
-    actor_lua_send(L, 1, 2, "yell");
+    actor_lua_send(L, "yell");
     return 0;
 }
 
@@ -473,9 +483,9 @@ static int
 lua_actor_whisper (lua_State *L)
 {
     Actor *actor = lua_check_actor(L, 1);
-    Actor *recipient = lua_check_actor(L, 2);
+    lua_check_actor(L, 2);
     luaL_checktype(L, 3, LUA_TTABLE);
-    mailbox_send(recipient->mailbox, actor, L);
+    post_deliver_lua_top(L, actor->post, actor, "whisper");
     return 0;
 }
 
@@ -493,8 +503,8 @@ static const luaL_Reg actor_methods[] = {
     {"lead",       lua_actor_lead},
     {"scripts",    lua_actor_scripts},
     {"load",       lua_actor_load},
+    {"send",       lua_actor_send},
     {"think",      lua_actor_think},
-    {"send",       lua_actor_think},
     {"say",        lua_actor_say},
     {"command",    lua_actor_command},
     {"yell",       lua_actor_yell},
