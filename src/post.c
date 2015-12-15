@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
+#include "dialogue.h"
 #include "post.h"
 #include "tone.h"
 #include "utils.h"
@@ -25,16 +26,19 @@ postman_thread (void *arg)
 
     while (postman->working) {
         printf("Postman %p [SENDING] ...\n", postman);
-        if (!lua_istable(P, message_index) || 
-            postman->author == NULL || 
-            postman->tone == NULL)
+        if (!lua_istable(P, message_index)
+           || postman->author == NULL
+           || postman->tone == NULL)
             goto wait_for_work;
 
+        printf("Postman %p top: %d\n", postman, lua_gettop(P));
+        printf("Postman %p [filtering] ...\n", postman);
         audience_filter_tone(P, postman->author, postman->tone);
 
         lua_pushnil(P);
         while (lua_next(P, audience_index)) {
             recipient = lua_check_actor(P, -1);
+            printf("Postman %p [sending %p] ...\n", postman, recipient);
             lua_pushvalue(P, message_index);
             mailbox_send(recipient->mailbox, postman->author, P);
             lua_pop(P, 2); /* key & message table */
@@ -70,6 +74,9 @@ postman_start ()
     P = postman->L;
     luaL_openlibs(P);
 
+    luaL_requiref(P, "Dialogue", luaopen_Dialogue, 1);
+    lua_pop(P, 1);
+
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&postman->lock, &mutex_attr);
@@ -82,37 +89,54 @@ postman_start ()
 }
 
 /*
- * Delivers the message on top of the Actor's stack.  The Post finds a free
- * Postman, copies the message from the Actor's stack to the Postman's
- * stack. Then it delivers it to the correct audience, given by the tone.
+ * Expects a message on top of the given Lua state. The Post finds a free
+ * Postman, copies the message from the Lua stack to the Postman's stack.  Then
+ * it delivers it to the correct audience, given by the tone. Pops the message
+ * on top.
  */
 void
-post_deliver_actor_top (Post *post, Actor *author, const char *tone)
+post_deliver_lua_top (lua_State *L, Post *post, Actor *author, const char *tone)
 {
     Postman *postman;
-    lua_State *A = author->L;
     int i, rc;
 
     if (post == NULL || post->postmen == NULL)
         return;
 
-    for (i = 0; i < post->postmen_count; i = i % post->postmen_count) {
-        rc = pthread_mutex_trylock(&post->postmen[i]->lock);
+    printf("Post %p receiving Actor's %p message.\n", post, author);
+
+    for (i = 0; i < post->postmen_count; i = (i + 1) % post->postmen_count) {
+        postman = post->postmen[i];
+        rc = pthread_mutex_trylock(&postman->lock);
 
         if (rc == EBUSY)
             continue;
 
-        postman = post->postmen[i];
+        /* we've gone so fast we've re-acquired before the signal has locked */
+        if (!postman->waiting) {
+            pthread_mutex_unlock(&postman->lock);
+            continue;
+        }
 
-        utils_copy_top(postman->L, A);
+        /*
+        Post 0x7ff7a1c945b8 receiving Actor's 0x7ff7a1c0a5a8 message.
+        Postman 0x7ff7a1c94a10 is free.
+        Post 0x7ff7a1c945b8 receiving Actor's 0x7ff7a1c0a5a8 message.
+        */
+
+        printf("Postman %p is free.\n", postman);
+
+        utils_copy_top(postman->L, L);
         postman->author = author;
         postman->tone = tone;
-
+        postman->waiting = 0;
         pthread_mutex_unlock(&postman->lock);
         pthread_cond_signal(&postman->wait_cond);
 
         break;
     }
+
+    lua_pop(L, 1); /* the argument expected on top */
 }
 
 Post *

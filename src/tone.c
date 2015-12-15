@@ -55,7 +55,7 @@ audience_dialogue (lua_State *L, Actor *parent, int acc)
  * Filter an Actor's audience by the tone -- a string.
  */
 void
-audience_filter_tone (lua_State *L, Actor *actor, const char *tone)
+audience_filter_tone (lua_State *L, struct Actor *actor, const char *tone)
 {
     if (tone == NULL)
         luaL_error(L, "Tone cannot be empty!");

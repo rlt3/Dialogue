@@ -2,6 +2,7 @@
 #include "dialogue.h"
 #include "actor.h"
 #include "mailbox.h"
+#include "post.h"
 #include "script.h"
 #include "tone.h"
 #include "utils.h"
@@ -261,19 +262,6 @@ lua_actor_new (lua_State *L)
 }
 
 /*
- * This is a blocking method. It puts the the given message inside the 
- * Envelopes table and tells the Actor to process it.
- */
-static int
-lua_actor_send (lua_State *L)
-{
-    Actor *actor = lua_check_actor(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
-    mailbox_send(actor->mailbox, actor, L);
-    return 0;
-}
-
-/*
  * This is a blocking method. Returns an array of Script references of an actor.
  */
 static int
@@ -448,27 +436,16 @@ actor_lua_send (lua_State *L,
         const int msg_arg, 
         const char *tone)
 {
-    int audience_table;
-
-    Actor *recipient;
     Actor *actor = lua_check_actor(L, actor_arg);
     luaL_checktype(L, msg_arg, LUA_TTABLE);
+    post_deliver_lua_top(L, actor->post, actor, tone);
+}
 
-    if (!actor_is_dialogue(actor))
-        luaL_error(L, "Actor must be part of a Dialogue!");
-
-    audience_filter_tone(L, actor, tone);
-    audience_table = lua_gettop(L);
-
-    lua_pushnil(L);
-    while (lua_next(L, audience_table)) {
-        recipient = lua_check_actor(L, -1);
-        lua_pushvalue(L, msg_arg);
-        mailbox_send(recipient->mailbox, actor, L);
-        lua_pop(L, 2);
-    }
-
-    lua_pop(L, 1);
+static int
+lua_actor_think (lua_State *L)
+{
+    actor_lua_send(L, 1, 2, "think");
+    return 0;
 }
 
 static int
@@ -513,15 +490,15 @@ lua_actor_tostring (lua_State *L)
 static const luaL_Reg actor_methods[] = {
     {"audience",   lua_actor_audience},
     {"children",   lua_actor_children},
-    {"send",       lua_actor_send},
     {"lead",       lua_actor_lead},
     {"scripts",    lua_actor_scripts},
     {"load",       lua_actor_load},
+    {"think",      lua_actor_think},
+    {"send",       lua_actor_think},
     {"say",        lua_actor_say},
     {"command",    lua_actor_command},
-    {"think",      lua_actor_send},
-    {"whisper",    lua_actor_whisper},
     {"yell",       lua_actor_yell},
+    {"whisper",    lua_actor_whisper},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
     { NULL, NULL }

@@ -39,12 +39,13 @@ Post *
 lua_check_post (lua_State *L, int index);
 
 /*
- * Delivers the message on top of the Actor's stack.  The Post finds a free
- * Postman, copies the message from the Actor's stack to the Postman's
- * stack. Then it delivers it to the correct audience, given by the tone.
+ * Expects a message on top of the given Lua state. The Post finds a free
+ * Postman, copies the message from the Lua stack to the Postman's stack.  Then
+ * it delivers it to the correct audience, given by the tone. Pops the message
+ * on top.
  */
 void
-post_deliver_actor_top (Post *post, Actor *author, const char *tone);
+post_deliver_lua_top (lua_State *L, Post *post, Actor *author, const char *tone);
 
 int 
 luaopen_Dialogue_Post (lua_State *L);
