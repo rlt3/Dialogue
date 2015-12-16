@@ -16,7 +16,7 @@ end
 
 function Paddle:position (x, y)
     self.x = x
-    self.x = y
+    self.y = y
 end
 
 return Paddle
