@@ -30,7 +30,7 @@ describe("An Actor", function()
             os.execute("sleep " .. tonumber(0.5))
             actor:scripts()[1]:probe("coordinates")
         end
-        assert.has_error(errfn, "Cannot Probe: The Script's module isn't valid or has errors.")
+        assert.has.errors(errfn)
     end)
 
     it("can be sent messages of the form {'method' [, arg1, arg2, ..., argn]}", function()

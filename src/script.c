@@ -125,7 +125,7 @@ script_load (Script *script)
     utils_push_table_head(A, table_index);
 
     if (lua_pcall(A, 1, 1, 0)) {
-        script->error = ERR_BAD_MODULE;
+        script->error = lua_tostring(A, -1);
         ret = LOAD_FAIL;
         goto cleanup;
     }
@@ -144,7 +144,6 @@ script_load (Script *script)
 
     if (lua_pcall(A, args, 1, 0)) {
         script->error = lua_tostring(A, -1);
-        lua_pop(A, 1); /* error */
         ret = LOAD_FAIL;
         goto cleanup;
     }
@@ -156,6 +155,9 @@ cleanup:
     lua_pop(A, 2); /* require & table */
     script->be_loaded = 0;
     actor_return_state(script->actor);
+
+    if (ret > 0)
+        printf("Script %p: %s\n", script, script->error);
 
 exit:
     return ret;

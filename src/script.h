@@ -8,9 +8,7 @@
 #define SCRIPT_LIB "Dialogue.Actor.Script"
 
 #define ERR_NOT_CALLING_THREAD "Calling thread isn't the Actor's thread."
-#define ERR_BAD_MODULE         "The Script's module isn't valid or has errors."
 #define ERR_NO_MODULE_NEW      "'new' doesn't exist for the module."
-#define ERR_BAD_MODULE_NEW     "'new' failed with given arguments."
 
 #define LOAD_OK         0
 #define LOAD_BAD_THREAD 1
