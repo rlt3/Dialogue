@@ -11,7 +11,7 @@ function Paddle.new (x, y)
 end
 
 function Paddle:draw (author)
-    actor:whisper(author, {"register", {self.x, self.y, 50, 50}})
+    actor:whisper(author, {"register", {self.x, self.y, 25, 125}})
 end
 
 function Paddle:position (x, y)

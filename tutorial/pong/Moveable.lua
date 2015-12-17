@@ -15,7 +15,7 @@ end
 
 function Moveable:update (dt)
     self:oscilate()
-    actor:say{"position", self.body.x, self.body.y}
+    actor:think{"position", self.body.x, self.body.y}
 end
 
 function Moveable:input (state)
