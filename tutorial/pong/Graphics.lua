@@ -16,8 +16,8 @@ function Graphics:register (definition, author)
 end
 
 -- Actually draw the definitions given
-function Graphics:render ()
-    self.window:clear()
+function Graphics:render (r, g, b, a)
+    self.window:clear(r, g, b, a)
     self.window:set_color(128, 128, 128, 255)
     for author, definition in pairs(self.to_draw) do
         self.window:draw(unpack(definition))
@@ -49,7 +49,7 @@ end
 
 function Graphics:main ()
     if self.window:per_second(30) then
-            actor:yell{"update"}
+        actor:yell{"update"}
     end
     self:handle_event()
     actor:command{"draw"}
