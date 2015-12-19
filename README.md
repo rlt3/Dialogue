@@ -27,19 +27,15 @@ Here are how each Actor sends its message by each Tone:
 
 ## Crash course
 
-A Script is just a Lua module. The modules only have two requirements: 1) When
-loaded it returns a table and 2) the table must have a `new` field set.
+In my opinion, the best way to understand something is to first watch someone
+use it, but first there are a couple things to know before moving forward:
 
-I might have a 'Window' script which I put in exactly one Actor and is just an
-API.  But then I have the 'Draw' Script which I want on a lot of Actors to tell
-the 'Window' to draw.  When I give the 'Draw' script to different Actors, I pass
-along a different set of coordinates for each -- `{'draw', 40, 20}`, `{'draw',
-1, 1}`. 
+* A Script is just a Lua module. The modules only have two requirements: 1) When loaded it returns a table and 2) the table must have a `new` field set.
+* Messages are the only way to communicate between Scripts. 
+
+Here's a little brainstorming on how I would try and build a game.
 
 ### Game
-
-In my opinion, the best way to understand something is to first watch someone
-use it. Here's a little brainstorming on how I would try and build a game.
 
 Since actors are just empty containers that you fill with Scripts, here's what
 a player might look like in my mind:
@@ -47,7 +43,7 @@ a player might look like in my mind:
     player = room:child{ {"sprite", "player"}, {"weapon", "axe"}, {"controller"} }
 
 The `sprite` is a Script which handles many types and draws them appropriately.
-`weapon' lets us have different weapons and `controller` lets us swing them.
+`weapon` lets us have different weapons and `controller` lets us swing them.
 
     monster = room:child{ {"sprite", "monster"}, {"weapon", "claws"}, {"monster"} }
 
