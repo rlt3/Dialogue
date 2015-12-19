@@ -7,8 +7,8 @@ Dialogue is a framework for Lua5.2. It is an intersection of the
 [Entity Component System](https://en.wikipedia.org/wiki/Entity_component_system) 
 (ECS) with a way to scope messages so that Actors may talk to one another.
 
-Dialogue hasn't been released yet, but is nearly ready. Take a look at 'Plans
-for the future' below.
+Dialogue hasn't been released yet but is almost ready. Take a look at 
+[Plans for the future?](#future) below.
 
 ## What is Dialogue?
 
@@ -135,7 +135,7 @@ dirty example of how that's done.
 
 This will boot up and interpreter and spin up the Dialogue you've created.
 
-## Plans for the future?
+## <a name="future"></a>Plans for the future?
 
 I plan to release v0.0 when:
 
