@@ -9,113 +9,129 @@ Dialogue is a framework for Lua5.2. It is an intersection of the
 
 ## What is Dialogue?
 
-Dialogue is an asynchronous framework designed for objects to talk to each 
-other. It does this by creating a tree of empty containers. We call the tree a
-Dialogue and the containers Actors. We give the Actors Scripts to define
-them just as you would give an entity some components to define them.
+Dialogue is a message-driven asynchronous framework. It was designed so that
+many types of the objects (Scripts) could be given to many Actors (blank 
+containers). A Dialogue is a tree of Actors which send messages to one another.
 
-## Terminology
+Dialogue got its name from more than a simple message analogy -- Dialogue's
+primary reasoning is the ability to scope messages. Actors in the tree can be
+grouped and logically sectioned off through use of Tones. 
 
-I intentionally chose a lot of play-like language to hopefully make
-understanding this easy and to draw parallels between the real world.
+Here are how each Actor sends its message by each Tone:
 
-#### Message
+* Yell - to the entire Dialogue tree.
+* Command - to its children.
+* Say - to its parent and the children of that parent.
+* Whisper - to a specific Actor, a one-to-one communication.
+* Think - internally, to its Scripts.
 
-The message is information being sent from one Actor to another. In this
-framework a message is just a table where the first element is the method of
-a Script object. E.g, `{"move", 2, 2}` might move an Actor 2 spaces up and
-two spaces right.
+## Crash course
 
-#### Tone
+A Script is just a Lua module. The modules only have two requirements: 1) When
+loaded it returns a table and 2) the table must have a `new` field set.
 
-In real life, the tone is *how* we say something, but not actually what was 
-said. It is the same here: it is how we can scope our Audience regardless of
-the message being sent. This is how any given Actor gets its Audience:
+I might have a 'Window' script which I put in exactly one Actor and is just an
+API.  But then I have the 'Draw' Script which I want on a lot of Actors to tell
+the 'Window' to draw.  When I give the 'Draw' script to different Actors, I pass
+along a different set of coordinates for each -- `{'draw', 40, 20}`, `{'draw',
+1, 1}`. 
 
-* Yell - Send the message to the entire Dialogue tree.
-* Say - Send a message to its parent and the children of that parent.
-* Whisper - Send a message to a specific Actor, a one-to-one communication.
-* Command - Send a message to its children.
-* Think - Send a message internally, to its Scripts.
+### Game
 
-#### Audience
+In my opinion, the best way to understand something is to first watch someone
+use it. Here's a little brainstorming on how I would try and build a game.
 
-The group of Actors which will receive a message filtered by the Tone. An
-Audience can be one Actor (for a whisper) or the entire Dialogue tree (for a 
-yell).
+Since actors are just empty containers that you fill with Scripts, here's what
+a player might look like in my mind:
 
-#### Script
+    player = room:child{ {"sprite", "player"}, {"weapon", "axe"}, {"controller"} }
 
-Just as an actor in real life reads their lines from a script, Scripts here
-tell the Actor how to respond to a message received. That may be sending
-another message or by doing something internally. 
+The `sprite` is a Script which handles many types and draws them appropriately.
+`weapon' lets us have different weapons and `controller` lets us swing them.
 
-In this framework, a Script is a Lua object loaded into an Actor's internal
-state.
+    monster = room:child{ {"sprite", "monster"}, {"weapon", "claws"}, {"monster"} }
 
-#### Actor
+`monster` is mostly the same, but a little different. The `controller` is the
+Script that would handle `input` events from the keyboard (from a different
+Actor, of course). Since we need the `monster` Actor to do stuff by itself, we
+have to provide some sort of basic AI in the `monster` Script.
 
-An actor in a play can play many different characters -- they are fungible.
-Actors are no different here. They are containers to be given Scripts which
-they 'read' from. 
+What happens when the `player` dispatches the `monster`? Well, we have to 
+introduce more challenges, of course.
 
-The Actor provides the facility to send and receive messages. The Actor has
-its own internal state which allows it to be sent messages asynchronously.
+    room = Dialogue.Actor.new{ {"dungeon", 7, {"B", "3"}}, {"trap", {100, 50}}
 
-#### Dialogue
+The `dungeon` just pulls the drawing data from a set of data. It's on floor 7
+with coordinates `(B, 3)`. It also handles the `leave` message so the player can
+move to `(B, 4)` or where ever.
 
-The definition of a dialogue is two or more people conversing with one another.
-It's mostly the same here: a Dialogue is a tree of Actors which can send and
-receive messages. The tree provides the ability for messages to be scoped by a
-Tone.
+For `room` to get a `leave` message, it need to have the `player` and `monster`
+as children. This is also how the trap will 'know' when to go off -- when 
+Actors move, they send a `moving-to {x, y}` message. The trap listens for an
+Actor to move close before springing!
 
-#### Stage
+### HTML Parser
 
-Most plays take place on a stage. Stage.lua is where I define my Scripts and
-Actors in a Dialogue.
+Since Actors are just empty containers you fill with Scripts, we can say that
+each element in an HTML file is an Actor. 
 
-##### Other terminology
+Let's take the most basic example: `<div id="container"></div>`. Instead of
+creating an Actor like: `{ {"element", "div"}, {"id", "container"} }`, we can
+just a separate Script for each element.  This is because each element is
+a separate unit as far as standards go.
 
-Some other things aren't necessarily play-like, but are simple enough:
+Because Scripts are just Lua objects, there's no reason one couldn't still make
+an `id` object to use inside the `p`, `div`, `span` Scripts. Then we could feed
+in the attributes of the element. I don't have tables with keys working for 
+Dialogue yet, so very simple solution is just to use a set table: `{optional 
+id, {optional, class, names} }`
 
-* Envelope - holds the message with all pertinent info on how to send it
-* Mailbox - holds a collection of Envelopes to be sent
-* Postman - actually does the work of sending the Envelopes from the Mailbox
+Here's some HTML to parse:
 
-## Quick start
+    <div id="main-content" class="container">
+        <h1> 
+            Dialogue
+            <small class="subtitle middle"> - something pretty cool</small>
+        </h1>
+    </div>
 
-This is a crash-course into how to make a Dialogue and use it. All the scripts
-here are provided in the tutorial folder.
+And the Dialogue structure after parsing:
 
-    Dialogue = require 'Dialogue'
+    Actor.new{ "div", {"main-content", {"container"}} }
+            .child{ "h1", {nil, {}} }
+                .child{ "small", {nil, {"subtitle", "middle"}} }
 
-Create an Actor that acts as a room. Give it a single Script which is
-a dungeon from level 7 with coordinates B, 3.
+## How do I use this?
 
-    room = Dialogue.Actor.new{ {"dungeon", 7, {"B", "3"} }
-    
-Create the player and monster, give them sprites and weapons
+#### Requirements
 
-    player = room:child{ {"sprite", "player"}, {"weapon", "axe"} }
-    monster = room:child{ {"sprite", "monster"}, {"weapon", "claws"} }
+* Lua 5.2
+* readline
 
-The above is functionally the same as this:
+Right now cloning the repo and using the Makefile is the only method which 
+uses 
 
-    room = Dialogue.new{
-        { {"dungeon", 7, {"B", "3"} },
-        {
-            {
-                { {"sprite", "player"}, {"weapon", "axe"} },
-                {}
-            },
-            {
-                { {"sprite", "monster"}, {"weapon", "claws"} },
-                {}
-            }
-        }
-    }
+The Makefile in the repo supports Darwin & Linux. I have compiled this on a OSX
+10.10.3, Ubuntu 12.04/14.04.
 
-It seems verbose to express it in table form, but it is mainly meant for
-automation and computers to write, not humans. The form is rather simple: `{ {},
-{} }`, where the first table is the Scripts of an Actor and the second is its
-children.
+Compiling with `DIALOGUE_HEADLESS` set to `true` compiles Dialogue as a Lua
+module. `DIALOGUE_HEADLESS` set to `false` compiles Dialogue as a program with
+the interpreter built-in.
+
+## Plans for the future?
+
+I plan to release v0.0 when:
+
+* Actors can be created arbitrarily while the system is running
+* Actors can be remove arbitrarily while the system is running
+* There are two ways of creating a Dialogue tree (table vs object methods)
+* There is at least one tutorial available
+* I have complete documentation up
+
+This is all very, very soon (next week or two) because I've started on all of
+these things and the first & third are related.
+
+After that, I am looking into being able to record the messages and replay
+whatever it is that got recorded. And perhaps even edit it along the way. I
+don't think this is a stretch and seems plausible right now. And it has been
+my goal all along.
