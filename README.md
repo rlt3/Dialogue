@@ -33,9 +33,11 @@ use it, but first there are a couple things to know before moving forward:
 * A Script is just a Lua module. The modules only have two requirements: 1) When loaded it returns a table and 2) the table must have a `new` field set.
 * Messages are the only way to communicate between Scripts. 
 
-Here's a little brainstorming on how I would try and build a game.
+Here's a couple brainstorming exercises. Note that the Scripts don't exist, I'm
+just using my head and designing the whole structure before actually creating
+anything.
 
-### Game
+### A simple game
 
 Since actors are just empty containers that you fill with Scripts, here's what
 a player might look like in my mind:
@@ -66,7 +68,7 @@ as children. This is also how the trap will 'know' when to go off -- when
 Actors move, they send a `moving-to {x, y}` message. The trap listens for an
 Actor to move close before springing!
 
-### HTML Parser
+### html parser
 
 Since Actors are just empty containers you fill with Scripts, we can say that
 each element in an HTML file is an Actor. 
@@ -76,13 +78,15 @@ creating an Actor like: `{ {"element", "div"}, {"id", "container"} }`, we can
 just a separate Script for each element.  This is because each element is
 a separate unit as far as standards go.
 
-Because Scripts are just Lua objects, there's no reason one couldn't still make
-an `id` object to use inside the `p`, `div`, `span` Scripts. Then we could feed
-in the attributes of the element. I don't have tables with keys working for 
-Dialogue yet, so very simple solution is just to use a set table: `{optional 
-id, {optional, class, names} }`
+Because Scripts are just Lua modules, there's no reason one couldn't still make
+an `attributes` module to use inside the `p`, `div`, `span` Scripts. It would 
+be a shame to repeat every attribute for each element. 
 
-Here's some HTML to parse:
+Since I don't have tables with keys working for Dialogue yet, table with a set
+definition: `{optional id, {optional, class, names} }`. Otherwise, we'd just be
+able to look and see if the key exists or not.
+
+Here's some HTML:
 
     <div id="main-content" class="container">
         <h1> 
@@ -91,11 +95,11 @@ Here's some HTML to parse:
         </h1>
     </div>
 
-And the Dialogue structure after parsing:
+And my Dialogue structure after parsing:
 
-    Actor.new{ "div", {"main-content", {"container"}} }
-            .child{ "h1", {nil, {}} }
-                .child{ "small", {nil, {"subtitle", "middle"}} }
+    Actor.new{ {"div", {"main-content", {"container"}}} }
+            .child{ { "h1", {nil, {}}}, {"text", "Dialogue"} }
+                .child{ {"small", {nil, {"subtitle", "middle"}}, {"text", "- something pretty cool"}} }
 
 ## How do I use this?
 
