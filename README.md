@@ -127,7 +127,9 @@ the interpreter built-in.
 ## How do I use this?
 
 Once you have it compile, Dialogue expects a lua file I typically call 
-`stage.lua`.  
+`stage.lua`. I call it the stage because that's where I define my Dialogue. 
+Look at the two "crash-courses" above or into `spec/stage.lua` for a quick and
+dirty example of how that's done.
 
     ./dialogue stage.lua
 
@@ -138,7 +140,7 @@ This will boot up and interpreter and spin up the Dialogue you've created.
 I plan to release v0.0 when:
 
 * Actors can be created arbitrarily while the system is running
-* Actors can be remove arbitrarily while the system is running
+* Actors can be removed arbitrarily while the system is running
 * There are two ways of creating a Dialogue tree (table vs object methods)
 * There is at least one tutorial available
 * I have complete documentation up
