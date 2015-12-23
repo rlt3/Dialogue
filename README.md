@@ -126,14 +126,14 @@ the interpreter built-in.
 
 ## How do I use this?
 
-Once you have it compile, Dialogue expects a lua file I typically call 
-`stage.lua`. I call it the stage because that's where I define my Dialogue. 
-Look at the two "crash-courses" above or into `spec/stage.lua` for a quick and
-dirty example of how that's done.
+Once you have it compiled, Dialogue expects a Lua file I typically call 
+`stage.lua`. I call it the stage because that's where I define my Actors for
+a Dialogue.  Look at the two "crash-courses" above or into `spec/stage.lua` for
+a quick and dirty example of how that's done.
 
     ./dialogue stage.lua
 
-This will boot up and interpreter and spin up the Dialogue you've created.
+This will boot up the interpreter and spin up the Dialogue you've created.
 
 ## <a name="future"></a>Plans for the future?
 
