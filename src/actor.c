@@ -213,19 +213,22 @@ lua_actor_new (lua_State *L)
     utils_push_object(A, actor, ACTOR_LIB);
     lua_setglobal(A, "actor");
 
-    lua_getglobal(L, "Dialogue");
-    lua_getfield(L, -1, "Actor");
-
-    lua_getfield(L, -1, "Mailbox");
-    lua_getfield(L, -1, "new");
+    /*
+     * Is this even necessary? If we have a single entry point for sending 
+     * messages -- post:send perhaps -- then *it* can deal with finding an
+     * open mailbox (which each are assigned to a Postman). This way the system
+     * is truly asynchronous & parallel for Actors who aren't 'Lead' actors.
+     */
+    lua_getglobal(L, "post");
+    lua_getfield(L, -1, "assign");
     lua_pushvalue(L, actor_arg);
     if (lua_pcall(L, 1, 1, 0))
-        luaL_error(L, "Creating Mailbox failed: %s", lua_tostring(L, -1));
-
-    actor->mailbox = lua_check_mailbox(L, -1);
-    actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        luaL_error(L, "Assigning Actor to Postman failed: %s", lua_tostring(L, -1));
+    actor->postman = lua_touserdata(L, -1);
     lua_pop(L, 1);
 
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Actor");
     lua_getfield(L, -1, "Script");
     script_index = lua_gettop(L);
 

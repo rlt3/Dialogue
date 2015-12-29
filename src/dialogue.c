@@ -46,18 +46,8 @@ lua_dialogue_new (lua_State *L)
      */
     if (args == 1) {
         actor->dialogue = actor;
-
-        lua_getglobal(L, "Dialogue");
-        lua_getfield(L, -1, "Post");
-        lua_getfield(L, -1, "new");
-        lua_pushinteger(L, thread_count);
-        lua_call(L, 1, 1);
-        actor->post = lua_check_post(L, -1);
-        lua_pop(L, 3);
-
     } else {
         actor->dialogue = lua_check_actor(L, 2);
-        actor->post = actor->dialogue->post;
         lua_pop(L, 1);
     }
 

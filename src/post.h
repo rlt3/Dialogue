@@ -11,12 +11,11 @@
  * its own Lua state. While sending messages, it looks to see if any envelopes
  * are in its mailbox. If so, it delivers them all.
  * 
- * While delivering, the Postman's mailbox can receive messages. Since each 
- * Postman has its own thread and delivers messages, each message should be 
- * delivered to the Actor's postman.
- *
- * So, if an Actor was loaded on Postman1, then all messages for that Actor 
- * get delivered to Postman1.
+ * While delivering, the Postman's mailbox can receive messages. While sending
+ * messages, if a message can't be delivered *right then*, it is skipped and
+ * left at the top of the queue of the Postman's 'bag'. When the Postman goes
+ * to refill his bag at the end of the Envelopes, it adds the new ones beneath
+ * the skipped envelopes.
  */
 typedef struct Postman {
     lua_State *L;
@@ -28,16 +27,12 @@ typedef struct Postman {
     pthread_cond_t wait_cond;
     short int waiting;
 
-    Actor *author;
-    Actor *recipient;
-    const char *tone;
-
     struct Mailbox *mailbox;
 } Postman;
 
 /*
- * The Post is a collection of Postmen. It provides a way to quickly send
- * Envelopes to a waiting Postman.
+ * The Post is a collection of Postmen & Mailboxes. It provides a way to
+ * quickly send Envelopes to a waiting Postman.
  */
 typedef struct Post {
     Postman **postmen;
