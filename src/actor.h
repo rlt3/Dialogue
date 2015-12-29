@@ -39,8 +39,9 @@ typedef struct Actor {
     struct Script *script_head;
     struct Script *script_tail;
 
-    struct Mailbox *mailbox;
-    struct Post *post;
+
+    /* Each Actor uses its postman's mailbox to send messages */
+    struct Postman *postman;
 
     /* A place for a parent to set their reference */
     int ref;

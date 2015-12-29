@@ -7,9 +7,16 @@
 #include "mailbox.h"
 
 /*
- * Every Postman has its own thread and Lua state. It delivers all the 
- * Envelopes in its state. It then waits and its state fills up with 
- * Envelopes and then it is told to process them.
+ * Every Postman has its own thread and Lua state and also a Mailbox which has
+ * its own Lua state. While sending messages, it looks to see if any envelopes
+ * are in its mailbox. If so, it delivers them all.
+ * 
+ * While delivering, the Postman's mailbox can receive messages. Since each 
+ * Postman has its own thread and delivers messages, each message should be 
+ * delivered to the Actor's postman.
+ *
+ * So, if an Actor was loaded on Postman1, then all messages for that Actor 
+ * get delivered to Postman1.
  */
 typedef struct Postman {
     lua_State *L;
@@ -24,6 +31,8 @@ typedef struct Postman {
     Actor *author;
     Actor *recipient;
     const char *tone;
+
+    struct Mailbox *mailbox;
 } Postman;
 
 /*
