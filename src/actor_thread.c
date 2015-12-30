@@ -90,6 +90,10 @@ actor_process_mailbox (Actor *actor)
         goto cleanup;
 
     while (mailbox->envelope_count > 0) {
+        if (mailbox == NULL)
+            printf("Mailbox is NULL\n");
+        else if (mailbox->L == NULL)
+            printf("Mailbox stack is NULL\n");
         author = mailbox_push_next_envelope(mailbox);
         utils_copy_top(A, B);
         lua_pop(B, 1);
