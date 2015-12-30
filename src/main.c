@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
+#include <string.h>
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -101,7 +102,7 @@ lua_interpret (lua_State *L, const char *input)
     }
 }
 
-//int
+//luaf (lua_State *L, const char *format, ...)
 //vluaf (lua_State *L, const char *format, va_list args)
 //{
 //    for (; *format != 0; ++format) {
@@ -114,19 +115,74 @@ lua_interpret (lua_State *L, const char *input)
 //    }
 //}
 
+static const char *stack_vars[] = {
+    "__one",
+    "__two",
+    "__thr",
+    "__fou",
+    "__fiv",
+    "__six",
+    "__sev",
+    "__eig",
+    "__nin"
+};
+
+/*
+ * Accepts Lua code where variables may be written %[0-9] -- %1, %6 -- to 
+ * represent themselves on the stack.
+ */
 int
-luaf (lua_State *L, const char *format, ...)
+luaf (lua_State *L, const char *format)
 {
-   va_list arg;
-   int rc;
+    char code[1024] = {0};
+    int processed[9] = {0};
+    int last_index = 0;
+    int stack_index;
+    int index;
 
-   va_start (arg, format);
-   rc = vluaf(L, format, arg);
-   va_end (arg);
+    for (index = 0; format[index] != '\0'; index++) {
+        if (format[index] == '%') {
+            /* copy the last bit of the string we've ran through */
+            if (index != 0)
+                strncat(code, format + last_index, index - last_index - 1);
 
-   printf("\n");
+            stack_index = format[index + 1] - '0';
 
-   return done;
+            /* check and load the stack variable into the environment */
+            if (!processed[stack_index]) {
+                luaL_checkany(L, stack_index);
+                lua_pushvalue(L, stack_index);
+                lua_setglobal(L, stack_vars[stack_index - 1]);
+                processed[stack_index] = 1;
+            }
+
+            /* copy the stack variable we've found */
+            strcat(code, stack_vars[stack_index - 1]);
+
+            /* push past the %[0-9] */
+            index += 2;
+            last_index = index;
+        }
+    }
+
+    strncat(code, format + last_index, index);
+    printf("%s\n", code);
+    lua_interpret(L, code);
+
+    return 0;
+}
+
+int
+print_collection (lua_State *L)
+{
+    //luaL_checktype(L, 1, LUA_TTABLE);
+    //lua_pushvalue(L, 1);
+    //lua_setglobal(L, "fun");
+    //lua_interpret(L, "fun:each(function(e) print(e) end)");
+
+    luaf(L, "%1:each(function(e) print(e) end)");
+
+    return 0;
 }
 
 int
@@ -144,16 +200,17 @@ main (int argc, char **argv)
     L = luaL_newstate();
     luaL_openlibs(L);
 
-    /* load this module (the one you're reading) into the Actor's state */
-    //luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
-    //lua_pop(L, 1);
+    ///* load this module (the one you're reading) into the Actor's state */
+    ////luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
+    ////lua_pop(L, 1);
+
+    lua_pushcfunction(L, print_collection);
+    lua_setglobal(L, "print_collection");
 
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "%s\n", lua_tostring(L, -1));
         goto exit;
     }
-
-    lua_interpret(L, "t:each(function(e) print(e) end)");
 
 exit:
     lua_close(L);
