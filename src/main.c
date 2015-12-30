@@ -1,9 +1,10 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <signal.h>
-#include "dialogue.h"
-#include "actor.h"
-#include "interpreter.h"
-#include "utils.h"
+
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 
 static short int is_running = 1;
 
@@ -20,60 +21,118 @@ usage (const char *program)
     exit(1);
 }
 
-/*
- * Set the exit() funciton for the Lead Actors.
- */
-void
-lead_actors_set_exit (lua_State *L, Interpreter *interpreter)
+static int
+utils_collection_nth (lua_State *L)
 {
-    lua_State *A;
-    Actor *actor;
-    int table_index = actor_lead_table(L);
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_rawgeti(L, 1, luaL_checkint(L, 2));
+    puts("nth");
+    return 1;
+}
 
-    lua_pushnil(L);
-    while (lua_next(L, table_index)) {
-        actor = lua_check_actor(L, -1);
+static int
+utils_collection_each (lua_State *L)
+{
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    puts("each");
+    return 1;
+}
 
-        A = actor_request_state(actor);
-        interpreter_set_lua_exit(A, interpreter);
-        actor_return_state(actor);
+static int
+utils_collection_new (lua_State *L)
+{
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_getmetatable(L, "Utils.Collection");
+    lua_setmetatable(L, -2);
+    puts("make");
+    return 1;
+}
 
-        lua_pop(L, 1);
-    }
-    lua_pop(L, 1);
+static const luaL_Reg collection_methods[] = {
+    {"each", utils_collection_each},
+    {"nth", utils_collection_nth}
+};
+
+int
+luaopen_Utils_Collection (lua_State *L)
+{
+    luaL_newmetatable(L, "Utils.Collection");
+
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -1, "__index");
+
+    luaL_setfuncs(L, collection_methods, 0);
+
+    lua_newtable(L);
+    lua_pushcfunction(L, utils_collection_new);
+    lua_setfield(L, -2, "new");
+
+    return 1;
 }
 
 /*
- * Have the Lead Actors process their mail and then send each Lead Actor the
- * message {"main"}.
+ * Print the Lua error.
  */
 void
-lead_actors_receive_update (lua_State *L)
+lua_printerror (lua_State *L)
 {
-    Actor *actor;
-    int table_index = actor_lead_table(L);
+    printf("%s\n", lua_tostring(L, -1));
+}
 
-    lua_pushnil(L);
-    while (lua_next(L, table_index)) {
-        actor = lua_check_actor(L, -1);
-        actor_call_action(actor, RECEIVE);
+/*
+ * Interpret the input in the given lua_State*.
+ */
+void
+lua_interpret (lua_State *L, const char *input)
+{
+    if (input == NULL)
+        return;
 
-        utils_push_objref_method(L, actor->ref, "send");
-        lua_newtable(L);
-        lua_pushstring(L, "main");
-        lua_rawseti(L, -2, 1);
-        lua_call(L, 2, 0);
-
-        lua_pop(L, 2);
+    lua_getglobal(L, "loadstring");
+    lua_pushstring(L, input);
+    lua_call(L, 1, 1);
+    
+    if (lua_isfunction(L, -1)) {
+        if (lua_pcall(L, 0, 0, 0))
+            lua_printerror(L);
+    } else {
+        lua_pop(L, 1);
     }
-    lua_pop(L, 1);
+}
+
+//int
+//vluaf (lua_State *L, const char *format, va_list args)
+//{
+//    for (; *format != 0; ++format) {
+//        if (*format == '%') {
+//            ++format;
+//
+//            if (*format == '1') {
+//            }
+//        }
+//    }
+//}
+
+int
+luaf (lua_State *L, const char *format, ...)
+{
+   va_list arg;
+   int rc;
+
+   va_start (arg, format);
+   rc = vluaf(L, format, arg);
+   va_end (arg);
+
+   printf("\n");
+
+   return done;
 }
 
 int
 main (int argc, char **argv)
 {
-    const char *script;
-    Interpreter *interp;
+    const char *file;
     lua_State *L;
 
     signal(SIGINT, handle_sig_int);
@@ -81,31 +140,20 @@ main (int argc, char **argv)
     if (argc == 1)
         usage(argv[0]);
 
-    script = argv[1];
+    file = argv[1];
     L = luaL_newstate();
     luaL_openlibs(L);
-    
-    lua_pushboolean(L, 1);
-    lua_setglobal(L, "__main_thread");
 
     /* load this module (the one you're reading) into the Actor's state */
-    luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(L, 1);
+    //luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
+    //lua_pop(L, 1);
 
-    if (luaL_loadfile(L, script) || lua_pcall(L, 0, 0, 0)) {
-        fprintf(stderr, "File: %s could not load: %s\n", script,
-                lua_tostring(L, -1));
+    if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
+        fprintf(stderr, "%s\n", lua_tostring(L, -1));
         goto exit;
     }
-    
-    interp = interpreter_create(L, &is_running);
-    lead_actors_set_exit(L, interp);
-    while (is_running) {
-        lead_actors_receive_update(L);
-        if (interpreter_poll(interp))
-            interpreter_lua_interpret(interp, L);
-    }
-    interpreter_free(interp);
+
+    lua_interpret(L, "t:each(function(e) print(e) end)");
 
 exit:
     lua_close(L);
