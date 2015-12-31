@@ -10,17 +10,14 @@ lua_interpret (lua_State *L, const char *input, int ret_args)
     if (input == NULL)
         return;
 
-    printf("INTERPRETER: %s\n", input);
-
     lua_getglobal(L, "loadstring");
     lua_pushstring(L, input);
     lua_call(L, 1, 1);
     
     if (lua_isfunction(L, -1)) {
         if (lua_pcall(L, 0, ret_args, 0))
-            printf("INTERPRETER: %s\n", lua_tostring(L, -1));
+            printf("%s\n", lua_tostring(L, -1));
     } else {
-        printf("INTERPRETER: Not a function!\n");
         lua_pop(L, 1);
     }
 }

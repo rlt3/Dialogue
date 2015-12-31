@@ -143,24 +143,7 @@ lua_actor_new (lua_State *L)
     for (i = 1; i <= args; i++)
         printf("%d: %s\n", i, lua_tostring(L, i));
 
-    //lua_setglobal(L, "__one");
-    //lua_interpret(L, "return __one[1]", 1);
-
-    luaf(L, "return %1[1]", 1);
-
-    //lua_getglobal(L, "loadstring");
-    //lua_pushstring(L, "return __one[1]");
-    //lua_call(L, 1, 1);
-    //
-    //if (lua_isfunction(L, -1)) {
-    //    if (lua_pcall(L, 0, 1, 0))
-    //        printf("%s\n", lua_tostring(L, -1));
-    //} else {
-    //    printf("not a function!\n");
-    //    lua_pop(L, 1);
-    //}
-
-    return 1;
+    return luaf(L, "return (type(%1[1]) == 'string'), %1[2]", 2);
 
     //return luaf(L, "return table.remove(%1, 1)", 1);
     //return luaf(L, "return table.remove({'head', {'blah'}}, 1)", 1);
