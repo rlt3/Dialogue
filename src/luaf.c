@@ -1,18 +1,17 @@
 #include "luaf.h"
 
-/*
- * Call Lua from C by passing code as a string. Pass the number of expected
- * items to be left on top of the stack.
- */
-void
-lua_interpret (lua_State *L, const char *input, int ret_args)
+int
+lua_eval (lua_State *L)
 {
-    if (input == NULL)
-        return;
+    const char *code = luaL_checkstring(L, 1);
+    const int ret_args = luaL_checkinteger(L, 2);
 
-    lua_getglobal(L, "loadstring");
-    lua_pushstring(L, input);
-    lua_call(L, 1, 1);
+    lua_getglobal(L, "load");
+    lua_pushstring(L, code);
+    lua_pushnil(L);
+    lua_pushstring(L, "t");
+    lua_getglobal(L, "_G");
+    lua_call(L, 4, 1);
     
     if (lua_isfunction(L, -1)) {
         if (lua_pcall(L, 0, ret_args, 0))
@@ -20,6 +19,8 @@ lua_interpret (lua_State *L, const char *input, int ret_args)
     } else {
         lua_pop(L, 1);
     }
+
+    return ret_args;
 }
 
 /*
@@ -61,7 +62,7 @@ luaf (lua_State *L, const char *format, ...)
     char code[1024] = {0};
     int processed[8] = {0};
     int last_index = 0;
-    int ref, depth, index, i, j;
+    int depth, index, i, j;
 
     /* we can't do va_args unless we *know* we have them */
     if (strlen(format) > 7) {
@@ -87,27 +88,17 @@ luaf (lua_State *L, const char *format, ...)
 
                 /* bubble the element to the top */
                 depth = lua_gettop(L) - index;
-                
-                //printf("need to move index %d to top %d with a depth of: %d\n", index, lua_gettop(L), depth);
-
                 for (j = 0; j < depth; j++)
                     lua_insert(L, index);
-
-                //printf("setting %%%d (a %s) as %s\n", index, lua_tostring(L, -1), stack_vars[index - 1]);
-
-                ref = luaL_ref(L, LUA_REGISTRYINDEX);
-                lua_getglobal(L, "__myglobals");
-                lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+                
+                lua_getglobal(L, "_G");
+                lua_insert(L, lua_gettop(L) - 1);
                 lua_setfield(L, -2, stack_vars[index - 1]);
-                luaL_unref(L, LUA_REGISTRYINDEX, ref);
                 lua_pop(L, 1);
-
-                //lua_setglobal(L, stack_vars[index - 1]);
                 processed[index - 1] = 1;
             }
 
             /* copy the stack variable we've found */
-            strcat(code, "__myglobals.");
             strcat(code, stack_vars[index - 1]);
 
             /* push past the %[1-9] */
@@ -117,12 +108,11 @@ luaf (lua_State *L, const char *format, ...)
     }
 
     strncat(code, format + last_index, i);
-    printf("|%s|\n", code);
 
-    if (luaL_loadstring(L, code) || lua_pcall(L, 0, ret_args, 0))
-        printf("%s\n", lua_tostring(L, -1));
-
-    //lua_interpret(L, code, ret_args);
+    lua_getglobal(L, "eval");
+    lua_pushstring(L, input);
+    lua_pushinteger(L, ret_args);
+    lua_call(L, 2, ret_args);
 
     return ret_args;
 }
