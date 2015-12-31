@@ -1,9 +1,8 @@
---actor = Dialogue.Actor.new{"Lead", {"draw", 2, 2}}
---print(Dialogue.Actor.new{"Lead", {"draw", 2, 2}})
+star = Dialogue.Actor.new{"Star", {"draw", 2, 2}}
+print(star);
 
+lead = Dialogue.Actor.new{"Lead", {"draw", 2, 2}}
+print(lead);
 
---actor = Dialogue.Actor.new('super', {'foo', 'bar'})
---actor = Dialogue.Actor.new('super')
-is_lead, table = Dialogue.Actor.new{"Lead", {"draw", 2, 2}}
-print(is_lead);
-print(table);
+norm = Dialogue.Actor.new{ {"draw", 2, 2}}
+print(norm);

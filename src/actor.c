@@ -137,21 +137,27 @@ actor_assign_lead (Actor *actor, lua_State *L)
 static int
 lua_actor_new (lua_State *L)
 {
-    int i;
-    int args = lua_gettop(L);
+    Actor *actor;
+    //int i;
+    //int args = lua_gettop(L);
 
-    for (i = 1; i <= args; i++)
-        printf("%d: %s\n", i, lua_tostring(L, i));
+    //for (i = 1; i <= args; i++)
+    //    printf("%d: %s\n", i, lua_tostring(L, i));
 
-    return luaf(L, "return (type(%1[1]) == 'string'), %1[2]", 2);
+    actor = lua_newuserdata(L, sizeof(*actor));
+    luaL_getmetatable(L, ACTOR_LIB);
+    lua_setmetatable(L, -2);
+
+    luaf(L, "return (%1[1] == 'Lead'), (%1[1] == 'Star')", 2);
+    actor->is_lead = lua_toboolean(L, -2);
+    actor->is_star = lua_toboolean(L, -1);
+    lua_pop(L, 2);
+
+    return 1;
 
     //return luaf(L, "return table.remove(%1, 1)", 1);
     //return luaf(L, "return table.remove({'head', {'blah'}}, 1)", 1);
     //luaf(L, "return %1", 1);
-
-    //actor = lua_newuserdata(L, sizeof(*actor));
-    //luaL_getmetatable(L, ACTOR_LIB);
-    //lua_setmetatable(L, -2);
 
     ///* push first element of table to see if we're doing Actor */
     //lua_rawgeti(L, table_arg, 1);
@@ -239,6 +245,8 @@ lua_actor_tostring (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
     lua_pushfstring(L, "%s %p", ACTOR_LIB, actor);
+    printf("Star? %s\n", actor->is_star ? "true" : "false");
+    printf("Lead? %s\n", actor->is_lead ? "true" : "false");
     return 1;
 }
 

@@ -54,8 +54,7 @@ luaf (lua_State *L, const char *format, ...)
     char code[1024] = {0};
     int processed[8] = {0};
     int last_index = 0;
-    int stack_index;
-    int index;
+    int ref, depth, index, i, j;
 
     /* we can't do va_args unless we *know* we have them */
     if (strlen(format) > 7) {
@@ -66,33 +65,38 @@ luaf (lua_State *L, const char *format, ...)
         }
     }
 
-    for (index = 0; format[index] != '\0'; index++) {
-        if (format[index] == '%') {
+    for (i = 0; format[i] != '\0'; i++) {
+        if (format[i] == '%') {
             /* copy the last bit of the string we've ran through */
-            if (index != 0)
-                strncat(code, format + last_index, index - last_index);
+            if (i != 0)
+                strncat(code, format + last_index, i - last_index);
 
             /* convert an ascii number into an integer and then zero offset */
-            stack_index = (format[index + 1] - '0') - 1;
+            index = (format[i + 1] - '0');
 
             /* check and load the stack variable into the environment */
-            if (!processed[stack_index]) {
-                luaL_checkany(L, stack_index);
-                lua_insert(L, stack_index);
-                lua_setglobal(L, stack_vars[stack_index]);
-                processed[stack_index] = 1;
+            if (!processed[index]) {
+                luaL_checkany(L, index);
+
+                /* bubble the element to the top */
+                depth = lua_gettop(L) - index;
+                for (j = 0; j < depth; j++)
+                    lua_insert(L, index);
+
+                lua_setglobal(L, stack_vars[index]);
+                processed[index] = 1;
             }
 
             /* copy the stack variable we've found */
-            strcat(code, stack_vars[stack_index]);
+            strcat(code, stack_vars[index]);
 
             /* push past the %[1-9] */
-            index += 2;
-            last_index = index;
+            i += 2;
+            last_index = i;
         }
     }
 
-    strncat(code, format + last_index, index);
+    strncat(code, format + last_index, i);
     lua_interpret(L, code, ret_args);
 
     return ret_args;

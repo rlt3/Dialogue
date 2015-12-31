@@ -61,19 +61,6 @@ main (int argc, char **argv)
     //        "   return table              "
     //        "end                          ");
 
-    if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
-        fprintf(stderr, "%s\n", lua_tostring(L, -1));
-        goto exit;
-    }
-
-    printf("top: %d\n", lua_gettop(L));
-
-    for (i = 0; i < 9; i++) {
-        lua_getglobal(L, stack_vars[i]);
-        printf("%s => %s\n", stack_vars[i], lua_tostring(L, -1));
-        lua_pop(L, 1);
-    }
-
 exit:
     lua_close(L);
     return 0;
