@@ -5,6 +5,8 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
+#include "actor_thread.h"
+
 #define ACTOR_LIB "Dialogue.Actor"
 
 typedef struct Actor {
@@ -18,6 +20,13 @@ typedef struct Actor {
 
     /* For everything else including the state & scripts */
     pthread_mutex_t state_mutex;
+
+    /*
+     * Restrict to single thread. If is_star is true, then restrict to main 
+     * thread. If is_lead is true, then restrict to a Postman thread.
+     */
+    int is_lead;
+    int is_star;
 
     /* Tree nav: go up, horizontally, and down the tree */
     struct Actor *parent;

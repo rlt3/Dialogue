@@ -31,7 +31,7 @@ typedef struct Script {
 
     int table_ref;  /* the definition of the script for reloading */
     int object_ref; /* the object that resides in the Actor's stack */
-    int ref;        /* a place for the actor to hold the ref so its not gc'd */
+    int ref;        /* a place for the actor to hold the ref so it's not gc'd */
 } Script;
 
 /*
