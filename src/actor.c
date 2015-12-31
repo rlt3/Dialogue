@@ -137,29 +137,16 @@ actor_assign_lead (Actor *actor, lua_State *L)
 static int
 lua_actor_new (lua_State *L)
 {
-    //Actor *actor;
-    //int i;
-    //int args = lua_gettop(L);
+    Actor *actor;
 
-    //for (i = 1; i <= args; i++)
-    //    printf("%d: %s\n", i, lua_tostring(L, i));
+    actor = lua_newuserdata(L, sizeof(*actor));
+    luaL_getmetatable(L, ACTOR_LIB);
+    lua_setmetatable(L, -2);
 
-    //actor = lua_newuserdata(L, sizeof(*actor));
-    //luaL_getmetatable(L, ACTOR_LIB);
-    //lua_setmetatable(L, -2);
-
-    //printf("setting %d (a %s)\n", 1, lua_tostring(L, -1));
-
-    //luaf(L, "return (%1[1] == 'Lead'), (%1[1] == 'Star')", 2);
-    //actor->is_lead = lua_toboolean(L, -2);
-    //actor->is_star = lua_toboolean(L, -1);
-    //lua_pop(L, 2);
-
-    luaf(L, "return %1[1]", 1);
-    
-    lua_getglobal(L, "__one");
-    printf("%s\n", lua_tostring(L, -1));
-    lua_pop(L, 1);
+    luaf(L, "return (%1[1] == 'Lead'), (%1[1] == 'Star')", 2);
+    actor->is_lead = lua_toboolean(L, -2);
+    actor->is_star = lua_toboolean(L, -1);
+    lua_pop(L, 2);
 
     return 1;
 

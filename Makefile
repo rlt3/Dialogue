@@ -8,7 +8,7 @@ ifeq ($(DIALOGUE_HEADLESS), true)
 		  src/envelope.o src/tone.o src/post.o
 else
   MODULE=dialogue
-  SOURCES=src/main.o src/luaf.o
+  SOURCES=src/main.o src/dialogue.o src/actor.o src/luaf.o src/utils.o
 endif
 
 ifeq ($(UNAME), Linux)

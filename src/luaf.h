@@ -7,11 +7,12 @@
 #include <lualib.h>
 
 /*
- * Call Lua from C by passing code as a string. Pass the number of expected
- * items to be left on top of the stack.
+ * eval(string, args).
+ *
+ * Load the string as code with the global environment.
  */
-void
-lua_interpret (lua_State *L, const char *input, int ret_args);
+int
+lua_eval (lua_State *L);
 
 /*
  * Lua Format.

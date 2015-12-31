@@ -1,5 +1,8 @@
 #include "luaf.h"
 
+/*
+ * Load our string with the global environment.
+ */
 int
 lua_eval (lua_State *L)
 {
@@ -91,10 +94,7 @@ luaf (lua_State *L, const char *format, ...)
                 for (j = 0; j < depth; j++)
                     lua_insert(L, index);
                 
-                lua_getglobal(L, "_G");
-                lua_insert(L, lua_gettop(L) - 1);
-                lua_setfield(L, -2, stack_vars[index - 1]);
-                lua_pop(L, 1);
+                lua_setglobal(L, stack_vars[index - 1]);
                 processed[index - 1] = 1;
             }
 
@@ -110,7 +110,7 @@ luaf (lua_State *L, const char *format, ...)
     strncat(code, format + last_index, i);
 
     lua_getglobal(L, "eval");
-    lua_pushstring(L, input);
+    lua_pushstring(L, code);
     lua_pushinteger(L, ret_args);
     lua_call(L, 2, ret_args);
 

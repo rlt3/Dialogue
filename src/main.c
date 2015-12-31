@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <signal.h>
 
-//#include "dialogue.h"
+#include "dialogue.h"
 #include "luaf.h"
 
 static short int is_running = 1;
@@ -34,6 +34,9 @@ main (int argc, char **argv)
     file = argv[1];
     L = luaL_newstate();
     luaL_openlibs(L);
+
+    luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
+    lua_pop(L, 1);
 
     lua_pushcfunction(L, lua_eval);
     lua_setglobal(L, "eval");
