@@ -92,6 +92,11 @@ lua_interpret (lua_State *L, const char *input)
     if (input == NULL)
         return;
 
+    /*
+     * Do vargs for count of how many items to leave on stack.
+     * lua_interpret(L, "return 5, 8", 2); => leave 5, 8 on stack.
+     */
+
     if (strlen(input) > 7)
         if (strncmp(input, "return ", 7) == 0)
             ret_args = 1;
