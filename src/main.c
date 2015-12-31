@@ -43,6 +43,9 @@ main (int argc, char **argv)
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
 
+    lua_newtable(L);
+    lua_setglobal(L, "__myglobals");
+
     //luaf(L, "__col = {}");
     //luaf(L, "__col.__index = __col");
 
@@ -60,6 +63,22 @@ main (int argc, char **argv)
     //        "   setmetatable(table, __col)"
     //        "   return table              "
     //        "end                          ");
+    
+    //lua_pushstring(L, "Lead");
+    //luaf(L, "return %1", 1);
+
+    if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
+        fprintf(stderr, "%s\n", lua_tostring(L, -1));
+        goto exit;
+    }
+
+    for (i = 0; i < 9; i++) {
+        //lua_getglobal(L, stack_vars[i]);
+        lua_getglobal(L, "__myglobals");
+        lua_getfield(L, -1, stack_vars[i]);
+        printf("%s => %s\n", stack_vars[i], lua_tostring(L, -1));
+        lua_pop(L, 2);
+    }
 
 exit:
     lua_close(L);
