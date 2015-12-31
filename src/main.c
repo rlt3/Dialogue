@@ -22,84 +22,15 @@ usage (const char *program)
     exit(1);
 }
 
-static int
-utils_collection_nth (lua_State *L)
-{
-    luaL_checktype(L, 1, LUA_TTABLE);
-    lua_rawgeti(L, 1, luaL_checkint(L, 2));
-    puts("nth");
-    return 1;
-}
-
-static int
-utils_collection_each (lua_State *L)
-{
-    luaL_checktype(L, 1, LUA_TTABLE);
-    luaL_checktype(L, 2, LUA_TFUNCTION);
-    puts("each");
-    return 1;
-}
-
-static int
-utils_collection_new (lua_State *L)
-{
-    luaL_checktype(L, 1, LUA_TTABLE);
-    luaL_getmetatable(L, "Utils.Collection");
-    lua_setmetatable(L, -2);
-    puts("make");
-    return 1;
-}
-
-static const luaL_Reg collection_methods[] = {
-    {"each", utils_collection_each},
-    {"nth", utils_collection_nth}
-};
-
-int
-luaopen_Utils_Collection (lua_State *L)
-{
-    luaL_newmetatable(L, "Utils.Collection");
-
-    lua_pushvalue(L, -1);
-    lua_setfield(L, -1, "__index");
-
-    luaL_setfuncs(L, collection_methods, 0);
-
-    lua_newtable(L);
-    lua_pushcfunction(L, utils_collection_new);
-    lua_setfield(L, -2, "new");
-
-    return 1;
-}
-
 /*
- * Print the Lua error.
+ * Call Lua from C by passing code as a string. Ret args is the number of items
+ * left on the stack after interpreting.
  */
 void
-lua_printerror (lua_State *L)
+lua_interpret (lua_State *L, const char *input, int ret_args)
 {
-    printf("%s\n", lua_tostring(L, -1));
-}
-
-/*
- * Interpret the input in the given lua_State*.
- */
-void
-lua_interpret (lua_State *L, const char *input)
-{
-    int ret_args = 0;
-
     if (input == NULL)
         return;
-
-    /*
-     * Do vargs for count of how many items to leave on stack.
-     * lua_interpret(L, "return 5, 8", 2); => leave 5, 8 on stack.
-     */
-
-    if (strlen(input) > 7)
-        if (strncmp(input, "return ", 7) == 0)
-            ret_args = 1;
 
     lua_getglobal(L, "loadstring");
     lua_pushstring(L, input);
@@ -107,36 +38,62 @@ lua_interpret (lua_State *L, const char *input)
     
     if (lua_isfunction(L, -1)) {
         if (lua_pcall(L, 0, ret_args, 0))
-            lua_printerror(L);
+            printf("%s\n", lua_tostring(L, -1));
     } else {
         lua_pop(L, 1);
     }
 }
 
-static const char *stack_vars[] = {
-    "__one",
-    "__two",
-    "__thr",
-    "__fou",
-    "__fiv",
-    "__six",
-    "__sev",
-    "__eig",
-    "__nin"
-};
-
 /*
- * Accepts Lua code where variables may be written %[0-9] -- %1, %6 -- to 
- * represent themselves on the stack.
+ * Lua Format.
+ *
+ * Call Lua from C by passing a const *char array with code. Optionally leave
+ * items on the stack by preprending 'return' to your code and passing the
+ * number of items to be left on the stack.
+ *
+ * Looks for stack variables in the form of %[1-9], e.g. "%2.__index = %1". 
+ * Only supports 9 stack items, 1 through 9.
+ *
+ * luaf returns the number of arguments left on the stack.
+ *
+ * Examples:
+ *
+ * luaf(L, "return %1", 1);
+ * luaf(L, "return %1:method_with_error()", 2);
+ * luaf(L, "%1:each(function(e) %2(%3) end)");
  */
 int
-luaf (lua_State *L, const char *format)
+luaf (lua_State *L, const char *format, ...)
 {
+    static const char *stack_vars[] = {
+        "__one",
+        "__two",
+        "__thr",
+        "__fou",
+        "__fiv",
+        "__six",
+        "__sev",
+        "__eig",
+        "__nin"
+    };
+
+    va_list args;
+    int ret_args = 0;
+    
     char code[1024] = {0};
     int processed[9] = {0};
     int last_index = 0;
     int stack_index;
     int index;
+
+    /* we can't do va_args unless we *know* we have them */
+    if (strlen(format) > 7) {
+        if (strncmp(format, "return ", 7) == 0) {
+            va_start(args, format);
+            ret_args += va_arg(args, int);
+            va_end(args);
+        }
+    }
 
     for (index = 0; format[index] != '\0'; index++) {
         if (format[index] == '%') {
@@ -164,23 +121,21 @@ luaf (lua_State *L, const char *format)
     }
 
     strncat(code, format + last_index, index);
-    printf("%s\n", code);
-    lua_interpret(L, code);
+    lua_interpret(L, code, ret_args);
 
-    return 0;
+    return ret_args;
 }
 
 int
 print_collection (lua_State *L)
 {
-    //luaL_checktype(L, 1, LUA_TTABLE);
-    //lua_pushvalue(L, 1);
-    //lua_setglobal(L, "fun");
-    //lua_interpret(L, "fun:each(function(e) print(e) end)");
+    return luaf(L, "%1:each(function(e) print(e) end)");
+}
 
-    luaf(L, "%1:each(function(e) print(e) end)");
-
-    return 0;
+int
+each_collection (lua_State *L)
+{
+    return luaf(L, "%1:each(function(e) %2(e) end)");
 }
 
 int
@@ -205,13 +160,19 @@ main (int argc, char **argv)
     lua_pushcfunction(L, print_collection);
     lua_setglobal(L, "print_collection");
 
+    lua_pushcfunction(L, each_collection);
+    lua_setglobal(L, "each");
+
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "%s\n", lua_tostring(L, -1));
         goto exit;
     }
 
-    lua_interpret(L, "return #t");
+    luaf(L, "t = Collection.new{5, 6, 7}");
+    luaf(L, "return #t, 8", 2);
+    luaf(L, "each(t, print)", 2);
     printf("%d\n", (int) luaL_checkinteger(L, -1));
+    printf("%d\n", (int) luaL_checkinteger(L, -2));
 
 exit:
     lua_close(L);
