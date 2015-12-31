@@ -127,18 +127,6 @@ luaf (lua_State *L, const char *format, ...)
 }
 
 int
-print_collection (lua_State *L)
-{
-    return luaf(L, "%1:each(function(e) print(e) end)");
-}
-
-int
-each_collection (lua_State *L)
-{
-    return luaf(L, "%1:each(function(e) %2(e) end)");
-}
-
-int
 main (int argc, char **argv)
 {
     const char *file;
@@ -153,28 +141,30 @@ main (int argc, char **argv)
     L = luaL_newstate();
     luaL_openlibs(L);
 
-    ///* load this module (the one you're reading) into the Actor's state */
-    ////luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
-    ////lua_pop(L, 1);
+    luaf(L, "__col = {}");
+    luaf(L, "__col.__index = __col");
 
-    lua_pushcfunction(L, print_collection);
-    lua_setglobal(L, "print_collection");
+    luaf(L, "function __col:nth(n)"
+            "   return self[n]    "
+            "end                  ");
 
-    lua_pushcfunction(L, each_collection);
-    lua_setglobal(L, "each");
+    luaf(L, "function __col:each(f) "
+            "    for i = 1, #self do"
+            "        f(self[i])     "
+            "    end                "
+            "end                    ");
 
-    if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
-        fprintf(stderr, "%s\n", lua_tostring(L, -1));
-        goto exit;
-    }
+    luaf(L, "function Collection(table)   "
+            "   setmetatable(table, __col)"
+            "   return table              "
+            "end                          ");
 
-    luaf(L, "t = Collection.new{5, 6, 7}");
-    luaf(L, "return #t, 8", 2);
-    luaf(L, "each(t, print)", 2);
-    printf("%d\n", (int) luaL_checkinteger(L, -1));
-    printf("%d\n", (int) luaL_checkinteger(L, -2));
+    /* create & leave a Collection on top of the stack */
+    luaf(L, "return Collection{5, 6, 7}", 1);
+    
+    /* using the first item on the stack, call the each method */
+    luaf(L, "%1:each(print)");
 
-exit:
     lua_close(L);
     return 0;
 }
