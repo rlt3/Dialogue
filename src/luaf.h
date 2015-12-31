@@ -7,14 +7,6 @@
 #include <lualib.h>
 
 /*
- * eval(string, args).
- *
- * Load the string as code with the global environment.
- */
-int
-lua_eval (lua_State *L);
-
-/*
  * Lua Format.
  *
  * Call Lua from C by passing a format string of code. Optionally leave items
@@ -34,5 +26,8 @@ lua_eval (lua_State *L);
  */
 int
 luaf (lua_State *L, const char *format, ...);
+
+int 
+luaopen_Dialogue_eval (lua_State *L);
 
 #endif

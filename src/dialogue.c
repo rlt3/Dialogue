@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "actor.h"
+#include "luaf.h"
 
 /* 
  * A Dialogue is a table that follows this form: { {}, {} }
@@ -95,6 +96,9 @@ luaopen_Dialogue (lua_State *L)
 
     luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor, 1);
     lua_setfield(L, t_index, "Actor");
+
+    luaL_requiref(L, "eval", luaopen_Dialogue_eval, 1);
+    lua_setfield(L, t_index, "eval");
 
     //luaL_requiref(L, POST_LIB, luaopen_Dialogue_Post, 1);
     //lua_setfield(L, t_index, "Post");

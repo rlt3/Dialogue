@@ -38,11 +38,6 @@ main (int argc, char **argv)
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
 
-    lua_pushcfunction(L, lua_eval);
-    lua_setglobal(L, "eval");
-
-    luaf(L, "_G.foo = 'blag'");
-
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "%s\n", lua_tostring(L, -1));
         goto exit;

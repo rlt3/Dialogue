@@ -1,13 +1,15 @@
 #include "luaf.h"
 
 /*
+ * eval(string)
+ *
  * Load our string with the global environment.
  */
 int
 lua_eval (lua_State *L)
 {
     const char *code = luaL_checkstring(L, 1);
-    const int ret_args = luaL_checkinteger(L, 2);
+    const int args = luaL_checkinteger(L, 2);
 
     lua_getglobal(L, "load");
     lua_pushstring(L, code);
@@ -17,13 +19,13 @@ lua_eval (lua_State *L)
     lua_call(L, 4, 1);
     
     if (lua_isfunction(L, -1)) {
-        if (lua_pcall(L, 0, ret_args, 0))
+        if (lua_pcall(L, 0, args, 0))
             printf("%s\n", lua_tostring(L, -1));
     } else {
         lua_pop(L, 1);
     }
 
-    return ret_args;
+    return args;
 }
 
 /*
@@ -53,19 +55,16 @@ luaf (lua_State *L, const char *format, ...)
 
     va_list args;
     int ret_args = 0;
-    
     char code[1024] = {0};
     int processed[8] = {0};
     int last_index = 0;
-    int depth, index, i, j;
+    int index, i;
 
     /* we can't do va_args unless we *know* we have them */
-    if (strlen(format) > 7) {
-        if (strncmp(format, "return ", 7) == 0) {
-            va_start(args, format);
-            ret_args += va_arg(args, int);
-            va_end(args);
-        }
+    if (strstr(format, "return") != NULL) {
+        va_start(args, format);
+        ret_args += va_arg(args, int);
+        va_end(args);
     }
 
     for (i = 0; format[i] != '\0'; i++) {
@@ -96,10 +95,21 @@ luaf (lua_State *L, const char *format, ...)
 
     strncat(code, format + last_index, i);
 
-    lua_getglobal(L, "eval");
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "eval");
     lua_pushstring(L, code);
     lua_pushinteger(L, ret_args);
     lua_call(L, 2, ret_args);
 
+    lua_insert(L, lua_gettop(L) - 1);
+    lua_pop(L, 1);
+
     return ret_args;
+}
+
+int 
+luaopen_Dialogue_eval (lua_State *L)
+{
+    lua_pushcfunction(L, lua_eval);
+    return 1;
 }

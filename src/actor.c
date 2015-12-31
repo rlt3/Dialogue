@@ -137,72 +137,57 @@ actor_assign_lead (Actor *actor, lua_State *L)
 static int
 lua_actor_new (lua_State *L)
 {
-    Actor *actor;
-
-    actor = lua_newuserdata(L, sizeof(*actor));
+    lua_State *A;
+    pthread_mutexattr_t mutex_attr;
+    Actor *actor = lua_newuserdata(L, sizeof(*actor));
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
+
+    /* 
+     * An actor's Action may call one of its own methods, which typically want
+     * lock the mutex already locked by doing the action. So, they are 
+     * recursive.
+     */
+    pthread_mutexattr_init(&mutex_attr);
+    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&actor->state_mutex, &mutex_attr);
+    pthread_rwlock_init(&actor->structure, NULL);
+
+    actor->parent = NULL;
+    actor->next = NULL;
+    actor->child = NULL;
+    actor->dialogue = NULL;
+    actor->script_head = NULL;
+    actor->script_tail = NULL;
+    actor->mailbox = NULL;
 
     luaf(L, "return (%1[1] == 'Lead'), (%1[1] == 'Star')", 2);
     actor->is_lead = lua_toboolean(L, -2);
     actor->is_star = lua_toboolean(L, -1);
     lua_pop(L, 2);
 
+    actor->L = luaL_newstate();
+    A = actor->L;
+    luaL_openlibs(A);
+
+    /* push Actor so Scripts can reference the Actor it belongs to. */
+    utils_push_object(A, actor, ACTOR_LIB);
+    lua_setglobal(A, "actor");
+
+    /* load this module (the one you're reading) into the Actor's state */
+    luaL_requiref(A, "Dialogue", luaopen_Dialogue, 1);
+    lua_pop(A, 1);
+
+    /* get the third stack, which is our list of lists */
+    luaf(L, "if (type(%1[1]) == 'table') then "
+            "   return %1 "
+            "else "
+            "   return select(2, unpack(%1)) "
+            "end", 1);
+
+    luaf(L, "return %3[1]", 1);
+
     return 1;
-
-    //return luaf(L, "return table.remove(%1, 1)", 1);
-    //return luaf(L, "return table.remove({'head', {'blah'}}, 1)", 1);
-    //luaf(L, "return %1", 1);
-
-    ///* push first element of table to see if we're doing Actor */
-    //lua_rawgeti(L, table_arg, 1);
-    //if (lua_isstring(L, -1)) {
-    //    lua_pop(L, 1);
-    //    utils_pop_table_head(L, table_arg);
-    //    actor->is_lead = 1;
-    //} else {
-    //    actor->is_lead = 0;
-    //}
-    //lua_pop(L, 1); /* either pop table or string from utils_pop_table_head */
-
-    ///* Create a reference so it doesn't GC */
-    //actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    //lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
-
-    //actor->parent = NULL;
-    //actor->next = NULL;
-    //actor->child = NULL;
-    //actor->script_head = NULL;
-    //actor->script_tail = NULL;
-    //actor->mailbox = NULL;
-    //actor->dialogue = NULL;
-    //actor->post = NULL;
-
-    ///* 
-    // * init mutexes to recursive because its own thread might call a method
-    // * which expects to be called from an outside thread sometimes and askes
-    // * for a mutex.
-    // */
-    //pthread_mutexattr_init(&mutex_attr);
-    //pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    //pthread_mutex_init(&actor->state_mutex, &mutex_attr);
-
-    //actor->L = luaL_newstate();
-    //A = actor->L;
-    //luaL_openlibs(A);
-
-    ///* load this module (the one you're reading) into the Actor's state */
-    //luaL_requiref(A, "Dialogue", luaopen_Dialogue, 1);
-    //lua_pop(A, 1);
-
-    ///* push Actor so Scripts can reference the Actor it belongs to. */
-    //utils_push_object(A, actor, ACTOR_LIB);
-    //lua_setglobal(A, "actor");
-
-    //lua_getglobal(L, "Dialogue");
-    //lua_getfield(L, -1, "Actor");
-    //lua_getfield(L, -1, "Script");
-    //script_index = lua_gettop(L);
 
     ///* Create all the Scripts in this Lua state */
     //lua_pushnil(L);
