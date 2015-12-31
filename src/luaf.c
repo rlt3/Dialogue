@@ -48,15 +48,7 @@ int
 luaf (lua_State *L, const char *format, ...)
 {
     static const char *stack_vars[] = {
-        "__one", 
-        "__two", 
-        "__thr", 
-        "__fou", 
-        "__fiv", 
-        "__six", 
-        "__sev", 
-        "__eig", 
-        "__nin"
+        "__a", "__b", "__c", "__d", "__e", "__f", "__g", "__h", "__i"
     };
 
     va_list args;
@@ -88,12 +80,7 @@ luaf (lua_State *L, const char *format, ...)
             /* check and load the stack variable into the environment */
             if (!processed[index - 1]) {
                 luaL_checkany(L, index);
-
-                /* bubble the element to the top */
-                depth = lua_gettop(L) - index;
-                for (j = 0; j < depth; j++)
-                    lua_insert(L, index);
-                
+                lua_pushvalue(L, index);
                 lua_setglobal(L, stack_vars[index - 1]);
                 processed[index - 1] = 1;
             }

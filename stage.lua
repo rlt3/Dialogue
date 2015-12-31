@@ -1,2 +1,2 @@
 print(Dialogue.Actor.new{ "Lead", { "draw", 2, 2 } })
-print(__one)
+print(__a)
