@@ -14,7 +14,7 @@ typedef struct Actor {
      * A read write lock for the structure of the Actor -- it's place in the
      * Dialogue tree -- it's parent, siblings, and children.
      */
-    pthread_rwlock_t;
+    pthread_rwlock_t structure;
 
     /* For everything else including the state & scripts */
     pthread_mutex_t state_mutex;

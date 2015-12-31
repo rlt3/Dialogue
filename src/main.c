@@ -87,33 +87,26 @@ lua_printerror (lua_State *L)
 void
 lua_interpret (lua_State *L, const char *input)
 {
+    int ret_args = 0;
+
     if (input == NULL)
         return;
+
+    if (strlen(input) > 7)
+        if (strncmp(input, "return ", 7) == 0)
+            ret_args = 1;
 
     lua_getglobal(L, "loadstring");
     lua_pushstring(L, input);
     lua_call(L, 1, 1);
     
     if (lua_isfunction(L, -1)) {
-        if (lua_pcall(L, 0, 0, 0))
+        if (lua_pcall(L, 0, ret_args, 0))
             lua_printerror(L);
     } else {
         lua_pop(L, 1);
     }
 }
-
-//luaf (lua_State *L, const char *format, ...)
-//vluaf (lua_State *L, const char *format, va_list args)
-//{
-//    for (; *format != 0; ++format) {
-//        if (*format == '%') {
-//            ++format;
-//
-//            if (*format == '1') {
-//            }
-//        }
-//    }
-//}
 
 static const char *stack_vars[] = {
     "__one",
@@ -211,6 +204,9 @@ main (int argc, char **argv)
         fprintf(stderr, "%s\n", lua_tostring(L, -1));
         goto exit;
     }
+
+    lua_interpret(L, "return #t");
+    printf("%d\n", (int) luaL_checkinteger(L, -1));
 
 exit:
     lua_close(L);
