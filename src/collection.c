@@ -8,29 +8,29 @@ luaopen_Dialogue_Collection (lua_State *L)
 
     luaf(L, "function __col:nth(n)"
             "   return self[n]    "
-            "end                  ");
+            "end                  ", 0);
 
     luaf(L, "function __col:tail() "
             "    local function helper(head, ...) "
             "        return #{...} > 0 and {...} or nil "
             "    end "
             "    return helper((table.unpack or unpack)(self)) "
-            "end");
+            "end", 0);
 
     luaf(L, "function __col:head() "
             "    return table.remove(self, 1) "
-            "end");
+            "end", 0);
 
     luaf(L, "function __col:each(f) "
             "    for i = 1, #self do"
             "        f(self[i])     "
             "    end                "
-            "end                    ");
+            "end                    ", 0);
 
     luaf(L, "function Collection(table)   "
             "   setmetatable(table, __col)"
             "   return table              "
-            "end                          ");
+            "end                          ", 0);
 
     lua_getglobal(L, "Collection");
     return 1;

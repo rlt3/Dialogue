@@ -200,16 +200,14 @@ lua_actor_new (lua_State *L)
     luaf(L, "if (type(%1[1]) == 'table') then "
             "   return %1 "
             "else "
-            "   return Dialogue.Collection(%1):tail() "
+            "   return Collection(%1):tail() "
             "end", 1);
 
-    luaf(L, "return %3[1][1]", 1);
+    luaf(L, "for i = 1, #%3 do "
+            "   Dialogue.Actor.Script.new(%2, %3[i]) "
+            "end");
 
-    //luaf(L, "for i = 1, #%3 do "
-    //        "   Dialogue.Actor.Script.new(%2, %3[i]) "
-    //        "end");
-
-    //lua_pop(L, 1);
+    lua_pop(L, 1);
 
     return 1;
 
