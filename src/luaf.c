@@ -73,7 +73,7 @@ luaf (lua_State *L, const char *format, ...)
             if (i != 0)
                 strncat(code, format + last_index, i - last_index);
 
-            /* convert an ascii number into an integer and then zero offset */
+            /* convert an ascii number into an integer */
             index = (format[i + 1] - '0');
 
             /* check and load the stack variable into the environment */

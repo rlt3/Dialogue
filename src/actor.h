@@ -46,6 +46,33 @@ typedef struct Actor {
     int ref;
 } Actor;
 
+/*
+ * Add the Script to the end of the Actor's linked-list of Scripts.
+ */
+void
+actor_add_script (Actor *actor, struct Script *script);
+
+/*
+ * Remove the Script from the Actor's linked-list.
+ */
+void
+actor_remove_script (Actor *actor, struct Script *script);
+
+lua_State *
+actor_request_state (Actor *actor);
+
+void
+actor_return_state (Actor *actor);
+
+int
+actor_check_thread(pthread_t pid);
+
+/*
+ * Check for an Actor at index. Errors if it isn't an Actor.
+ */
+Actor *
+lua_check_actor (lua_State *L, int index);
+
 int 
 luaopen_Dialogue_Actor (lua_State *L);
 

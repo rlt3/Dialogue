@@ -6,6 +6,24 @@
 #include "utils.h"
 #include "luaf.h"
 
+lua_State *
+actor_request_state (Actor *actor)
+{
+    return actor->L;
+}
+
+void
+actor_return_state (Actor *actor)
+{
+    return;
+}
+
+int
+actor_check_thread(pthread_t pid)
+{
+    return 1;
+}
+
 /*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
@@ -182,33 +200,18 @@ lua_actor_new (lua_State *L)
     luaf(L, "if (type(%1[1]) == 'table') then "
             "   return %1 "
             "else "
-            "   return select(2, unpack(%1)) "
+            "   return Dialogue.Collection(%1):tail() "
             "end", 1);
 
-    luaf(L, "return %3[1]", 1);
+    luaf(L, "return %3[1][1]", 1);
+
+    //luaf(L, "for i = 1, #%3 do "
+    //        "   Dialogue.Actor.Script.new(%2, %3[i]) "
+    //        "end");
+
+    //lua_pop(L, 1);
 
     return 1;
-
-    ///* Create all the Scripts in this Lua state */
-    //lua_pushnil(L);
-    //while (lua_next(L, table_arg)) {
-    //    luaL_checktype(L, -1, LUA_TTABLE);
-    //    table_index = lua_gettop(L);
-
-    //    lua_getfield(L, script_index, "new");
-    //    lua_pushvalue(L, actor_arg);
-    //    lua_pushvalue(L, table_index);
-
-    //    if (lua_pcall(L, 2, 1, 0))
-    //        luaL_error(L, "Creating Script failed: %s", lua_tostring(L, -1));
-
-    //    script = lua_check_script(L, -1);
-    //    script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    //    actor_add_script(actor, script);
-
-    //    lua_pop(L, 1); /* Key */
-    //}
-    //lua_pop(L, 3); /* Dialogue, Actor, Script */
 
     ///* Then load Scripts in its own thread or here in the Main thread */
     //if (!actor->is_lead) {
@@ -242,8 +245,8 @@ luaopen_Dialogue_Actor (lua_State *L)
 {
     utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
     
-    //luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);
-    //lua_setfield(L, -2, "Script");
+    luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);
+    lua_setfield(L, -2, "Script");
 
     //luaL_requiref(L, MAILBOX_LIB, luaopen_Dialogue_Actor_Mailbox, 1);
     //lua_setfield(L, -2, "Mailbox");

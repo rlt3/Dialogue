@@ -1,6 +1,7 @@
 #include "script.h"
 #include "actor.h"
 #include "utils.h"
+#include "luaf.h"
 
 /*
  * Check the table at index for the requirements of a Script.
@@ -79,6 +80,9 @@ lua_script_new (lua_State *L)
     script->is_loaded = 0;
     script->be_loaded = 1;
     script->error = NULL;
+    actor_add_script(actor, script);
+    script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, script->ref);
     actor_return_state(actor);
 
     return 1;
@@ -179,7 +183,6 @@ script_send (Script *script, Actor *author)
     int args;
     int ret = SEND_OK;
     lua_State *A = script->actor->L;
-    pthread_t calling_thread = pthread_self();
 
     /* if an actor has a thread requirement */
     if (script->actor->is_lead || script->actor->is_star) {
