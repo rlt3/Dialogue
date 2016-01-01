@@ -3,6 +3,7 @@
 #include <signal.h>
 
 #include "dialogue.h"
+#include "collection.h"
 #include "luaf.h"
 
 static short int is_running = 1;
@@ -35,37 +36,10 @@ main (int argc, char **argv)
     L = luaL_newstate();
     luaL_openlibs(L);
 
+    luaL_requiref(L, "eval", luaopen_eval, 1);
+    luaL_requiref(L, "Collection", luaopen_Collection, 1);
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(L, 1);
-
-    luaf(L, "__col = {}");
-    luaf(L, "__col.__index = __col");
-
-    luaf(L, "function __col:nth(n)"
-            "   return self[n]    "
-            "end                  ", 0);
-
-    luaf(L, "function __col:tail() "
-            "    local function helper(head, ...) "
-            "        return #{...} > 0 and {...} or nil "
-            "    end "
-            "    return helper((table.unpack or unpack)(self)) "
-            "end", 0);
-
-    luaf(L, "function __col:head() "
-            "    return table.remove(self, 1) "
-            "end", 0);
-
-    luaf(L, "function __col:each(f) "
-            "    for i = 1, #self do"
-            "        f(self[i])     "
-            "    end                "
-            "end                    ", 0);
-
-    luaf(L, "function Collection(table)   "
-            "   setmetatable(table, __col)"
-            "   return table              "
-            "end                          ", 0);
+    lua_pop(L, 3);
 
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "%s\n", lua_tostring(L, -1));

@@ -1,9 +1,9 @@
-#ifndef DIALOGUE_COLLECTION
-#define DIALOGUE_COLLECTION
+#ifndef COLLECTION
+#define COLLECTION
 
 #include "luaf.h"
 
 int
-luaopen_Dialogue_Collection (lua_State *L);
+luaopen_Collection (lua_State *L);
 
 #endif

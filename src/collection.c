@@ -1,7 +1,7 @@
 #include "collection.h"
 
 int
-luaopen_Dialogue_Collection (lua_State *L)
+luaopen_Collection (lua_State *L)
 {
     luaf(L, "__col = {}");
     luaf(L, "__col.__index = __col");

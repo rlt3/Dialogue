@@ -95,20 +95,16 @@ luaf (lua_State *L, const char *format, ...)
 
     strncat(code, format + last_index, i);
 
-    lua_getglobal(L, "Dialogue");
-    lua_getfield(L, -1, "eval");
+    lua_getglobal(L, "eval");
     lua_pushstring(L, code);
     lua_pushinteger(L, ret_args);
     lua_call(L, 2, ret_args);
-
-    lua_insert(L, lua_gettop(L) - 1);
-    lua_pop(L, 1);
 
     return ret_args;
 }
 
 int 
-luaopen_Dialogue_eval (lua_State *L)
+luaopen_eval (lua_State *L)
 {
     lua_pushcfunction(L, lua_eval);
     return 1;

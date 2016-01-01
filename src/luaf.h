@@ -36,6 +36,6 @@ int
 luaf (lua_State *L, const char *format, ...);
 
 int 
-luaopen_Dialogue_eval (lua_State *L);
+luaopen_eval (lua_State *L);
 
 #endif
