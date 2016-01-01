@@ -65,7 +65,7 @@ void
 actor_return_state (Actor *actor);
 
 int
-actor_check_thread(pthread_t pid);
+actor_is_calling_thread (pthread_t pid);
 
 /*
  * Check for an Actor at index. Errors if it isn't an Actor.

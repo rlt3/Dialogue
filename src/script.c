@@ -110,7 +110,7 @@ script_load (Script *script)
 
     /* if an actor has a thread requirement */
     if (actor->is_lead || actor->is_star) {
-        if (!actor_check_thread(pthread_self())) {
+        if (!actor_is_calling_thread(pthread_self())) {
             script->error = ERR_NOT_CALLING_THREAD;
             ret = LOAD_BAD_THREAD;
             goto exit;
@@ -186,7 +186,7 @@ script_send (Script *script, Actor *author)
 
     /* if an actor has a thread requirement */
     if (script->actor->is_lead || script->actor->is_star) {
-        if (!actor_check_thread(pthread_self())) {
+        if (!actor_is_calling_thread(pthread_self())) {
             ret = SEND_BAD_THREAD;
             goto exit;
         }
@@ -231,24 +231,26 @@ exit:
 static int
 lua_script_load (lua_State *L)
 {
-    lua_State *A;
-    int new_definition = 0;
-    int args = lua_gettop(L);
+    //lua_State *A;
+    //int new_definition = 0;
+    //int args = lua_gettop(L);
     Script *script = lua_check_script(L, 1);
 
-    if (args == 2) {
-        lua_check_script_table(L, 2);
-        new_definition = 1;
-    }
+    script_load(script);
 
-    A = actor_request_state(script->actor);
-    if (new_definition) {
-        luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
-        utils_copy_top(A, L);
-        script->table_ref = luaL_ref(A, LUA_REGISTRYINDEX);
-    }
-    script->be_loaded = 1;
-    actor_return_state(script->actor);
+    //if (args == 2) {
+    //    lua_check_script_table(L, 2);
+    //    new_definition = 1;
+    //}
+
+    //A = actor_request_state(script->actor);
+    //if (new_definition) {
+    //    luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
+    //    utils_copy_top(A, L);
+    //    script->table_ref = luaL_ref(A, LUA_REGISTRYINDEX);
+    //}
+    //script->be_loaded = 1;
+    //actor_return_state(script->actor);
 
     return luaf(L, "Dialogue.Post.send(%1:actor, 'load')");
 }

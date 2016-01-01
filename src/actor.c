@@ -19,7 +19,7 @@ actor_return_state (Actor *actor)
 }
 
 int
-actor_check_thread(pthread_t pid)
+actor_is_calling_thread (pthread_t pid)
 {
     return 1;
 }
@@ -205,20 +205,40 @@ lua_actor_new (lua_State *L)
 
     luaf(L, "for i = 1, #%3 do "
             "   Dialogue.Actor.Script.new(%2, %3[i]) "
+            "   %2:scripts()[i]:load() "
             "end");
 
     lua_pop(L, 1);
 
-    return 1;
+    /* luaf(L, "Dialogue.Post.send(%2, 'load')"); */
 
-    ///* Then load Scripts in its own thread or here in the Main thread */
-    //if (!actor->is_lead) {
-    //    pthread_create(&actor->thread, NULL, actor_thread, actor);
-    //    pthread_detach(actor->thread);
-    //} else {
-    //    actor_assign_lead(actor, L);
-    //    actor_call_action(actor, LOAD);
-    //}
+    return 1;
+}
+
+static int
+lua_actor_scripts (lua_State *L)
+{
+    int i = 0;
+    Script *script;
+    Actor *actor = lua_check_actor(L, -1);
+
+    actor_request_state(actor);
+    lua_newtable(L);
+    for (script = actor->script_head; script != NULL; script = script->next) {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script->ref);
+        lua_rawseti(L, -2, ++i);
+    }
+    actor_return_state(actor);
+
+    return luaf(L, "return Collection(%2)", 1); 
+}
+
+static int
+lua_actor_gc (lua_State *L)
+{
+    Actor* actor = lua_check_actor(L, 1);
+    lua_close(actor->L);
+    return 0;
 }
 
 static int
@@ -233,7 +253,8 @@ lua_actor_tostring (lua_State *L)
 
 static const luaL_Reg actor_methods[] = {
     /*{"audience",   lua_actor_audience},*/
-    /*{"__gc",       lua_actor_gc},*/
+    {"scripts",    lua_actor_scripts},
+    {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
     { NULL, NULL }
 };
