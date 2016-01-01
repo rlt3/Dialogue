@@ -8,24 +8,12 @@
 int
 lua_eval (lua_State *L)
 {
-    const char *code = luaL_checkstring(L, 1);
-    const int args = luaL_checkinteger(L, 2);
+    /* expects argument at 2 and code at 1 */
+    int args;
 
-    lua_getglobal(L, "load");
-    lua_pushstring(L, code);
-    lua_pushnil(L);
-    lua_pushstring(L, "t");
-    lua_getglobal(L, "_G");
-    lua_call(L, 4, 1);
-    
-    if (lua_isfunction(L, -1)) {
-        if (lua_pcall(L, 0, args, 0))
-            printf("%s\n", lua_tostring(L, -1));
-    } else {
-        lua_pop(L, 1);
-    }
-
-    return args;
+    luaf(L, "return load(%1, nil, 't', _G)", 1);
+    args = luaf(L, "if not %3 then return 0 else return %2 end", 1);
+    return luaf(L, "if %3 then return %3() end", args);
 }
 
 /*
@@ -95,10 +83,20 @@ luaf (lua_State *L, const char *format, ...)
 
     strncat(code, format + last_index, i);
 
-    lua_getglobal(L, "eval");
+    lua_getglobal(L, "load");
     lua_pushstring(L, code);
-    lua_pushinteger(L, ret_args);
-    lua_call(L, 2, ret_args);
+    lua_pushnil(L);
+    lua_pushstring(L, "t");
+    lua_getglobal(L, "_G");
+    lua_call(L, 4, 1);
+    
+    if (lua_isfunction(L, -1)) {
+        if (lua_pcall(L, 0, ret_args, 0))
+            printf("%s\n", lua_tostring(L, -1));
+    } else {
+        lua_pop(L, 1);
+        ret_args = 0;
+    }
 
     return ret_args;
 }
