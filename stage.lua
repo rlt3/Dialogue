@@ -3,6 +3,8 @@
 --print(__a)
 
 print(foo)
+--print(__col)
+--print(__col.nth)
 
 --print(Collection)
 --print(Dialogue.Collection)

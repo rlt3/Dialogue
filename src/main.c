@@ -38,14 +38,14 @@ main (int argc, char **argv)
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
 
-    luaf(L, "_G.foo = 'llll'");
+    //luaf(L, "_G.foo = 'llll'");
 
-    //luaf(L, "__col = {}");
-    //luaf(L, "__col.__index = __col");
+    luaf(L, "__col = {}");
+    luaf(L, "__col.__index = __col");
 
-    //luaf(L, "function __col:nth(n)"
-    //        "   return self[n]    "
-    //        "end                  ");
+    luaf(L, "function __col:nth(n)"
+            "   return self[n]    "
+            "end                  ");
 
     //luaf(L, "function __col:tail() "
     //        "    local function helper(head, ...) "
