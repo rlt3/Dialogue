@@ -32,6 +32,15 @@ lua_mailbox_new (lua_State *L)
     B = mailbox->L;
     luaL_openlibs(B);
 
+    /*
+     * TODO:
+     *  *if* we treat each Envelope as simply a table in the form of
+     *      { author, action [, arg1 [, arg2 ...]] }
+     *  then we can simply loop through the table and for each slot that could
+     *  contain an actor, we check for the existence of a 'reference' field. If
+     *  it exists, we call it as a function (incrementing whatever it may be).
+     */
+
     /* load this module (the one you're reading) into the Actor's state */
     luaL_requiref(B, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(B, 1);
@@ -113,6 +122,32 @@ mailbox_push_next_envelope (Mailbox *mailbox)
     return envelope->author;
 }
 
+/*
+ * Pops all of the Mailbox's envelopes (a destructive operation) as a table. 
+ *
+ * Since the mailbox is a pointer with its own Lua state, any given Lua state
+ * may copy a Mailbox as a lightuserdata and call these methods from that state
+ * to have this work -- just like actors.
+ *
+ * So the Postman might call 'mailbox:pop()' to get the items into its own 
+ * thread.
+ */
+int
+lua_mailbox_pop ( lua_State *L)
+{
+    Mailbox *mailbox = lua_check_mailbox(L, 1);
+    lua_State *B = mailbox->L;
+
+    pthread_mutex_lock(&mailbox->mutex);
+    luaf(B, "return __envelopes", 1);
+    lua_copy_top(B, L);
+    lua_pop(B, 1);
+    luaf(B, "__envelopes = Collection{}");
+    pthread_mutex_unlock(&mailbox->mutex);
+
+    return 1;
+}
+
 int
 lua_mailbox_gc (lua_State *L)
 {
@@ -124,6 +159,7 @@ lua_mailbox_gc (lua_State *L)
 }
 
 static const luaL_Reg mailbox_methods[] = {
+    {"pop", lua_mailbox_pop},
     {"__gc", lua_mailbox_gc},
     { NULL, NULL }
 };

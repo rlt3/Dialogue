@@ -157,6 +157,7 @@ lua_actor_new (lua_State *L)
 {
     lua_State *A;
     pthread_mutexattr_t mutex_attr;
+
     Actor *actor = lua_newuserdata(L, sizeof(*actor));
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
@@ -188,13 +189,13 @@ lua_actor_new (lua_State *L)
     A = actor->L;
     luaL_openlibs(A);
 
-    /* push Actor so Scripts can reference the Actor it belongs to. */
-    utils_push_object(A, actor, ACTOR_LIB);
-    lua_setglobal(A, "actor");
-
     /* load this module (the one you're reading) into the Actor's state */
     luaL_requiref(A, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(A, 1);
+
+    /* push Actor so Scripts can reference the Actor it belongs to. */
+    utils_push_object(A, actor, ACTOR_LIB);
+    lua_setglobal(A, "actor");
 
     /* get the third stack, which is our list of lists */
     luaf(L, "if (type(%1[1]) == 'table') then "

@@ -1,16 +1,15 @@
 #include "luaf.h"
 
 /*
- * eval(string)
+ * eval(string, expected arg count)
  *
- * Load our string with the global environment.
+ * Use luaf to call (or not call) the loaded closure and return the correct
+ * amount of arguments.
  */
 int
 lua_eval (lua_State *L)
 {
-    /* expects argument at 2 and code at 1 */
     int args;
-
     luaf(L, "return load(%1, nil, 't', _G)", 1);
     args = luaf(L, "if not %3 then return 0 else return %2 end", 1);
     return luaf(L, "if %3 then return %3() end", args);

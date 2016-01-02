@@ -1,3 +1,5 @@
+#include "dialogue.h"
+#include "mailbox.h"
 #include "postman.h"
 #include "actions.h"
 
@@ -99,8 +101,21 @@ postman_fill_bag (Postman *postman)
 Postman *
 postman_create ()
 {
+    lua_State *P;
     Postman *postman = malloc(sizeof(*postman));
     postman->mailbox = mailbox_create();
+    postman->L = luaL_newstate();
+    P = actor->L;
+    luaL_openlibs(P);
+    
+    /* 
+     * TODO:
+     *      load Dialogue's core modules somehow instead of reloading the 
+     * entire Dialogue module. this creates ambiguity with the Post & Postman
+     * threads.
+     */
+    luaL_requiref(P, "Dialogue", luaopen_Dialogue, 1);
+    lua_pop(P, 1);
 
     /*
      * semaphore for the per_thread?

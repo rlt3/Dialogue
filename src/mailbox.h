@@ -40,6 +40,13 @@ mailbox_send_lua_top (lua_State *L, Mailbox *mailbox, Actor *author);
 Actor *
 mailbox_push_next_envelope (Mailbox *mailbox);
 
+/*
+ * Pops all of the Mailbox's envelopes (a destructive operation) as a table
+ * onto the given Lua stack. Returns number of envelopes in table.
+ */
+int
+mailbox_pop_envelopes (Mailbox *mailbox, lua_State *L);
+
 int 
 luaopen_Dialogue_Actor_Mailbox (lua_State *L);
 
