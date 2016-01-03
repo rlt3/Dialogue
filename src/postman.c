@@ -122,3 +122,9 @@ postman_create ()
      */
     return postman;
 }
+
+void
+postman_stop (Postman *postman)
+{
+    pthread_join(postman->thread);
+}

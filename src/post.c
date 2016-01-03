@@ -9,86 +9,6 @@
 #include "utils.h"
 
 /*
- * Every loop the thread expects a message at index 1 in its Lua state. It also
- * expects for its author & tone information to exist. It sends the message to
- * the audience and then waits for a new message.
- */
-void *
-postman_thread (void *arg)
-{
-    Actor *recipient;
-    Postman *postman = arg;
-    lua_State *P = postman->L;
-    const int message_index = 1;
-    const int audience_index = 2;
-
-    pthread_mutex_lock(&postman->lock);
-
-    while (postman->working) {
-        if (!lua_istable(P, message_index)
-           || postman->author == NULL
-           || postman->tone == NULL)
-            goto wait_for_work;
-
-        audience_filter_tone(P, postman->author, postman->tone);
-
-        /* the audience doesn't provide any recipients for tone 'whisper' */
-        if (postman->recipient != NULL)
-            audience_set(P, postman->recipient, 1);
-
-        lua_pushnil(P);
-        while (lua_next(P, audience_index)) {
-            recipient = lua_check_actor(P, -1);
-            lua_pushvalue(P, message_index);
-            mailbox_send_lua_top(P, recipient->mailbox, postman->author);
-            lua_pop(P, 2); /* key & message table */
-        }
-        lua_pop(P, 2); /* audience table & message */
-
-wait_for_work:
-        postman->recipient = NULL;
-        postman->author = NULL;
-        postman->tone = NULL;
-        postman->waiting = 1;
-        while (postman->waiting)
-            pthread_cond_wait(&postman->wait_cond, &postman->lock);
-    }
-
-    pthread_mutex_unlock(&postman->lock);
-    return NULL;
-}
-
-Postman *
-postman_start ()
-{
-    lua_State *P;
-    pthread_mutexattr_t mutex_attr;
-    Postman *postman = malloc(sizeof(*postman));
-
-    postman->working = 1;
-    postman->waiting = 1;
-    postman->author = NULL;
-    postman->recipient = NULL;
-    postman->tone = NULL;
-    postman->L = luaL_newstate();
-    P = postman->L;
-    luaL_openlibs(P);
-
-    luaL_requiref(P, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(P, 1);
-
-    pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&postman->lock, &mutex_attr);
-    postman->wait_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
-
-    pthread_create(&postman->thread, NULL, postman_thread, postman);
-    pthread_detach(postman->thread);
-
-    return postman;
-}
-
-/*
  * Delivers the message on top of the given Lua stack. If the tone is 'whisper'
  * we assume there is a recipient Actor on top and a message beneath. The Post
  * copies all the needed data, balances the given Lua stack and sets a Postman
@@ -144,13 +64,20 @@ lua_check_post (lua_State *L, int index)
 }
 
 /*
- * Create a new Post -- a collection of Postmen.
+ * Create the Post for the Dialogue.
+ *
+ * Dialogue.Post.init(thread_count, actors per thread)
+ *
+ * This function turns the Dialogue.Post from a table into an object. It makes
+ * it come alive, singleton style.
  */
 int
-lua_post_new (lua_State *L)
+lua_post_init (lua_State *L)
 {
     Post *post;
-    int i, postmen_count = luaL_checkinteger(L, 1);
+    int thread_count = luaL_optinteger(L, 1, 4);
+    int actors_per_thread = luaL_optinteger(L, 2, 1024);
+    int i;
 
     post = lua_newuserdata(L, sizeof(*post));
     luaL_getmetatable(L, POST_LIB);
@@ -163,41 +90,81 @@ lua_post_new (lua_State *L)
         luaL_error(L, "Not enough memory to create Postmen");
 
     for (i = 0; i < postmen_count; i++)
-        post->postmen[i] = postman_start();
+        post->postmen[i] = postman_create();
 
-    /* create a ref so we can control gc */
-    post->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, post->ref);
+    /* Append to the Dialogue tree the object for all `methods' to use */
+    luaf(L, "Dialogue.Post.__obj = %3");
     
-    return 1;
+    return 0;
 }
 
 /*
- * Wait and lock each of the Postmen. Then turn off their loops and signal it 
- * to come back on.
+ * The Post handles mail in aggregate. It doesn't make sense that an 
+ * asynchronous execution should have to get bottlenecked. It is a thread safe
+ * method for sending Envelopes.
+ *
+ * Envelopes are just tables of data in a specific form. In this case, the form
+ * is:
+ *      { Actor , Action [, arg1 [, arg2 ...]] }
+ *  Where arg1..argn may be yet another Envelope-like sequence. The Action of
+ *  sending a message is implemented like this:
+ *      { player, "send", "damage", "10" }
+ *  Just like the table for the Post itself, uses this form, the Envelopes the
+ *  Actors use have the same form, just without the needless preprended author
+ *  -- but the Post already has that information.
+ *
+ *  Dialogue.Post.send(actor, action, ...)
  */
+int
+lua_post_send (lua_State *L)
+{
+    int i, args = lua_gettop(L);
+
+    /*
+     * TODO:
+     *      Can parse the common slots for Actors (slots 1 and 3) so we can
+     * reference them all at one point. I'm envisioning:
+     *
+     * On creation of Envelope:
+     *      actor_ref_then_push(L, 1);
+     *
+     * For getting info out:
+     *      actor_deref_then_push(L, 1);
+     *
+     *      Each action is ran under the conditions that no actor referencing 
+     * is done outside the set slots. This allows references to disappear 
+     * introducing the notion of checking nil. Using actor:ref assures that 
+     * the reference will keep the actor from being garbage collected.
+     *
+     *
+     *      After a few moments, I had the thought that if I just make 
+     * actor:audience use actor:ref then, all the references would be made 
+     * automatically for us. And on second thought -- this puts us in Lua 
+     * territory. We should only be concerned for the references that exist in
+     * our system.
+     *
+     *      We need to be concerned with direct references inside our Sytem and 
+     * direct references outside the system to actors inside the system. So, 
+     * the interpreter land should count as references and should keep an actor
+     * from being deleted (and garbage collected), but not benched.
+     */
+    lua_newtable(L);
+    for (i = 1; i <= args; i++) {
+        lua_pushvalue(L, i);
+        lua_rawseti(L, -2, i);
+    }
+
+    return 1;
+}
+
 int
 lua_post_gc (lua_State *L)
 {
     Post *post = lua_check_post(L, 1);
-    int i, rc, lock_count = 0;
+    int i;
 
-    for (i = 0; lock_count < post->postmen_count; i = i % post->postmen_count) {
-        rc = pthread_mutex_trylock(&post->postmen[i]->lock);
-        if (rc == EBUSY)
-            continue;
-        lock_count++;
-    }
-
-    for (i = 0; i < post->postmen_count; i++) {
-        post->postmen[i]->waiting = 0;
-        post->postmen[i]->working = 0;
-        pthread_mutex_unlock(&post->postmen[i]->lock);
-        pthread_cond_signal(&post->postmen[i]->wait_cond);
-        usleep(1000);
-        lua_close(post->postmen[i]->L);
-        free(post->postmen[i]);
-    }
+    for (i = 0; i < post->thread_count; i++)
+        postman_stop(post->postmen[i]);
 
     free(post->postmen);
 
