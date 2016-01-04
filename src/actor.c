@@ -170,6 +170,7 @@ lua_actor_new (lua_State *L)
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&actor->state_mutex, &mutex_attr);
+    pthread_mutex_init(&actor->reference_mutex, &mutex_attr);
     pthread_rwlock_init(&actor->structure, NULL);
 
     actor->parent = NULL;
@@ -179,6 +180,7 @@ lua_actor_new (lua_State *L)
     actor->script_head = NULL;
     actor->script_tail = NULL;
     actor->mailbox = NULL;
+    actor->reference_count = 0; /* no envelopes or outside structures ref */
 
     luaf(L, "return (%1[1] == 'Lead'), (%1[1] == 'Star')", 2);
     actor->is_lead = lua_toboolean(L, -2);

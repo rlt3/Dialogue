@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "actor.h"
+#include "post.h"
 #include "luaf.h"
 
 /* 
@@ -97,8 +98,8 @@ luaopen_Dialogue (lua_State *L)
     luaL_requiref(L, ACTOR_LIB, luaopen_Dialogue_Actor, 1);
     lua_setfield(L, t_index, "Actor");
     
-    //luaL_requiref(L, POST_LIB, luaopen_Dialogue_Post, 1);
-    //lua_setfield(L, t_index, "Post");
+    luaL_requiref(L, POST_LIB, luaopen_Dialogue_Post, 1);
+    lua_setfield(L, t_index, "Post");
 
     //lua_pushcfunction(L, lua_dialogue_lead);
     //lua_setfield(L, t_index, "lead");

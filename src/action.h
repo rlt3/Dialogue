@@ -1,6 +1,10 @@
 #ifndef DIALOGUE_ACTION
 #define DIALOGUE_ACTION
 
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+
 /*
  * These are the Actions of Dialogue -- all the primitives of the system.
  */
@@ -21,7 +25,17 @@ enum Action {
  * Expects the Author on top and the definition table beneath.
  */
 int
-action_create (Lua_state *L);
+action_create (lua_State *L);
+
+/*
+ */
+int
+action_bench (lua_State *L);
+
+/*
+ */
+int
+action_join (lua_State *L);
 
 /*
  * Attempt to remove and quarantine an Actor from the Dialogue tre before
@@ -29,7 +43,7 @@ action_create (Lua_state *L);
  * traffic via the tree will cease.
  */
 int
-action_remove (Lua_state *L);
+action_remove (lua_State *L);
 
 /*
  * When a REMOVE action is called, if it succeeds, it sends a DELETE message.
@@ -39,7 +53,7 @@ action_remove (Lua_state *L);
  * message if not.
  */
 int
-action_delete (Lua_state *L);
+action_delete (lua_State *L);
 
 /*
  * Load the Actor as per the data.
@@ -61,5 +75,10 @@ action_send (lua_State *L);
  */
 int
 action_end (lua_State *L);
+
+/*
+ */
+int
+action_error (lua_State *L);
 
 #endif

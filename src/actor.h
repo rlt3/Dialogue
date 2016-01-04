@@ -4,8 +4,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-
-#include "actor_thread.h"
+#include <pthread.h>
 
 #define ACTOR_LIB "Dialogue.Actor"
 
@@ -20,6 +19,11 @@ typedef struct Actor {
 
     /* For everything else including the state & scripts */
     pthread_mutex_t state_mutex;
+
+    /* For everything else including the state & scripts */
+    pthread_mutex_t reference_mutex;
+
+    int reference_count;
 
     /*
      * Restrict to single thread. If is_star is true, then restrict to main 

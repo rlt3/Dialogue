@@ -1,61 +1,19 @@
 #include <stdlib.h>
-#include <string.h>
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
 #include "dialogue.h"
+#include "postman.h"
 #include "post.h"
-#include "tone.h"
 #include "utils.h"
+#include "luaf.h"
 
-/*
- * Delivers the message on top of the given Lua stack. If the tone is 'whisper'
- * we assume there is a recipient Actor on top and a message beneath. The Post
- * copies all the needed data, balances the given Lua stack and sets a Postman
- * to send the message.
- */
-void
-post_deliver_lua_top (lua_State *L, Post *post, Actor *author, const char *tone)
-{
-    Postman *postman;
-    int i, rc;
+typedef struct Post {
+    Postman **postmen;
+    int postmen_count;
+    int actors_per_postman;
+} Post;
 
-    if (post == NULL || post->postmen == NULL)
-        return;
-
-    for (i = 0; i < post->postmen_count; i = (i + 1) % post->postmen_count) {
-        postman = post->postmen[i];
-        rc = pthread_mutex_trylock(&postman->lock);
-
-        if (rc == EBUSY)
-            continue;
-
-        /* we've gone so fast we've re-acquired before the signal has locked */
-        if (!postman->waiting) {
-            pthread_mutex_unlock(&postman->lock);
-            continue;
-        }
-
-        /* expecting the message on top of L */
-        utils_copy_top(postman->L, L);
-        
-        if (strcmp(tone, "whisper") == 0) {
-            /* pop the message and get the recipient beneath */
-            lua_pop(L, 1); 
-            postman->recipient = lua_check_actor(L, -1);
-        }
-
-        postman->author = author;
-        postman->tone = tone;
-        postman->waiting = 0;
-        pthread_mutex_unlock(&postman->lock);
-        pthread_cond_signal(&postman->wait_cond);
-
-        break;
-    }
-
-    lua_pop(L, 1); /* the on top */
-}
 
 Post *
 lua_check_post (lua_State *L, int index)
@@ -66,16 +24,16 @@ lua_check_post (lua_State *L, int index)
 /*
  * Create the Post for the Dialogue.
  *
- * Dialogue.Post.init(thread_count, actors per thread)
+ * Dialogue.Post.new(postmen_count, actors per thread)
  *
  * This function turns the Dialogue.Post from a table into an object. It makes
  * it come alive, singleton style.
  */
 int
-lua_post_init (lua_State *L)
+lua_post_new (lua_State *L)
 {
     Post *post;
-    int thread_count = luaL_optinteger(L, 1, 4);
+    int postmen_count = luaL_optinteger(L, 1, 4);
     int actors_per_thread = luaL_optinteger(L, 2, 1024);
     int i;
 
@@ -84,6 +42,7 @@ lua_post_init (lua_State *L)
     lua_setmetatable(L, -2);
 
     post->postmen_count = postmen_count;
+    post->actors_per_postman = actors_per_thread;
     post->postmen = malloc(sizeof(Postman*) * postmen_count);
 
     if (post->postmen == NULL)
@@ -96,6 +55,16 @@ lua_post_init (lua_State *L)
     luaf(L, "Dialogue.Post.__obj = %3");
     
     return 0;
+}
+
+Post *
+lua_getpost (lua_State *L)
+{
+    Post *post;
+    luaf(L, "return Dialogue.Post.__obj", 1);
+    post = lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    return post;
 }
 
 /*
@@ -119,6 +88,7 @@ int
 lua_post_send (lua_State *L)
 {
     int i, args = lua_gettop(L);
+    Post *post = lua_getpost(L);
 
     /*
      * TODO:
@@ -154,6 +124,10 @@ lua_post_send (lua_State *L)
         lua_rawseti(L, -2, i);
     }
 
+    for (i = 0; i < post->postmen_count; i = (i + 1) % post->postmen_count)
+        if (mailbox_send_lua_top(post->postmen[i]->mailbox, L))
+            break;
+
     return 1;
 }
 
@@ -163,7 +137,7 @@ lua_post_gc (lua_State *L)
     Post *post = lua_check_post(L, 1);
     int i;
 
-    for (i = 0; i < post->thread_count; i++)
+    for (i = 0; i < post->postmen_count; i++)
         postman_stop(post->postmen[i]);
 
     free(post->postmen);

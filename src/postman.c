@@ -1,7 +1,9 @@
+#include <stdlib.h>
+#include "postman.h"
 #include "dialogue.h"
 #include "mailbox.h"
-#include "postman.h"
-#include "actions.h"
+#include "action.h"
+#include "luaf.h"
 
 static const char *postman_bag = "__postman_bag";
 static const int resend_arg = 1;
@@ -17,6 +19,7 @@ void *
 postman_thread (void *arg)
 {
     Postman *postman = arg;
+    const char *action;
     lua_State *P = postman->L;
 
     while (postman->working) {
@@ -27,13 +30,17 @@ postman_thread (void *arg)
         /* fill the postman's bag with any envelopes from its mailbox */
         postman_fill_bag(postman);
 
+        luaf(P, "return %1:nth(2)");
+        action = lua_tostring(P, -1);
+        lua_pop(P, 1);
+
         /*
          * Anyone of these actions may add an envelope from the 'postman bag'
          * to the 'resend bag'. This is so we can keep Postman always working
          * instead of waiting on a resource.
          */
         while (lua_next(P, bag_arg)) {
-            switch (envelope->action) {
+            switch (action[0]) {
                 case 'c': /* create */
                     action_create(P);
                     break;
@@ -74,7 +81,7 @@ postman_thread (void *arg)
         }
 
         /* Set the resend bag as our 'postman bag' */
-        lua_pop(L, 1);
+        lua_pop(P, 1);
         lua_setglobal(P, postman_bag);
     }
 
@@ -105,7 +112,7 @@ postman_create ()
     Postman *postman = malloc(sizeof(*postman));
     postman->mailbox = mailbox_create();
     postman->L = luaL_newstate();
-    P = actor->L;
+    P = postman->L;
     luaL_openlibs(P);
     
     /* 
@@ -126,5 +133,5 @@ postman_create ()
 void
 postman_stop (Postman *postman)
 {
-    pthread_join(postman->thread);
+    pthread_join(postman->thread, NULL);
 }
