@@ -3,7 +3,7 @@ CC=clang
 
 ifeq ($(DIALOGUE_HEADLESS), true)
   MODULE=Dialogue.so
-  SOURCES=src/dialogue.o src/actor.o src/script.o  src/luaf.o src/utils.o
+  SOURCES=src/action.o src/dialogue.o src/script.o src/actor.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o
 else
   MODULE=dialogue
   SOURCES=src/main.o src/action.o src/dialogue.o src/script.o src/actor.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o

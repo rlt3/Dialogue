@@ -3,6 +3,10 @@
 
 #define POST_LIB "Dialogue.Post"
 
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+
 /*
  * The Post is the processing end of Dialogue.
  *

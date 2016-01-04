@@ -6,7 +6,7 @@
 #include "luaf.h"
 
 static const char *postman_bag = "__postman_bag";
-static const int resend_arg = 1;
+//static const int resend_arg = 1;
 static const int bag_arg = 2;
 
 /*
@@ -23,66 +23,68 @@ postman_thread (void *arg)
     lua_State *P = postman->L;
 
     while (postman->working) {
-        /* Create the 'resend bag' and push the 'postman bag' */
-        lua_newtable(P);
-        lua_getglobal(P, postman_bag);
+        ///* Create the 'resend bag' and push the 'postman bag' */
+        //lua_newtable(P);
+        //lua_getglobal(P, postman_bag);
 
-        /* fill the postman's bag with any envelopes from its mailbox */
-        postman_fill_bag(postman);
+        ///* fill the postman's bag with any envelopes from its mailbox */
+        //postman_fill_bag(postman);
 
-        luaf(P, "return %1:nth(2)");
-        action = lua_tostring(P, -1);
-        lua_pop(P, 1);
+        ///*
+        // * Anyone of these actions may add an envelope from the 'postman bag'
+        // * to the 'resend bag'. This is so we can keep Postman always working
+        // * instead of waiting on a resource.
+        // */
+        //lua_pushnil(P);
+        //while (lua_next(P, bag_arg)) {
 
-        /*
-         * Anyone of these actions may add an envelope from the 'postman bag'
-         * to the 'resend bag'. This is so we can keep Postman always working
-         * instead of waiting on a resource.
-         */
-        while (lua_next(P, bag_arg)) {
-            switch (action[0]) {
-                case 'c': /* create */
-                    action_create(P);
-                    break;
+        //    lua_rawgeti(P, -1, 2);
+        //    action = lua_tostring(P, -1);
+        //    lua_pop(P, 1);
 
-                case 'b': /* bench  */
-                    action_bench(P);
-                    break;
+        //    switch (action[0]) {
+        //        case 'c': /* create */
+        //            action_create(P);
+        //            break;
 
-                case 'j': /* join   */
-                    action_join(P);
-                    break;
+        //        case 'b': /* bench  */
+        //            action_bench(P);
+        //            break;
 
-                case 'r': /* remove */
-                    action_remove(P);
-                    break;
+        //        case 'j': /* join   */
+        //            action_join(P);
+        //            break;
 
-                case 'd': /* delete */
-                    action_delete(P);
-                    break;
+        //        case 'r': /* remove */
+        //            action_remove(P);
+        //            break;
 
-                case 'l': /* load   */
-                    action_load(P);
-                    break;
+        //        case 'd': /* delete */
+        //            action_delete(P);
+        //            break;
 
-                case 's': /* send   */
-                    action_send(P);
-                    break;
+        //        case 'l': /* load   */
+        //            action_load(P);
+        //            break;
 
-                case 'e': /* error  */
-                    action_error(P);
-                    break;
+        //        case 's': /* send   */
+        //            action_send(P);
+        //            break;
 
-                default:
-                    luaf(P, "Dialogue.Post.send(nil, 'error', 'Nil Action!')");
-                    break;
-            }
-            lua_pop(P, 1);
-        }
+        //        case 'e': /* error  */
+        //            action_error(P);
+        //            break;
 
-        /* Set the resend bag as our 'postman bag' */
-        lua_pop(P, 1);
-        lua_setglobal(P, postman_bag);
+        //        default:
+        //            luaf(P, "Dialogue.Post.send(nil, 'error', 'Nil Action!')");
+        //            break;
+        //    }
+        //    lua_pop(P, 1);
+        //}
+
+        ///* Set the resend bag as our 'postman bag' */
+        //lua_pop(P, 1);
+        //lua_setglobal(P, postman_bag);
     }
 
     return NULL;
@@ -110,6 +112,8 @@ postman_create ()
 {
     lua_State *P;
     Postman *postman = malloc(sizeof(*postman));
+
+    postman->working = 1;
     postman->mailbox = mailbox_create();
     postman->L = luaL_newstate();
     P = postman->L;
@@ -124,6 +128,8 @@ postman_create ()
     luaL_requiref(P, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(P, 1);
 
+    pthread_create(&postman->thread, NULL, postman_thread, postman);
+
     /*
      * semaphore for the per_thread?
      */
@@ -133,5 +139,7 @@ postman_create ()
 void
 postman_stop (Postman *postman)
 {
+    postman->working = 0;
     pthread_join(postman->thread, NULL);
+    free(postman);
 }

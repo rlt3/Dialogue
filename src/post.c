@@ -2,9 +2,9 @@
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
+#include "post.h"
 #include "dialogue.h"
 #include "postman.h"
-#include "post.h"
 #include "utils.h"
 #include "luaf.h"
 
@@ -33,8 +33,10 @@ int
 lua_post_new (lua_State *L)
 {
     Post *post;
-    int postmen_count = luaL_optinteger(L, 1, 4);
-    int actors_per_thread = luaL_optinteger(L, 2, 1024);
+    //int postmen_count = luaL_optinteger(L, 1, 4);
+    //int actors_per_thread = luaL_optinteger(L, 2, 1024);
+    int postmen_count = luaL_checkinteger(L, 1);
+    int actors_per_thread = luaL_checkinteger(L, 2);
     int i;
 
     post = lua_newuserdata(L, sizeof(*post));
@@ -45,15 +47,37 @@ lua_post_new (lua_State *L)
     post->actors_per_postman = actors_per_thread;
     post->postmen = malloc(sizeof(Postman*) * postmen_count);
 
+    printf("CREATE Post: %p\n", post);
+
     if (post->postmen == NULL)
         luaL_error(L, "Not enough memory to create Postmen");
 
-    for (i = 0; i < postmen_count; i++)
+    for (i = 0; i < postmen_count; i++) {
         post->postmen[i] = postman_create();
+        printf("    CREATE Postman: %p\n", post->postmen[i]);
+    }
 
     /* Append to the Dialogue tree the object for all `methods' to use */
-    luaf(L, "Dialogue.Post.__obj = %3");
+    //luaf(L, "Dialogue.Post.__obj = %3");
     
+    return 1;
+}
+
+int
+lua_post_gc (lua_State *L)
+{
+    Post *post = lua_check_post(L, 1);
+    int i;
+
+    printf("DELETE Post: %p\n", post);
+
+    for (i = 0; i < post->postmen_count; i++) {
+        printf("    DELETE Postman: %p\n", post->postmen[i]);
+        postman_stop(post->postmen[i]);
+    }
+
+    free(post->postmen);
+
     return 0;
 }
 
@@ -129,20 +153,6 @@ lua_post_send (lua_State *L)
             break;
 
     return 1;
-}
-
-int
-lua_post_gc (lua_State *L)
-{
-    Post *post = lua_check_post(L, 1);
-    int i;
-
-    for (i = 0; i < post->postmen_count; i++)
-        postman_stop(post->postmen[i]);
-
-    free(post->postmen);
-
-    return 0;
 }
 
 int

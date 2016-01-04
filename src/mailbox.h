@@ -1,7 +1,9 @@
 #ifndef DIALOGUE_MAILBOX
 #define DIALOGUE_MAILBOX
 
-#include "actor.h"
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 
 struct Mailbox *
 mailbox_create ();
