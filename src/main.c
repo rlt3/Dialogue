@@ -58,9 +58,12 @@ main (int argc, char **argv)
     gettimeofday(&start, NULL);
     for (i = 0; i < 100000; i++) {
         lua_getfield(L, -1, "send");
+        lua_newtable(L);
         lua_getglobal(L, "actor");
+        lua_rawseti(L, -2, 1);
         lua_pushstring(L, "send");
-        lua_call(L, 2, 0);
+        lua_rawseti(L, -2, 2);
+        lua_call(L, 1, 0);
     }
     gettimeofday(&stop, NULL);
 

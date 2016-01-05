@@ -12,6 +12,7 @@ typedef struct Post {
     Postman **postmen;
     int postmen_count;
     int actors_per_postman;
+    int seed;
 } Post;
 
 
@@ -45,6 +46,8 @@ lua_post_new (lua_State *L)
     post->postmen_count = postmen_count;
     post->actors_per_postman = actors_per_thread;
     post->postmen = malloc(sizeof(Postman*) * postmen_count);
+    post->seed = time(NULL);
+    srand(post->seed);
 
     printf("CREATE Post: %p\n", post);
 
@@ -117,44 +120,12 @@ lua_getpost (lua_State *L)
 int
 lua_post_send (lua_State *L)
 {
-    int i, args = lua_gettop(L);
     Post *post = lua_getpost(L);
+    int start = rand() % post->postmen_count;
+    //int start = 0;
+    int i;
 
-    /*
-     * TODO:
-     *      Can parse the common slots for Actors (slots 1 and 3) so we can
-     * reference them all at one point. I'm envisioning:
-     *
-     * On creation of Envelope:
-     *      actor_ref_then_push(L, 1);
-     *
-     * For getting info out:
-     *      actor_deref_then_push(L, 1);
-     *
-     *      Each action is ran under the conditions that no actor referencing 
-     * is done outside the set slots. This allows references to disappear 
-     * introducing the notion of checking nil. Using actor:ref assures that 
-     * the reference will keep the actor from being garbage collected.
-     *
-     *
-     *      After a few moments, I had the thought that if I just make 
-     * actor:audience use actor:ref then, all the references would be made 
-     * automatically for us. And on second thought -- this puts us in Lua 
-     * territory. We should only be concerned for the references that exist in
-     * our system.
-     *
-     *      We need to be concerned with direct references inside our Sytem and 
-     * direct references outside the system to actors inside the system. So, 
-     * the interpreter land should count as references and should keep an actor
-     * from being deleted (and garbage collected), but not benched.
-     */
-    lua_newtable(L);
-    for (i = 1; i <= args; i++) {
-        lua_pushvalue(L, i);
-        lua_rawseti(L, -2, i);
-    }
-
-    for (i = 0; i < post->postmen_count; i = (i + 1) % post->postmen_count)
+    for (i = start; i < post->postmen_count; i = (i + 1) % post->postmen_count)
         if (mailbox_send_lua_top(post->postmen[i]->mailbox, L))
             break;
 
