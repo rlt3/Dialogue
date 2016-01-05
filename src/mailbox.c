@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <pthread.h>
+#include <errno.h>
 #include "dialogue.h"
 #include "luaf.h"
 #include "collection.h"
@@ -71,13 +72,17 @@ mailbox_destroy (Mailbox *mailbox)
 int
 mailbox_send_lua_top (Mailbox *mailbox, lua_State *L)
 {
+    int rc;
     lua_State *B = mailbox->L;
 
-    pthread_mutex_lock(&mailbox->mutex);
+    rc = pthread_mutex_trylock(&mailbox->mutex);
+    if (rc == EBUSY)
+        return 0;
+
     lua_getglobal(B, "__envelopes");
     utils_copy_top(B, L);
     lua_rawseti(B, -2, mailbox->envelope_count + 1);
-    lua_pop(B, 5);
+    lua_pop(B, 1);
     mailbox->envelope_count++;
     pthread_mutex_unlock(&mailbox->mutex);
 

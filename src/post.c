@@ -33,10 +33,9 @@ int
 lua_post_new (lua_State *L)
 {
     Post *post;
-    //int postmen_count = luaL_optinteger(L, 1, 4);
-    //int actors_per_thread = luaL_optinteger(L, 2, 1024);
-    int postmen_count = luaL_checkinteger(L, 1);
-    int actors_per_thread = luaL_checkinteger(L, 2);
+    int postmen_count = luaL_optinteger(L, 1, 4);
+    int actors_per_thread = luaL_optinteger(L, 2, 1024);
+    int post_index = lua_gettop(L) + 1;
     int i;
 
     post = lua_newuserdata(L, sizeof(*post));
@@ -58,6 +57,13 @@ lua_post_new (lua_State *L)
     }
 
     /* Append to the Dialogue tree the object for all `methods' to use */
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Post");
+    lua_pushvalue(L, post_index);
+    lua_setfield(L, -2, "__obj");
+    lua_pop(L, 2);
+
+    /* TODO: figure out why luaf doesn't work here */
     //luaf(L, "Dialogue.Post.__obj = %3");
     
     return 1;
@@ -177,5 +183,22 @@ static const luaL_Reg post_methods[] = {
 int 
 luaopen_Dialogue_Post (lua_State *L)
 {
-    return utils_lua_meta_open(L, POST_LIB, post_methods, lua_post_new);
+    /* create metatable */
+    luaL_newmetatable(L, POST_LIB);
+
+    /* metatable.__index = metatable */
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -1, "__index");
+
+    /* register methods */
+    luaL_setfuncs(L, post_methods, 0);
+
+    lua_newtable(L);
+    lua_pushcfunction(L, lua_post_new);
+    lua_setfield(L, -2, "init");
+
+    lua_pushcfunction(L, lua_post_send);
+    lua_setfield(L, -2, "send");
+
+    return 1;
 }
