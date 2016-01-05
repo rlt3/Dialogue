@@ -62,15 +62,32 @@ action_load (lua_State *L)
 int
 action_send (lua_State *L)
 {
+    lua_State *A;
     Script *script;
-    Actor *author = lua_check_actor(L, -1);
+    Actor *author;
 
+    lua_rawgeti(L, -1, 1);
+    author = lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    /* 
+     * get the tail of the table from index 3 and greater because that's the
+     * actor's envelope form
+     */
     utils_push_table_sub(L, lua_gettop(L), 3);
+
+    A = actor_request_state(author);
+    utils_copy_top(A, L);
 
     for (script = author->script_head; script != NULL; script = script->next)
         if (script->is_loaded)
-            script_send(script, author);
+            if (script_send(script, author))
+                printf("%s\n", script->error);
 
+    lua_pop(A, 1);
+    actor_return_state(author);
+
+    lua_pop(L, 1);
     return 0;
 }
 

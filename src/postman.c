@@ -38,6 +38,13 @@ postman_thread (void *arg)
         lua_pushnil(P);
         while (lua_next(P, bag_arg)) {
 
+            /*
+             * TODO:
+             *    Handle actor and action requirement as separate variables
+             * and have the 'send' message table be an actual optional table
+             * so that this can move more fluidly.
+             */
+
             lua_rawgeti(P, -1, 2);
             action = lua_tostring(P, -1);
             lua_pop(P, 1);
