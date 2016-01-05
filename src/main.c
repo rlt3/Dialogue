@@ -56,7 +56,7 @@ main (int argc, char **argv)
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Post");
     gettimeofday(&start, NULL);
-    for (i = 0; i < 100000; i++) {
+    for (i = 0; i < 200000; i++) {
         lua_getfield(L, -1, "send");
         lua_newtable(L);
         lua_getglobal(L, "actor");
@@ -66,11 +66,6 @@ main (int argc, char **argv)
         lua_call(L, 1, 0);
     }
     gettimeofday(&stop, NULL);
-
-    //gettimeofday(&start, NULL);
-    //for (i = 0; i < 100000; i++)
-    //    luaf(L, "Dialogue.Post.send(actor, 'send')");
-    //gettimeofday(&stop, NULL);
 
     printf("%f\n", (double)(stop.tv_usec - start.tv_usec) / 1000000 + (double)(stop.tv_sec - start.tv_sec));
 
