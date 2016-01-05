@@ -4,6 +4,7 @@
 #include <sys/time.h>
 
 #include "dialogue.h"
+#include "interpreter.h"
 #include "collection.h"
 #include "luaf.h"
 
@@ -25,8 +26,9 @@ usage (const char *program)
 int
 main (int argc, char **argv)
 {
-    int i;
-    struct timeval stop, start;
+    //int i;
+    //struct timeval stop, start;
+    short int running = 1;
     const char *file;
     lua_State *L;
 
@@ -48,6 +50,11 @@ main (int argc, char **argv)
         fprintf(stderr, "%s\n", lua_tostring(L, -1));
         goto exit;
     }
+
+    interpreter_register(L, &running);
+
+    while (running)
+        lua_interpret(L);
 
     /*
      * from http://stackoverflow.com/questions/10192903/time-in-milliseconds

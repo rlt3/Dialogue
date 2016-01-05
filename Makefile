@@ -6,7 +6,7 @@ ifeq ($(DIALOGUE_HEADLESS), true)
   SOURCES=src/action.o src/dialogue.o src/script.o src/actor.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o
 else
   MODULE=dialogue
-  SOURCES=src/main.o src/action.o src/dialogue.o src/script.o src/actor.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o
+  SOURCES=src/main.o src/interpreter.o src/action.o src/dialogue.o src/script.o src/actor.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o
 endif
 
 ifeq ($(UNAME), Linux)

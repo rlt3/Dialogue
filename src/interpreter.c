@@ -12,143 +12,86 @@
 
 #define LINE_SIZE 256
 
-typedef enum WaitAction {
-    NONE, INPUT, POLLING
-} WaitAction;
-
-struct Interpreter {
-    pthread_t thread;
-    pthread_mutex_t input_mutex;
-    pthread_cond_t wait_cond;
-    WaitAction wait_state;
-    short int *is_running;
-    const char *line;
-};
-
-/*
- * Print the Lua error.
- */
-void
-lua_printerror (lua_State *L)
-{
-    printf("%s\n", lua_tostring(L, -1));
-}
+static pthread_t thread;
+static pthread_mutex_t mutex;
+static pthread_cond_t wait_cond;
+static short int input_ready;
+static short int *running;
+static const char *input_line;
 
 /*
  * Interpret the input in the given lua_State*.
  */
 void
-lua_interpret (lua_State *L, const char *input)
+lua_interpret (lua_State *L)
 {
+    const char *input = interpreter_current_input();
+
     if (input == NULL)
         return;
 
-    lua_getglobal(L, "loadstring");
-    lua_pushstring(L, input);
-    lua_call(L, 1, 1);
-    
-    if (lua_isfunction(L, -1)) {
-        if (lua_pcall(L, 0, 0, 0))
-            lua_printerror(L);
-    } else {
-        lua_pop(L, 1);
-    }
+    if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0))
+        printf("%s\n", lua_tostring(L, -1));
+
+    interpreter_next_input();
 }
 
-/*
- * Wait for input to be received. When it is, unlock the mutex and wait for the
- * signal to start looking for more input.
- */
-void *
-interpreter_thread (void *arg)
-{
-    char *input;
-    Interpreter *interpreter = arg;
-
-    pthread_mutex_lock(&interpreter->input_mutex);
-
-    printf("Dialogue v0.0 with Lua v5.2\n"
-           "    type `exit()` to exit.\n");
-
-    while (*interpreter->is_running) {
-        interpreter->wait_state = INPUT;
-        input = readline("> ");
-        add_history(input);
-
-        interpreter->line = input;
-        interpreter->wait_state = POLLING;
-        while (interpreter->wait_state == POLLING) {
-            pthread_cond_wait(&interpreter->wait_cond, 
-                    &interpreter->input_mutex);
-        }
-    }
-
-    return NULL;
-}
-
-/*
- * Free any resources of the interpreter outside of its loop.
- */
 void
-interpreter_free (Interpreter *interpreter)
+interpreter_exit ()
 {
-    free(interpreter);
-}
-
-/*
- * Since readline blocks the interpreter thread, we need to signal it to make
- * absolutely sure it ends.
- */
-void
-interpreter_exit (Interpreter *interpreter)
-{
-    short int *running = interpreter->is_running;
-
-    pthread_kill(interpreter->thread, SIGINT);
-    usleep(1000);
-
     puts("\nGoodbye.");
     *running = 0;
 }
 
 /*
- * Exit the interpreter (and main loop) from within Lua.
+ * When there is input, set the input to be received and wait.
  */
-int 
-lua_exit (lua_State *L)
+void 
+rl_input_handler (char* line)
 {
-    Interpreter *interpreter;
-    lua_getglobal(L, "__interpreter");
-    interpreter = lua_touserdata(L, 1);
-    interpreter_exit(interpreter);
-    return 0;
+  if (line == NULL) {
+      interpreter_exit();
+  } else {
+    if (*line != 0)
+        add_history(line);
+
+        input_line = line;
+        input_ready = 1;
+        while (input_ready)
+            pthread_cond_wait(&wait_cond, &mutex);
+        free(line);
+        input_line = NULL;
+  }
 }
 
 /*
- * Set the exit() functions in a Lua state. This allows for that Lua state to
- * exit the interpreter (and main loop).
+ * If there is input ready, returns it. Else NULL.
  */
-void
-interpreter_set_lua_exit (lua_State *L, Interpreter *interpreter)
+const char *
+interpreter_current_input ()
 {
-    lua_pushlightuserdata(L, interpreter);
-    lua_setglobal(L, "__interpreter");
-    
-    lua_pushcfunction(L, lua_exit);
-    lua_setglobal(L, "exit");  
+    const char *ret;
+    int rc = pthread_mutex_trylock(&mutex);
+    if (rc == EBUSY)
+        return NULL;
+    ret = input_line;
+    pthread_mutex_unlock(&mutex);
+    return ret;
 }
 
 /*
- * Evaluate the string given as Lua code.
+ * If the interpreter has stopped to give input, start it again. 
+ * Returns 1 if busy, 0 if started again.
  */
-int 
-lua_eval (lua_State *L)
+int
+interpreter_next_input ()
 {
-    const char *string = luaL_checkstring(L, 1);
-
-    if (luaL_loadstring(L, string) || lua_pcall(L, 0, 0, 0))
-        lua_printerror(L);
-
+    int rc = pthread_mutex_trylock(&mutex);
+    if (rc == EBUSY)
+        return 1;
+    input_ready = 0;
+    pthread_mutex_unlock(&mutex);
+    pthread_cond_signal(&wait_cond);
     return 0;
 }
 
@@ -159,62 +102,65 @@ lua_eval (lua_State *L)
 int
 interpreter_poll (Interpreter *interpreter)
 {
-    int rc = pthread_mutex_trylock(&interpreter->input_mutex);
-
+    int rc = pthread_mutex_trylock(&mutex);
     if (rc == EBUSY)
         return 0;
-
-    pthread_mutex_unlock(&interpreter->input_mutex);
+    pthread_mutex_unlock(&mutex);
     return 1;
 }
 
 /*
- * When the interpreter has input, this function uses that available input and
- * parses and executes the input for the given lua_State.
+ * Wait for input to be received. When it is, unlock the mutex and wait for the
+ * signal to start looking for more input.
  */
-void
-interpreter_lua_interpret (Interpreter *interpreter, lua_State *L)
+void *
+interpreter_thread (void *arg)
 {
-    pthread_mutex_lock(&interpreter->input_mutex);
+    const char *prompt = "> ";
+    pthread_mutex_lock(&mutex);
+    rl_callback_handler_install(prompt, (rl_vcpfunc_t*) &rl_input_handler);
 
-    lua_interpret(L, interpreter->line);
-    interpreter->line = NULL;
-    interpreter->wait_state = NONE;
+    printf("Dialogue v0.0 with Lua v5.2\n"
+           "    type `exit()` to exit.\n");
 
-    pthread_mutex_unlock(&interpreter->input_mutex);
-    pthread_cond_signal(&interpreter->wait_cond);
+    while (*running) 
+        rl_callback_read_char();
+
+    pthread_mutex_unlock(&mutex);
+
+    return NULL;
+}
+
+int
+lua_interpreter_exit (lua_State *L)
+{
+    interpreter_exit();
+    return 0;
 }
 
 /*
- * Create an interpreter for the given lua_State. Pass in a pointer to a 
- * boolean so the interpreter can be directly tied to the main thread and quit
- * the system.
+ * Register a given Lua state with the interpreter. This sets an exit function
+ * to that Lua state using the is_running_ptr, which is a pointer to a boolean
+ * integer.
  */
-Interpreter *
-interpreter_create (lua_State *L, short int *is_running_ptr)
+int
+interpreter_register (lua_State *L, short int *is_running_ptr)
 {
     pthread_mutexattr_t mutex_attr;
-    Interpreter *interpreter = malloc(sizeof(*interpreter));
 
-    if (interpreter == NULL)
-        goto exit;
-
-    interpreter->is_running = is_running_ptr;
-    interpreter->line = NULL;
-    interpreter->wait_state = NONE;
-    interpreter->wait_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    running = is_running_ptr;
+    input_line = NULL;
+    wait_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&interpreter->input_mutex, &mutex_attr);
+    pthread_mutex_init(&mutex, &mutex_attr);
     
-    lua_pushcfunction(L, lua_eval);
-    lua_setglobal(L, "eval");  
+    lua_pushcfunction(L, lua_interpreter_exit);
+    lua_setglobal(L, "exit");
 
-    interpreter_set_lua_exit(L, interpreter);
+    pthread_create(&thread, NULL, interpreter_thread, NULL);
+    pthread_detach(thread);
 
-    pthread_create(&interpreter->thread, NULL, interpreter_thread, interpreter);
-    pthread_detach(interpreter->thread);
-exit:
-    return interpreter;
+    return 0;
 }
