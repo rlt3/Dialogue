@@ -23,68 +23,68 @@ postman_thread (void *arg)
     lua_State *P = postman->L;
 
     while (postman->working) {
-        ///* Create the 'resend bag' and push the 'postman bag' */
-        //lua_newtable(P);
-        //lua_getglobal(P, postman_bag);
+        /* Create the 'resend bag' and push the 'postman bag' */
+        lua_newtable(P);
+        lua_getglobal(P, postman_bag);
 
         ///* fill the postman's bag with any envelopes from its mailbox */
-        //postman_fill_bag(postman);
+        postman_fill_bag(postman);
 
-        ///*
-        // * Anyone of these actions may add an envelope from the 'postman bag'
-        // * to the 'resend bag'. This is so we can keep Postman always working
-        // * instead of waiting on a resource.
-        // */
-        //lua_pushnil(P);
-        //while (lua_next(P, bag_arg)) {
+        /*
+         * Anyone of these actions may add an envelope from the 'postman bag'
+         * to the 'resend bag'. This is so we can keep Postman always working
+         * instead of waiting on a resource.
+         */
+        lua_pushnil(P);
+        while (lua_next(P, bag_arg)) {
 
-        //    lua_rawgeti(P, -1, 2);
-        //    action = lua_tostring(P, -1);
-        //    lua_pop(P, 1);
+            lua_rawgeti(P, -1, 2);
+            action = lua_tostring(P, -1);
+            lua_pop(P, 1);
 
-        //    switch (action[0]) {
-        //        case 'c': /* create */
-        //            action_create(P);
-        //            break;
+            switch (action[0]) {
+                case 'c': /* create */
+                    action_create(P);
+                    break;
 
-        //        case 'b': /* bench  */
-        //            action_bench(P);
-        //            break;
+                case 'b': /* bench  */
+                    action_bench(P);
+                    break;
 
-        //        case 'j': /* join   */
-        //            action_join(P);
-        //            break;
+                case 'j': /* join   */
+                    action_join(P);
+                    break;
 
-        //        case 'r': /* remove */
-        //            action_remove(P);
-        //            break;
+                case 'r': /* remove */
+                    action_remove(P);
+                    break;
 
-        //        case 'd': /* delete */
-        //            action_delete(P);
-        //            break;
+                case 'd': /* delete */
+                    action_delete(P);
+                    break;
 
-        //        case 'l': /* load   */
-        //            action_load(P);
-        //            break;
+                case 'l': /* load   */
+                    action_load(P);
+                    break;
 
-        //        case 's': /* send   */
-        //            action_send(P);
-        //            break;
+                case 's': /* send   */
+                    action_send(P);
+                    break;
 
-        //        case 'e': /* error  */
-        //            action_error(P);
-        //            break;
+                case 'e': /* error  */
+                    action_error(P);
+                    break;
 
-        //        default:
-        //            luaf(P, "Dialogue.Post.send(nil, 'error', 'Nil Action!')");
-        //            break;
-        //    }
-        //    lua_pop(P, 1);
-        //}
+                default:
+                    luaf(P, "Dialogue.Post.send(nil, 'error', 'Nil Action!')");
+                    break;
+            }
+            lua_pop(P, 1);
+        }
 
-        ///* Set the resend bag as our 'postman bag' */
-        //lua_pop(P, 1);
-        //lua_setglobal(P, postman_bag);
+        /* Set the resend bag as our 'postman bag' */
+        lua_pop(P, 1);
+        lua_setglobal(P, postman_bag);
     }
 
     return NULL;
@@ -99,12 +99,19 @@ postman_fill_bag (Postman *postman)
 {
     lua_State *P = postman->L;
 
-    if (luaL_len(P, bag_arg) > 0)
-        return;
+    /* 
+     * TODO:
+     *  It seems I *have* to run lua_type for luaL_len to work here. I don't
+     *  know why. Figure it out.
+     */
+    if (lua_type(P, bag_arg) == LUA_TTABLE)
+        if (luaL_len(P, bag_arg) > 0)
+            return;
 
     lua_pop(P, 1);
     mailbox_pop_envelopes(postman->mailbox, P);
     lua_setglobal(P, postman_bag);
+    lua_getglobal(P, postman_bag);
 }
 
 Postman *

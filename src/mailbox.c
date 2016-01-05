@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include "dialogue.h"
+#include "luaf.h"
+#include "collection.h"
 #include "mailbox.h"
 #include "utils.h"
 #include "luaf.h"
@@ -40,9 +42,10 @@ mailbox_create ()
      *  it exists, we call it as a function (incrementing whatever it may be).
      */
 
-    /* load this module (the one you're reading) into the Actor's state */
+    luaL_requiref(B, "eval", luaopen_eval, 1);
+    luaL_requiref(B, "Collection", luaopen_Collection, 1);
     luaL_requiref(B, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(B, 1);
+    lua_pop(B, 3);
 
     lua_newtable(B);
     lua_setglobal(B, "__envelopes");
