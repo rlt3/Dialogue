@@ -14,24 +14,11 @@ void
 lua_interpret (lua_State *L);
 
 /*
- * If there is input ready, returns it. Else NULL.
+ * Polls the interpreter to see if it has any input. If there's no input 
+ * available it returns NULL. Returns the string if there is.
  */
 const char *
-interpreter_current_input ();
-
-/*
- * If the interpreter has stopped to give input, start it again. 
- * Returns 1 if busy, 0 if started again.
- */
-int
-interpreter_next_input ();
-
-/*
- * Polls the interpreter to see if it has any input. If there's no input 
- * available it returns 0. If there is, returns 1.
- */
-int
-interpreter_poll (Interpreter *interpreter);
+interpreter_poll_input ();
 
 /*
  * Register a given Lua state with the interpreter. This sets an exit function

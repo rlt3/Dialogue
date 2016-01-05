@@ -8,14 +8,6 @@
 #include "collection.h"
 #include "luaf.h"
 
-static short int is_running = 1;
-
-void 
-handle_sig_int (int arg)
-{
-    is_running = 0;
-}
-
 void
 usage (const char *program)
 {
@@ -32,8 +24,6 @@ main (int argc, char **argv)
     const char *file;
     lua_State *L;
 
-    signal(SIGINT, handle_sig_int);
-
     if (argc == 1)
         usage(argv[0]);
 
@@ -46,12 +36,12 @@ main (int argc, char **argv)
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 3);
 
+    interpreter_register(L, &running);
+
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "%s\n", lua_tostring(L, -1));
         goto exit;
     }
-
-    interpreter_register(L, &running);
 
     while (running)
         lua_interpret(L);

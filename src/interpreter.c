@@ -19,23 +19,26 @@ static short int input_ready;
 static short int *running;
 static const char *input_line;
 
+int interpreter_next_input ();
+
 /*
  * Interpret the input in the given lua_State*.
  */
 void
 lua_interpret (lua_State *L)
 {
-    const char *input = interpreter_current_input();
+    const char *input = interpreter_poll_input();
 
     if (input == NULL)
         return;
 
     if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0))
         printf("%s\n", lua_tostring(L, -1));
-
-    interpreter_next_input();
 }
 
+/*
+ * Exit the interpreter.
+ */
 void
 interpreter_exit ()
 {
@@ -44,69 +47,44 @@ interpreter_exit ()
 }
 
 /*
- * When there is input, set the input to be received and wait.
- */
-void 
-rl_input_handler (char* line)
-{
-  if (line == NULL) {
-      interpreter_exit();
-  } else {
-    if (*line != 0)
-        add_history(line);
-
-        input_line = line;
-        input_ready = 1;
-        while (input_ready)
-            pthread_cond_wait(&wait_cond, &mutex);
-        free(line);
-        input_line = NULL;
-  }
-}
-
-/*
- * If there is input ready, returns it. Else NULL.
- */
-const char *
-interpreter_current_input ()
-{
-    const char *ret;
-    int rc = pthread_mutex_trylock(&mutex);
-    if (rc == EBUSY)
-        return NULL;
-    ret = input_line;
-    pthread_mutex_unlock(&mutex);
-    return ret;
-}
-
-/*
- * If the interpreter has stopped to give input, start it again. 
- * Returns 1 if busy, 0 if started again.
+ * Exit the interpreter from inside the interpreter through 'exit()'
  */
 int
-interpreter_next_input ()
+lua_interpreter_exit (lua_State *L)
 {
-    int rc = pthread_mutex_trylock(&mutex);
-    if (rc == EBUSY)
-        return 1;
-    input_ready = 0;
-    pthread_mutex_unlock(&mutex);
-    pthread_cond_signal(&wait_cond);
+    interpreter_exit();
     return 0;
 }
 
 /*
- * Polls the interpreter to see if it has any input. If there's no input 
- * available it returns 0. If there is, returns 1.
+ * Exit the interpreter via CTRL-C
  */
-int
-interpreter_poll (Interpreter *interpreter)
+void 
+handle_sig_int (int arg)
 {
+    interpreter_exit();
+}
+
+/*
+ * Polls the interpreter to see if it has any input. If there's no input 
+ * available it returns NULL. Returns the string if there is.
+ */
+const char *
+interpreter_poll_input ()
+{
+    const char *ret = NULL;
     int rc = pthread_mutex_trylock(&mutex);
+
     if (rc == EBUSY)
-        return 0;
+        return NULL;
+
+    if (input_ready)
+        ret = input_line;
+
+    input_ready = 0;
     pthread_mutex_unlock(&mutex);
-    return 1;
+    pthread_cond_signal(&wait_cond);
+    return ret;
 }
 
 /*
@@ -116,26 +94,28 @@ interpreter_poll (Interpreter *interpreter)
 void *
 interpreter_thread (void *arg)
 {
-    const char *prompt = "> ";
+    char *line;
+    signal(SIGINT, handle_sig_int);
     pthread_mutex_lock(&mutex);
-    rl_callback_handler_install(prompt, (rl_vcpfunc_t*) &rl_input_handler);
 
     printf("Dialogue v0.0 with Lua v5.2\n"
            "    type `exit()` to exit.\n");
 
-    while (*running) 
-        rl_callback_read_char();
+    while (*running) {
+        line = readline("> ");
+        add_history(line);
+
+        input_line = line;
+        input_ready = 1;
+        while (input_ready)
+            pthread_cond_wait(&wait_cond, &mutex);
+        input_line = NULL;
+        free(line);
+    }
 
     pthread_mutex_unlock(&mutex);
 
     return NULL;
-}
-
-int
-lua_interpreter_exit (lua_State *L)
-{
-    interpreter_exit();
-    return 0;
 }
 
 /*
