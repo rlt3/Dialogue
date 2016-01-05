@@ -155,6 +155,11 @@ actor_assign_lead (Actor *actor, lua_State *L)
 static int
 lua_actor_new (lua_State *L)
 {
+    const int table_arg = 1;
+    const int actor_arg = 2;
+    int script_arg;
+    int len = luaL_len(L, table_arg);
+    int i, start = 1;
     lua_State *A;
     pthread_mutexattr_t mutex_attr;
 
@@ -182,10 +187,24 @@ lua_actor_new (lua_State *L)
     actor->mailbox = NULL;
     actor->reference_count = 0; /* no envelopes or outside structures ref */
 
-    luaf(L, "return (%1[1] == 'Lead'), (%1[1] == 'Star')", 2);
-    actor->is_lead = lua_toboolean(L, -2);
-    actor->is_star = lua_toboolean(L, -1);
-    lua_pop(L, 2);
+    actor->is_lead = 0;
+    actor->is_star = 0;
+
+    lua_rawgeti(L, table_arg, start);
+    if (lua_type(L, 3) == LUA_TSTRING) {
+        start++;
+        switch (lua_tostring(L, -1)[0]) {
+        case 'S':
+            actor->is_star = 1;
+            break;
+        case 'L':
+            actor->is_lead = 1;
+            break;
+        default:
+            break;
+        }
+    }
+    lua_pop(L, 1);
 
     actor->L = luaL_newstate();
     A = actor->L;
@@ -199,19 +218,19 @@ lua_actor_new (lua_State *L)
     utils_push_object(A, actor, ACTOR_LIB);
     lua_setglobal(A, "actor");
 
-    /* get the third stack, which is our list of lists */
-    luaf(L, "if (type(%1[1]) == 'table') then "
-            "   return %1 "
-            "else "
-            "   return Collection(%1):tail() "
-            "end", 1);
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Actor");
+    lua_getfield(L, -1, "Script");
+    script_arg = lua_gettop(L);
 
-    luaf(L, "for i = 1, #%3 do "
-            "   Dialogue.Actor.Script.new(%2, %3[i]) "
-            "   %2:scripts()[i]:load() "
-            "end");
-
-    lua_pop(L, 1);
+    for (i = start; i < len; i++) {
+        lua_getfield(L, script_arg, "new");
+        lua_pushvalue(L, actor_arg);
+        lua_rawgeti(L, table_arg, i);
+        lua_call(L, 2, 1);
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 3);
 
     /* luaf(L, "Dialogue.Post.send(%2, 'load')"); */
 

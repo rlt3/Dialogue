@@ -79,6 +79,7 @@ postman_thread (void *arg)
                     luaf(P, "Dialogue.Post.send(nil, 'error', 'Nil Action!')");
                     break;
             }
+            postman->messages_processed++;
             lua_pop(P, 1);
         }
 
@@ -121,6 +122,7 @@ postman_create ()
     Postman *postman = malloc(sizeof(*postman));
 
     postman->working = 1;
+    postman->messages_processed = 0;
     postman->mailbox = mailbox_create();
     postman->L = luaL_newstate();
     P = postman->L;
@@ -146,6 +148,7 @@ postman_create ()
 void
 postman_stop (Postman *postman)
 {
+    printf("%p processed: %ld\n", postman, postman->messages_processed);
     postman->working = 0;
     pthread_join(postman->thread, NULL);
     free(postman);

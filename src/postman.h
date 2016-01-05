@@ -7,6 +7,7 @@
 typedef struct Postman {
     lua_State *L; pthread_t thread;
     int working;
+    long int messages_processed;
     struct Mailbox *mailbox;
 } Postman;
 /*

@@ -21,6 +21,11 @@ typedef struct Mailbox {
     int ref;
 } Mailbox;
 
+/*
+ * The Mailbox keeps the table at index 1 for all operations to make it fast.
+ */
+static const int envelopes_table = 1;
+
 Mailbox *
 mailbox_create ()
 {
@@ -48,8 +53,8 @@ mailbox_create ()
     luaL_requiref(B, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(B, 3);
 
+    /* Envelopes table */
     lua_newtable(B);
-    lua_setglobal(B, "__envelopes");
 
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
@@ -79,10 +84,8 @@ mailbox_send_lua_top (Mailbox *mailbox, lua_State *L)
     if (rc == EBUSY)
         return 0;
 
-    lua_getglobal(B, "__envelopes");
     utils_copy_top(B, L);
-    lua_rawseti(B, -2, mailbox->envelope_count + 1);
-    lua_pop(B, 1);
+    lua_rawseti(B, envelopes_table, mailbox->envelope_count + 1);
     mailbox->envelope_count++;
     pthread_mutex_unlock(&mailbox->mutex);
 
@@ -101,10 +104,9 @@ mailbox_pop_envelopes (Mailbox *mailbox, lua_State *L)
     lua_State *B = mailbox->L;
 
     pthread_mutex_lock(&mailbox->mutex);
-    luaf(B, "return __envelopes", 1);
     utils_copy_top(L, B);
     lua_pop(B, 1);
-    luaf(B, "__envelopes = Collection{}");
+    lua_newtable(B);
     count = mailbox->envelope_count;
     mailbox->envelope_count = 0;
     pthread_mutex_unlock(&mailbox->mutex);
