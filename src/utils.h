@@ -33,6 +33,12 @@ void
 utils_add_method (lua_State *L, int index, lua_CFunction f, const char* field);
 
 /*
+ * Push a sub table from indices start..end of table at index.
+ */
+void
+utils_push_table_sub (lua_State *L, int table_index, int start);
+
+/*
  * Remove the first element in a table at given index and leave it on stack.
  */
 void

@@ -49,6 +49,21 @@ utils_add_method (lua_State *L, int index, lua_CFunction f, const char* field)
 }
 
 /*
+ * Push a sub table from indices start..end of table at index.
+ */
+void
+utils_push_table_sub (lua_State *L, int table_index, int start)
+{
+    int i, len = luaL_len(L, table_index);
+    int new_index = 1;
+    lua_newtable(L);
+    for (i = start; i <= len; i++) {
+        lua_rawgeti(L, table_index, i);
+        lua_rawseti(L, -2, new_index++);
+    }
+}
+
+/*
  * Remove the first element in a table at given index and leave it on stack.
  */
 void
@@ -135,6 +150,11 @@ utils_copy_top (lua_State *to, lua_State *from)
 
     case LUA_TTABLE:
         utils_copy_table(to, from, lua_gettop(from));
+        break;
+
+    case LUA_TUSERDATA:                                                                 
+    case LUA_TLIGHTUSERDATA:                                                                 
+        lua_pushlightuserdata(to, lua_touserdata(from, -1));
         break;
 
     case LUA_TNIL:                                                                 

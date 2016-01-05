@@ -9,13 +9,14 @@
 lua_State *
 actor_request_state (Actor *actor)
 {
+    pthread_mutex_lock(&actor->state_mutex);
     return actor->L;
 }
 
 void
 actor_return_state (Actor *actor)
 {
-    return;
+    pthread_mutex_unlock(&actor->state_mutex);
 }
 
 int
@@ -223,16 +224,20 @@ lua_actor_new (lua_State *L)
     lua_getfield(L, -1, "Script");
     script_arg = lua_gettop(L);
 
-    for (i = start; i < len; i++) {
+    for (i = start; i <= len; i++) {
         lua_getfield(L, script_arg, "new");
         lua_pushvalue(L, actor_arg);
         lua_rawgeti(L, table_arg, i);
         lua_call(L, 2, 1);
         lua_pop(L, 1);
     }
-    lua_pop(L, 3);
-
-    /* luaf(L, "Dialogue.Post.send(%2, 'load')"); */
+    lua_pop(L, 2);
+    lua_getfield(L, -1, "Post");
+    lua_getfield(L, -1, "send");
+    lua_pushvalue(L, actor_arg);
+    lua_pushstring(L, "load");
+    lua_call(L, 2, 0);
+    lua_pop(L, 2);
 
     return 1;
 }

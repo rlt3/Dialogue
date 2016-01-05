@@ -23,15 +23,15 @@ lua_check_post (lua_State *L, int index)
 }
 
 /*
- * Create the Post for the Dialogue.
+ * Create the Post for the Dialogue. This function acts as a Singleton for the
+ * Post as we want only one running at a time. The number of threads should 
+ * match the number of cores of the CPU. So, if you have 2 cores, you need 2
+ * threads. Having more threads than necessary can actually *hurt* performance.
  *
- * Dialogue.Post.new(postmen_count, actors per thread)
- *
- * This function turns the Dialogue.Post from a table into an object. It makes
- * it come alive, singleton style.
+ * Dialogue.Post.new(thread count, actors per thread)
  */
 int
-lua_post_new (lua_State *L)
+lua_post_init (lua_State *L)
 {
     Post *post;
     int postmen_count = luaL_optinteger(L, 1, 4);
@@ -65,9 +65,6 @@ lua_post_new (lua_State *L)
     lua_pushvalue(L, post_index);
     lua_setfield(L, -2, "__obj");
     lua_pop(L, 2);
-
-    /* TODO: figure out why luaf doesn't work here */
-    //luaf(L, "Dialogue.Post.__obj = %3");
     
     return 1;
 }
@@ -121,9 +118,15 @@ int
 lua_post_send (lua_State *L)
 {
     Post *post = lua_getpost(L);
+    int args = lua_gettop(L);
     int start = rand() % post->postmen_count;
-    //int start = 0;
     int i;
+
+    lua_newtable(L);
+    for (i = 1; i <= args; i++) {
+        lua_pushvalue(L, i);
+        lua_rawseti(L, -2, i);
+    }
 
     for (i = start; i < post->postmen_count; i = (i + 1) % post->postmen_count)
         if (mailbox_send_lua_top(post->postmen[i]->mailbox, L))
@@ -165,7 +168,7 @@ luaopen_Dialogue_Post (lua_State *L)
     luaL_setfuncs(L, post_methods, 0);
 
     lua_newtable(L);
-    lua_pushcfunction(L, lua_post_new);
+    lua_pushcfunction(L, lua_post_init);
     lua_setfield(L, -2, "init");
 
     lua_pushcfunction(L, lua_post_send);
