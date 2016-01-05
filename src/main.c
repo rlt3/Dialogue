@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #include "dialogue.h"
 #include "collection.h"
@@ -24,6 +25,7 @@ usage (const char *program)
 int
 main (int argc, char **argv)
 {
+    struct timeval stop, start;
     const char *file;
     lua_State *L;
 
@@ -41,10 +43,16 @@ main (int argc, char **argv)
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 3);
 
+    gettimeofday(&start, NULL);
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "%s\n", lua_tostring(L, -1));
         goto exit;
     }
+    gettimeofday(&stop, NULL);
+    /*
+     * from http://stackoverflow.com/questions/10192903/time-in-milliseconds
+     */
+    printf("%f\n", (double)(stop.tv_usec - start.tv_usec) / 1000000 + (double)(stop.tv_sec - start.tv_sec));
 
 exit:
     lua_close(L);

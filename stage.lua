@@ -1,9 +1,5 @@
-actor = Dialogue.Actor.new{ "Lead", { "draw", 2, 2 } }
-print(actor)
-for i = 1, #actor:scripts() do
-    print(actor:scripts()[i])
+Dialogue.Post.init(4, 1024)
+
+for i = 1, 100000 do
+   Dialogue.Post.send(actor, 'send')
 end
-print(actor:scripts():nth(1):probe("coordinates")[1])
---Dialogue.Post.init(4, 1024)
-Dialogue.Post.init()
-Dialogue.Post.send(actor, 'send')

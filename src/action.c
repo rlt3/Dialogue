@@ -45,7 +45,7 @@ action_load (lua_State *L)
 int
 action_send (lua_State *L)
 {
-    puts("Send.");
+    //puts("Send.");
     return 0;
 }
 

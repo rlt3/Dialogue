@@ -27,7 +27,7 @@ postman_thread (void *arg)
         lua_newtable(P);
         lua_getglobal(P, postman_bag);
 
-        ///* fill the postman's bag with any envelopes from its mailbox */
+        /* fill the postman's bag with any envelopes from its mailbox */
         postman_fill_bag(postman);
 
         /*

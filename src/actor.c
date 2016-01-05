@@ -249,8 +249,6 @@ lua_actor_tostring (lua_State *L)
 {
     Actor* actor = lua_check_actor(L, 1);
     lua_pushfstring(L, "%s %p", ACTOR_LIB, actor);
-    printf("Star? %s\n", actor->is_star ? "true" : "false");
-    printf("Lead? %s\n", actor->is_lead ? "true" : "false");
     return 1;
 }
 
