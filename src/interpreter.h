@@ -14,6 +14,12 @@ void
 lua_interpret (lua_State *L);
 
 /*
+ * Exit the interpreter.
+ */
+void
+interpreter_exit ();
+
+/*
  * Polls the interpreter to see if it has any input. If there's no input 
  * available it returns NULL. Returns the string if there is.
  */

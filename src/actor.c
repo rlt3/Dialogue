@@ -263,8 +263,16 @@ lua_actor_scripts (lua_State *L)
 static int
 lua_actor_gc (lua_State *L)
 {
+    lua_State *A;
+    Script *script;
     Actor* actor = lua_check_actor(L, 1);
-    lua_close(actor->L);
+
+    A = actor_request_state(actor);
+    for (script = actor->script_head; script != NULL; script = script->next)
+        script_unload(script);
+    lua_close(A);
+    actor_return_state(actor);
+
     return 0;
 }
 
