@@ -326,23 +326,51 @@ lua_actor_tostring (lua_State *L)
     return 1;
 }
 
+/*
+ * Given a tone to filter an Actor's audience, send a given message to that
+ * audience. Expects a prepended recipient if the tone is whisper.
+ *
+ * actor:think("move") => Post.send(actor, 'send', 'move', actor)
+ * actor:whisper(graphic, "draw") => Post.send(graphics, 'send', 'draw', actor)
+ */
 int
 actor_send (lua_State *L, const char *tone)
 {
     const int actor_arg = 1;
-    lua_check_actor(L, actor_arg);
-    int i, args = lua_gettop(L);
+    Actor *actor = lua_check_actor(L, actor_arg);
+    int audience_table, audience_len;
+    int arg_bottom = 2;
+    int arg_top = lua_gettop(L);
+    int i, j;
+
+    /* if true, the tone was a 'whisper' so we must supply the audience */
+    if (audience_filter_tone(L, actor, tone)) {
+        lua_pushvalue(L, arg_bottom);
+        lua_rawseti(L, -2, 1);
+        arg_bottom++;
+    }
+
+    audience_table = lua_gettop(L);
+    len = luaL_len(L, -1);
 
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Post");
-    lua_getfield(L, -1, "send");
-    lua_pushvalue(L, actor_arg);
-    lua_pushstring(L, "send");
-    lua_pushstring(L, tone);
-    for (i = 2; i <= args; i++)
-        lua_pushvalue(L, i);
-    lua_call(L, args + 2, 0);
-    lua_pop(L, 2);
+
+    /*
+     * Send each audience member a message in the form of
+     *  Post.send(recipient, 'send' [, arg1 [, ... [, argn]]], author)
+     */
+    for (i = 1; i <= len; i++) {
+        lua_getfield(L, -1, "send");
+        lua_rawgeti(L, audience_table, i);
+        lua_pushstring(L, "send");
+        for (j = arg_bottom; j <= arg_top; j++)
+            lua_pushvalue(L, j);
+        lua_pushvalue(L, actor_arg);
+        lua_call(L, args + 3, 0);
+    }
+    lua_pop(L, 3);
+
     return 0;
 }
 

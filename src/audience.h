@@ -13,7 +13,7 @@ audience_set (lua_State *L, Actor *actor, int acc);
 /*
  * Filter an Actor's audience by the tone -- a string.
  */
-void
+int
 audience_filter_tone (lua_State *L, struct Actor *actor, const char *tone);
 
 /*
