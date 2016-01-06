@@ -125,7 +125,7 @@ postman_fill_bag (Postman *postman)
 }
 
 Postman *
-postman_create (void *post)
+postman_create (lua_State *L, void *post)
 {
     lua_State *P;
     Postman *postman = malloc(sizeof(*postman));
@@ -133,9 +133,12 @@ postman_create (void *post)
     postman->working = 1;
     postman->messages_processed = 0;
     postman->mailbox = mailbox_create();
-    postman->L = luaL_newstate();
+    postman->L = lua_newthread(L);
     P = postman->L;
     luaL_openlibs(P);
+
+    postman->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, postman->ref);
     
     /* 
      * TODO:

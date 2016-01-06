@@ -55,7 +55,7 @@ lua_post_init (lua_State *L)
         luaL_error(L, "Not enough memory to create Postmen");
 
     for (i = 0; i < postmen_count; i++) {
-        post->postmen[i] = postman_create(post);
+        post->postmen[i] = postman_create(L, post);
         printf("    CREATE Postman: %p\n", post->postmen[i]);
     }
 

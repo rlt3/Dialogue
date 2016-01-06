@@ -9,6 +9,7 @@ typedef struct Postman {
     int working;
     long int messages_processed;
     struct Mailbox *mailbox;
+    int ref;
 } Postman;
 /*
  * If the postman's bag still has envelopes, do nothing. Otherwise, wait for 
@@ -18,7 +19,7 @@ void
 postman_fill_bag (Postman *postman);
 
 Postman *
-postman_create ();
+postman_create (lua_State *L, void *post);
 
 void
 postman_stop (Postman *postman);

@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "actor.h"
-#include "tone.h"
+#include "audience.h"
 #include "utils.h"
 
 /*

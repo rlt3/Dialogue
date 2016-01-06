@@ -72,35 +72,35 @@ describe("A Dialogue", function()
         assert.are.same({c, d}, b:children());
     end)
 
-    --it("allows for scoping of messages through audience", function()
-    --    -- Since our Audience method exists for many threads/lua_States to call
-    --    -- so we can't push references, but lightuserdata pointers. __eq will
-    --    -- not get called on lightuserdata vs userdata
-    --    local audience = b:audience("say")
-    --    assert.is_equal(#audience, 4)
-    --    assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
-    --    assert.is_equal(audience[2]:__tostring(), a:__tostring())
-    --    assert.is_equal(audience[3]:__tostring(), b:__tostring())
-    --    assert.is_equal(audience[4]:__tostring(), e:__tostring())
+    it("allows for scoping of messages through audience", function()
+        -- Since our Audience method exists for many threads/lua_States to call
+        -- so we can't push references, but lightuserdata pointers. __eq will
+        -- not get called on lightuserdata vs userdata
+        local audience = b:audience("say")
+        assert.is_equal(#audience, 4)
+        assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
+        assert.is_equal(audience[2]:__tostring(), a:__tostring())
+        assert.is_equal(audience[3]:__tostring(), b:__tostring())
+        assert.is_equal(audience[4]:__tostring(), e:__tostring())
 
-    --    audience = b:audience("command")
-    --    assert.is_equal(#audience, 2)
-    --    assert.is_equal(audience[1]:__tostring(), c:__tostring())
-    --    assert.is_equal(audience[2]:__tostring(), d:__tostring())
+        audience = b:audience("command")
+        assert.is_equal(#audience, 2)
+        assert.is_equal(audience[1]:__tostring(), c:__tostring())
+        assert.is_equal(audience[2]:__tostring(), d:__tostring())
 
-    --    audience = b:audience("think")
-    --    assert.is_equal(#audience, 1)
-    --    assert.is_equal(audience[1]:__tostring(), b:__tostring())
+        audience = b:audience("think")
+        assert.is_equal(#audience, 1)
+        assert.is_equal(audience[1]:__tostring(), b:__tostring())
 
-    --    audience = b:audience("yell")
-    --    assert.is_equal(#audience, 6)
-    --    assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
-    --    assert.is_equal(audience[2]:__tostring(), a:__tostring())
-    --    assert.is_equal(audience[3]:__tostring(), b:__tostring())
-    --    assert.is_equal(audience[4]:__tostring(), c:__tostring())
-    --    assert.is_equal(audience[5]:__tostring(), d:__tostring())
-    --    assert.is_equal(audience[6]:__tostring(), e:__tostring())
-    --end)
+        audience = b:audience("yell")
+        assert.is_equal(#audience, 6)
+        assert.is_equal(audience[1]:__tostring(), dialogue:__tostring())
+        assert.is_equal(audience[2]:__tostring(), a:__tostring())
+        assert.is_equal(audience[3]:__tostring(), b:__tostring())
+        assert.is_equal(audience[4]:__tostring(), c:__tostring())
+        assert.is_equal(audience[5]:__tostring(), d:__tostring())
+        assert.is_equal(audience[6]:__tostring(), e:__tostring())
+    end)
 
     it("can be created from a mix of Lead and regular Actors", function()
         assert.are.same(a:scripts()[1]:probe("coordinates"), {2, 4})
