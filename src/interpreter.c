@@ -44,13 +44,9 @@ interpreter_exit ()
 {
     puts("\nGoodbye.");
     *running = 0;
-}
-
-void
-interpreter_cancel ()
-{
-    interpreter_exit();
+    /* make sure it is dead if it waits on readline */
     pthread_kill(thread, SIGINT);
+    usleep(10000);
 }
 
 /*
@@ -109,7 +105,6 @@ interpreter_thread (void *arg)
            "    type `exit()` to exit.\n");
 
     while (*running) {
-        printf("waiting");
         line = readline("> ");
         add_history(line);
 
@@ -123,8 +118,6 @@ interpreter_thread (void *arg)
         input_line = NULL;
         free(line);
     }
-
-    printf("quiting");
     pthread_mutex_unlock(&mutex);
 
     return NULL;

@@ -40,7 +40,7 @@ main (int argc, char **argv)
 
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "%s\n", lua_tostring(L, -1));
-        interpreter_cancel();
+        interpreter_exit();
         goto exit;
     }
 
