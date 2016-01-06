@@ -32,8 +32,8 @@ lua_interpret (lua_State *L)
     if (input == NULL)
         return;
 
-    //if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0))
-    //    printf("%s\n", lua_tostring(L, -1));
+    if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0))
+        printf("%s\n", lua_tostring(L, -1));
 }
 
 /*
