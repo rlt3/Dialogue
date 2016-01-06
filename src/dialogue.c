@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "actor.h"
 #include "post.h"
+#include "collection.h"
 #include "luaf.h"
 
 /* 
@@ -91,6 +92,10 @@ int
 luaopen_Dialogue (lua_State *L)
 {
     int t_index;
+
+    luaL_requiref(L, "eval", luaopen_eval, 1);
+    luaL_requiref(L, "Collection", luaopen_Collection, 1);
+    lua_pop(L, 2);
 
     lua_newtable(L);
     t_index = lua_gettop(L);

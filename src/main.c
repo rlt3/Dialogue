@@ -5,8 +5,6 @@
 
 #include "dialogue.h"
 #include "interpreter.h"
-#include "collection.h"
-#include "luaf.h"
 
 void
 usage (const char *program)
@@ -31,10 +29,8 @@ main (int argc, char **argv)
     L = luaL_newstate();
     luaL_openlibs(L);
 
-    luaL_requiref(L, "eval", luaopen_eval, 1);
-    luaL_requiref(L, "Collection", luaopen_Collection, 1);
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(L, 3);
+    lua_pop(L, 1);
 
     interpreter_register(L, &running);
 

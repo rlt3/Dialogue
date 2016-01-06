@@ -33,7 +33,7 @@ build: $(SOURCES)
 
 test:
 	cp $(MODULE) spec/
-	cd spec/ && busted spec.lua
+	cd spec/ && busted test.lua
 
 clean:
 	rm -f $(MODULE) src/*o
