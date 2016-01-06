@@ -2,6 +2,7 @@
 #include <string.h>
 #include "dialogue.h"
 #include "actor.h"
+#include "audience.h"
 #include "script.h"
 #include "utils.h"
 #include "luaf.h"
@@ -258,6 +259,15 @@ lua_actor_new (lua_State *L)
 }
 
 static int
+lua_actor_audience (lua_State *L)
+{
+    Actor *actor = lua_check_actor(L, 1);
+    const char *tone = luaL_checkstring(L, 2);
+    audience_filter_tone(L, actor, tone);
+    return luaf(L, "return Collection(%3)", 1); 
+}
+
+static int
 lua_actor_scripts (lua_State *L)
 {
     int i = 0;
@@ -367,7 +377,7 @@ lua_actor_yell (lua_State *L)
 }
 
 static const luaL_Reg actor_methods[] = {
-    /*{"audience",   lua_actor_audience},*/
+    {"audience",   lua_actor_audience},
     {"scripts",    lua_actor_scripts},
     {"children",   lua_actor_children},
     {"think",      lua_actor_think},

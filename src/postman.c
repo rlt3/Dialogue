@@ -133,12 +133,15 @@ postman_create (lua_State *L, void *post)
     postman->working = 1;
     postman->messages_processed = 0;
     postman->mailbox = mailbox_create();
-    postman->L = lua_newthread(L);
+    /* postman->L = lua_newthread(L); */
+    postman->L = luaL_newstate();
     P = postman->L;
     luaL_openlibs(P);
 
+    /*
     postman->ref = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_rawgeti(L, LUA_REGISTRYINDEX, postman->ref);
+    */
     
     /* 
      * TODO:

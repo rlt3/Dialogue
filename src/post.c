@@ -91,9 +91,11 @@ Post *
 lua_getpost (lua_State *L)
 {
     Post *post;
-    luaf(L, "return Dialogue.Post.__obj", 1);
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Post");
+    lua_getfield(L, -1, "__obj");
     post = lua_touserdata(L, -1);
-    lua_pop(L, 1);
+    lua_pop(L, 3);
     return post;
 }
 

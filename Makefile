@@ -3,10 +3,10 @@ CC=clang
 
 ifeq ($(DIALOGUE_HEADLESS), true)
   MODULE=Dialogue.so
-  SOURCES=src/action.o src/dialogue.o src/script.o src/actor.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o
+  SOURCES=src/action.o src/dialogue.o src/script.o src/actor.o src/audience.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o
 else
   MODULE=dialogue
-  SOURCES=src/main.o src/interpreter.o src/action.o src/dialogue.o src/script.o src/actor.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o
+  SOURCES=src/main.o src/interpreter.o src/action.o src/audience.o src/dialogue.o src/script.o src/actor.o src/luaf.o src/utils.o src/collection.o src/post.o src/postman.o src/mailbox.o
 endif
 
 ifeq ($(UNAME), Linux)

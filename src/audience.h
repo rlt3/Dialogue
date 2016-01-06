@@ -1,5 +1,5 @@
-#ifndef DIALOGUE_TONE
-#define DIALOGUE_TONE
+#ifndef DIALOGUE_AUDIENCE
+#define DIALOGUE_AUDIENCE
 
 #include <lua.h>
 #include <lauxlib.h>

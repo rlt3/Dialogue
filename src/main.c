@@ -31,7 +31,7 @@ main (int argc, char **argv)
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
 
-    interpreter_register(L, &running);
+    //interpreter_register(L, &running);
 
     /*
      * from http://stackoverflow.com/questions/10192903/time-in-milliseconds
@@ -44,8 +44,8 @@ main (int argc, char **argv)
         goto exit;
     }
 
-    while (running)
-        lua_interpret(L);
+   // while (running)
+   //     lua_interpret(L);
 
     gettimeofday(&stop, NULL);
     printf("%f\n", (double)(stop.tv_usec - start.tv_usec) / 1000000 
