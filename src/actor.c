@@ -6,6 +6,18 @@
 #include "utils.h"
 #include "luaf.h"
 
+void
+actor_request_structure (Actor *actor)
+{
+    pthread_rwlock_rdlock(&actor->structure);
+}
+
+void
+actor_return_structure (Actor *actor)
+{
+    pthread_rwlock_unlock(&actor->structure);
+}
+
 lua_State *
 actor_request_state (Actor *actor)
 {
@@ -168,6 +180,9 @@ lua_actor_new (lua_State *L)
     luaL_getmetatable(L, ACTOR_LIB);
     lua_setmetatable(L, -2);
 
+    actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
+
     /* 
      * An actor's Action may call one of its own methods, which typically want
      * lock the mutex already locked by doing the action. So, they are 
@@ -261,6 +276,23 @@ lua_actor_scripts (lua_State *L)
 }
 
 static int
+lua_actor_children (lua_State *L)
+{
+    int i = 0;
+    Actor *child, *actor = lua_check_actor(L, -1);
+
+    actor_request_structure(actor);
+    lua_newtable(L);
+    for (child = actor->child; child != NULL; child = child->next) {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, child->ref);
+        lua_rawseti(L, -2, ++i);
+    }
+    actor_return_structure(actor);
+
+    return luaf(L, "return Collection(%2)", 1); 
+}
+
+static int
 lua_actor_gc (lua_State *L)
 {
     lua_State *A;
@@ -287,6 +319,7 @@ lua_actor_tostring (lua_State *L)
 static const luaL_Reg actor_methods[] = {
     /*{"audience",   lua_actor_audience},*/
     {"scripts",    lua_actor_scripts},
+    {"children",   lua_actor_children},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
     { NULL, NULL }

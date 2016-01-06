@@ -23,21 +23,19 @@ lua_dialogue_new (lua_State *L)
 {
     Actor *actor, *child;
     const int definition_table = 1;
-    const int dialogue_table = 2;
     int children_table;
     int args = lua_gettop(L);
 
-    luaL_checktype(L, dialogue_table, LUA_TTABLE);
-
-    lua_getglobal(L, "Dialogue");
+    luaL_checktype(L, definition_table, LUA_TTABLE);
 
     /* push the Scripts part of the table to create an Actor */
+    lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Actor");
     lua_getfield(L, -1, "new");
     utils_push_table_head(L, definition_table);
     lua_call(L, 1, 1);
     actor = lua_check_actor(L, -1);
-    lua_pop(L, 2);
+    lua_pop(L, 3);
 
     /*
      * The recursion relies on sending the first created Actor (the head) to
@@ -56,7 +54,8 @@ lua_dialogue_new (lua_State *L)
     children_table = lua_gettop(L);
     lua_pushnil(L);
     while (lua_next(L, children_table)) {
-        lua_getfield(L, dialogue_table, "new");
+        lua_getglobal(L, "Dialogue");
+        lua_getfield(L, -1, "new");
         lua_pushvalue(L, -3);
         lua_rawgeti(L, LUA_REGISTRYINDEX, actor->dialogue->ref);
         lua_call(L, 2, 1);
@@ -64,7 +63,7 @@ lua_dialogue_new (lua_State *L)
         child = lua_check_actor(L, -1);
         actor_add_child(actor, child);
 
-        lua_pop(L, 2); /* child, key */
+        lua_pop(L, 3); /* child, key */
     }
     lua_pop(L, 1);
 

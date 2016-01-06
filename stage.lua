@@ -1,8 +1,7 @@
 Dialogue.Post.init(2, 1024)
 --actor = Dialogue.Actor.new{ {"draw", 2, 4} }
---Dialogue.Post.send(actor, 'send', 'update')
 
-d = Dialogue.new{
+head = Dialogue.new{
     { {"weapon", "Crown", "North"} },
     {
         { 
@@ -28,3 +27,9 @@ d = Dialogue.new{
         }
     }
 }
+
+a = head:children()[1]
+b = head:children()[2]
+c = b:children()[1]
+d = b:children()[2]
+e = head:children()[3]
