@@ -79,10 +79,13 @@ action_send (lua_State *L)
     A = actor_request_state(author);
     utils_copy_top(A, L);
 
+    /*
+     * TODO:
+     *      Error handling for different return types for script_send.
+     */
     for (script = author->script_head; script != NULL; script = script->next)
         if (script->is_loaded)
-            if (script_send(script, author))
-                printf("%s\n", script->error);
+              script_send(script, author);
 
     lua_pop(A, 1);
     actor_return_state(author);

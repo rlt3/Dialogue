@@ -47,18 +47,18 @@ main (int argc, char **argv)
      * from http://stackoverflow.com/questions/10192903/time-in-milliseconds
      */
 
-    //lua_getglobal(L, "Dialogue");
-    //lua_getfield(L, -1, "Post");
-    //gettimeofday(&start, NULL);
-    //for (i = 0; i < 50; i++) {
-    //    lua_getfield(L, -1, "send");
-    //    lua_getglobal(L, "actor");
-    //    lua_pushstring(L, "send");
-    //    lua_call(L, 2, 0);
-    //}
-    //gettimeofday(&stop, NULL);
-    //printf("%f\n", (double)(stop.tv_usec - start.tv_usec) / 1000000 + (double)(stop.tv_sec - start.tv_sec));
-    //lua_pop(L, 2);
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Post");
+    gettimeofday(&start, NULL);
+    for (i = 0; i < 50; i++) {
+        lua_getfield(L, -1, "send");
+        lua_getglobal(L, "actor");
+        lua_pushstring(L, "send");
+        lua_call(L, 2, 0);
+    }
+    gettimeofday(&stop, NULL);
+    printf("%f\n", (double)(stop.tv_usec - start.tv_usec) / 1000000 + (double)(stop.tv_sec - start.tv_sec));
+    lua_pop(L, 2);
 
 
     //while (running) {
