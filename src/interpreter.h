@@ -13,6 +13,9 @@ typedef struct Interpreter Interpreter;
 void
 lua_interpret (lua_State *L);
 
+void
+interpreter_cancel ();
+
 /*
  * Exit the interpreter.
  */

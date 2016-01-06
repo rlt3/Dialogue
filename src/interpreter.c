@@ -46,6 +46,13 @@ interpreter_exit ()
     *running = 0;
 }
 
+void
+interpreter_cancel ()
+{
+    interpreter_exit();
+    pthread_kill(thread, SIGINT);
+}
+
 /*
  * Exit the interpreter from inside the interpreter through 'exit()'
  */
@@ -102,6 +109,7 @@ interpreter_thread (void *arg)
            "    type `exit()` to exit.\n");
 
     while (*running) {
+        printf("waiting");
         line = readline("> ");
         add_history(line);
 
@@ -116,6 +124,7 @@ interpreter_thread (void *arg)
         free(line);
     }
 
+    printf("quiting");
     pthread_mutex_unlock(&mutex);
 
     return NULL;
@@ -143,7 +152,6 @@ interpreter_register (lua_State *L, short int *is_running_ptr)
     lua_setglobal(L, "exit");
 
     pthread_create(&thread, NULL, interpreter_thread, NULL);
-    pthread_detach(thread);
 
     return 0;
 }

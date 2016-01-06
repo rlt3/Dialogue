@@ -72,6 +72,12 @@ int
 actor_is_calling_thread (pthread_t pid);
 
 /*
+ * Add a child to the end of the Actor's linked-list of children.
+ */
+void
+actor_add_child (Actor *actor, Actor *child);
+
+/*
  * Check for an Actor at index. Errors if it isn't an Actor.
  */
 Actor *
