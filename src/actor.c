@@ -316,10 +316,64 @@ lua_actor_tostring (lua_State *L)
     return 1;
 }
 
+int
+actor_send (lua_State *L, const char *tone)
+{
+    const int actor_arg = 1;
+    lua_check_actor(L, actor_arg);
+    int i, args = lua_gettop(L);
+
+    lua_getglobal(L, "Dialogue");
+    lua_getfield(L, -1, "Post");
+    lua_getfield(L, -1, "send");
+    lua_pushvalue(L, actor_arg);
+    lua_pushstring(L, tone);
+    for (i = 2; i <= args; i++)
+        lua_pushvalue(L, i);
+    lua_call(L, args + 1, 0);
+    lua_pop(L, 2);
+    return 0;
+}
+
+static int
+lua_actor_think (lua_State *L)
+{
+    return actor_send(L, "think");
+}
+
+static int
+lua_actor_whisper (lua_State *L)
+{
+    return actor_send(L, "whisper");
+}
+
+static int
+lua_actor_say (lua_State *L)
+{
+    return actor_send(L, "say");
+}
+
+static int
+lua_actor_command (lua_State *L)
+{
+    return actor_send(L, "command");
+}
+
+static int
+lua_actor_yell (lua_State *L)
+{
+    return actor_send(L, "yell");
+}
+
 static const luaL_Reg actor_methods[] = {
     /*{"audience",   lua_actor_audience},*/
     {"scripts",    lua_actor_scripts},
     {"children",   lua_actor_children},
+    {"think",      lua_actor_think},
+    {"whisper",    lua_actor_whisper},
+    {"say",        lua_actor_say},
+    {"command",    lua_actor_command},
+    {"yell",       lua_actor_yell},
     {"__gc",       lua_actor_gc},
     {"__tostring", lua_actor_tostring},
     { NULL, NULL }

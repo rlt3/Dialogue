@@ -1,4 +1,4 @@
-Dialogue.Post.init(2, 1024)
+Dialogue.Post.init(1, 1024)
 --actor = Dialogue.Actor.new{ {"draw", 2, 4} }
 
 head = Dialogue.new{
