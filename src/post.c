@@ -87,7 +87,7 @@ lua_post_gc (lua_State *L)
     return 0;
 }
 
-Post *
+struct Post *
 lua_getpost (lua_State *L)
 {
     Post *post;

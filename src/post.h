@@ -24,6 +24,9 @@
  * Dialogue.Post.Postman.per = 4 -- number of Actors per Postman
  */
 
+struct Post *
+lua_getpost (lua_State *L);
+
 int 
 luaopen_Dialogue_Post (lua_State *L);
 

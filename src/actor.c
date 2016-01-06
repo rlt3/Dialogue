@@ -5,6 +5,7 @@
 #include "audience.h"
 #include "script.h"
 #include "utils.h"
+#include "post.h"
 #include "luaf.h"
 
 void
@@ -229,7 +230,10 @@ lua_actor_new (lua_State *L)
 
     /* load this module (the one you're reading) into the Actor's state */
     luaL_requiref(A, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(A, 1);
+    lua_getfield(A, -1, "Post");
+    utils_push_object(A, lua_getpost(L), POST_LIB);
+    lua_setfield(A, -2, "__obj");
+    lua_pop(A, 2);
 
     /* push Actor so Scripts can reference the Actor it belongs to. */
     utils_push_object(A, actor, ACTOR_LIB);
