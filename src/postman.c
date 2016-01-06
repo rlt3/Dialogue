@@ -1,9 +1,11 @@
 #include <stdlib.h>
 #include "postman.h"
+#include "post.h"
 #include "dialogue.h"
 #include "mailbox.h"
 #include "action.h"
 #include "luaf.h"
+#include "utils.h"
 
 static const char *postman_bag = "__postman_bag";
 //static const int resend_arg = 1;
@@ -123,7 +125,7 @@ postman_fill_bag (Postman *postman)
 }
 
 Postman *
-postman_create ()
+postman_create (void *post)
 {
     lua_State *P;
     Postman *postman = malloc(sizeof(*postman));
@@ -142,7 +144,10 @@ postman_create ()
      * threads.
      */
     luaL_requiref(P, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(P, 1);
+    lua_getfield(P, -1, "Post");
+    utils_push_object(P, post, POST_LIB);
+    lua_setfield(P, -2, "__obj");
+    lua_pop(P, 2);
 
     pthread_create(&postman->thread, NULL, postman_thread, postman);
 

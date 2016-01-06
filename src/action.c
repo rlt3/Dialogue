@@ -85,7 +85,8 @@ action_send (lua_State *L)
      */
     for (script = author->script_head; script != NULL; script = script->next)
         if (script->is_loaded)
-              script_send(script, author);
+              if (script_send(script, author) != 0)
+                  printf("%s\n", script->error);
 
     lua_pop(A, 1);
     actor_return_state(author);

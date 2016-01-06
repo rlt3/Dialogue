@@ -327,10 +327,11 @@ actor_send (lua_State *L, const char *tone)
     lua_getfield(L, -1, "Post");
     lua_getfield(L, -1, "send");
     lua_pushvalue(L, actor_arg);
+    lua_pushstring(L, "send");
     lua_pushstring(L, tone);
     for (i = 2; i <= args; i++)
         lua_pushvalue(L, i);
-    lua_call(L, args + 1, 0);
+    lua_call(L, args + 2, 0);
     lua_pop(L, 2);
     return 0;
 }
