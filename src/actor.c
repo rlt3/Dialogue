@@ -332,6 +332,7 @@ lua_actor_tostring (lua_State *L)
  *
  * actor:think("move") => Post.send(actor, 'send', 'move', actor)
  * actor:whisper(graphic, "draw") => Post.send(graphics, 'send', 'draw', actor)
+ * 
  */
 int
 actor_send (lua_State *L, const char *tone)
@@ -339,7 +340,7 @@ actor_send (lua_State *L, const char *tone)
     const int actor_arg = 1;
     Actor *actor = lua_check_actor(L, actor_arg);
     int audience_table, audience_len;
-    int arg_bottom = 2;
+    int arg_bottom = 2, arg_offset = 2;
     int arg_top = lua_gettop(L);
     int i, j;
 
@@ -348,10 +349,11 @@ actor_send (lua_State *L, const char *tone)
         lua_pushvalue(L, arg_bottom);
         lua_rawseti(L, -2, 1);
         arg_bottom++;
+        arg_offset--;
     }
 
     audience_table = lua_gettop(L);
-    len = luaL_len(L, -1);
+    audience_len = luaL_len(L, -1);
 
     lua_getglobal(L, "Dialogue");
     lua_getfield(L, -1, "Post");
@@ -360,14 +362,28 @@ actor_send (lua_State *L, const char *tone)
      * Send each audience member a message in the form of
      *  Post.send(recipient, 'send' [, arg1 [, ... [, argn]]], author)
      */
-    for (i = 1; i <= len; i++) {
+    for (i = 1; i <= audience_len; i++) {
         lua_getfield(L, -1, "send");
         lua_rawgeti(L, audience_table, i);
         lua_pushstring(L, "send");
+        
+        /* We can use the top of the stack to determine # of args passed to
+         * 'send'. 'whisper' always has an extra argument, so we decrease the
+         * arg offset by one. All other tones always have at least 2.
+         *
+         * actor:whisper(graphic, "draw", 2, 2) : top 5
+         * => Post.send(graphics, 'send', 'draw', 2, 2, actor) top + 1 = 6 args
+         *
+         * actor:think("move") : top 2
+         * => Post.send(actor, 'send', 'move', actor) top + 2 = 6 args
+         *
+         * actor:think("move", 2, 2) : top 4
+         * => Post.send(actor, 'send', 'move', 2, 2, actor) top + 2 = 6 args
+         */
         for (j = arg_bottom; j <= arg_top; j++)
             lua_pushvalue(L, j);
         lua_pushvalue(L, actor_arg);
-        lua_call(L, args + 3, 0);
+        lua_call(L, arg_top + arg_offset, 0);
     }
     lua_pop(L, 3);
 

@@ -64,10 +64,10 @@ action_send (lua_State *L)
 {
     lua_State *A;
     Script *script;
-    Actor *author;
+    Actor *actor;
 
     lua_rawgeti(L, -1, 1);
-    author = lua_touserdata(L, -1);
+    actor = lua_touserdata(L, -1);
     lua_pop(L, 1);
 
     /* 
@@ -76,20 +76,20 @@ action_send (lua_State *L)
      */
     utils_push_table_sub(L, lua_gettop(L), 3);
 
-    A = actor_request_state(author);
+    A = actor_request_state(actor);
     utils_copy_top(A, L);
 
     /*
      * TODO:
      *      Error handling for different return types for script_send.
      */
-    for (script = author->script_head; script != NULL; script = script->next)
+    for (script = actor->script_head; script != NULL; script = script->next)
         if (script->is_loaded)
-              if (script_send(script, author) != 0)
+              if (script_send(script) == SEND_FAIL)
                   printf("%s\n", script->error);
 
     lua_pop(A, 1);
-    actor_return_state(author);
+    actor_return_state(actor);
 
     lua_pop(L, 1);
     return 0;
