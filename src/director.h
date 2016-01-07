@@ -3,20 +3,24 @@
 
 #define POST_LIB "Dialogue.Director"
 
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
+#include "dialogue.h"
 
 typedef struct Director Director;
 
-/*
- * Returns the Director of the Dialogue in the given Lua state. Initializes it
- * if not done already.
- */
-Director *
-director_or_init (lua_State *L);
+int
+lua_director_action (lua_State *L);
 
-int 
-luaopen_Dialogue_Director (lua_State *L);
+int
+lua_director_quit (lua_State *L);
+
+int
+lua_director_tostring (lua_State *L);
+
+static const luaL_Reg director_metamethods[] = {
+    {"__call",     lua_director_action},
+    {"__gc",       lua_director_quit},
+    {"__tostring", lua_director_tostring},
+    { NULL, NULL }
+};
 
 #endif

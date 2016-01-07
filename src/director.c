@@ -1,8 +1,11 @@
+#include <stdlib.h>
+#include <time.h>
 #include "director.h"
+#include "worker.h"
 
 struct Director {
     Worker **workers;
-    Mailbox *mailbox;
+    struct Mailbox *mailbox;
     int worker_count;
     int rand_seed;
 };
@@ -14,5 +17,85 @@ struct Director {
 Director *
 director_or_init (lua_State *L)
 {
+    Director *director;
+    const char *pointer = "__ptr";
+    const int default_workers = 4;
     const int dialogue_table = 1;
+
+    lua_getfield(L, dialogue_table, pointer);
+
+    if (!lua_isnil(L, -1)) {
+        director = lua_touserdata(L, -1);
+        goto exit;
+    }
+
+    lua_pop(L, 1);
+
+    director = malloc(sizeof(*director));
+    if (director == NULL)
+        luaL_error(L, "Not enough memory for Director!");
+
+    lua_getfield(L, dialogue_table, "worker_count");
+    director->worker_count = luaL_optinteger(L, -1, default_workers);
+    director->rand_seed = time(NULL);
+    lua_pop(L, 1);
+
+    lua_pushlightuserdata(L, director);
+    lua_setfield(L, dialogue_table, pointer);
+
+exit:
+    return director;
+}
+
+/*
+ * Receive an action in this form:
+ *     Dialogue{ action, actor [, data1 [, ... [, dataN]]] }
+ *
+ * Send the action to an open worker.
+ */
+int
+lua_director_action (lua_State *L)
+{
+    Director *director;
+    const int action_arg = 1;
+    int count, start, i;
+
+    luaL_checktype(L, action_arg, LUA_TTABLE);
+
+    director = director_or_init(L);
+    count = director->worker_count;
+    start = rand() % count;
+
+    for (i = start; i < count; i = (i + 1) % count)
+        if (lua_worker_take_top(L, director->workers[i]))
+            break;
+
+    return 0;
+}
+
+int
+lua_director_quit (lua_State *L)
+{
+    Director *director;
+    const char *pointer = "__ptr";
+    const int dialogue_table = 1;
+    lua_pushstring(L, "__ptr");
+    lua_getfield(L, dialogue_table, pointer);
+
+    if (lua_isnil(L, -1))
+        goto exit;
+
+    director = lua_touserdata(L, -1);
+    printf("Stopping %d workers ...\n", director->worker_count);
+    free(director);
+
+exit:
+    return 0;
+}
+
+int
+lua_director_tostring (lua_State *L)
+{
+    lua_pushstring(L, "Dialogue!");
+    return 1;
 }
