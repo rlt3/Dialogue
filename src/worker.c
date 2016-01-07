@@ -1,59 +1,102 @@
+#include <stdlib.h>
+#include <pthread.h>
+#include <errno.h>
 #include "worker.h"
 
 struct Worker {
     lua_State *L;
+    pthread_t thread;
+    pthread_mutex_t mutex;
+    pthread_cond_t wait_cond;
+    int working;
+    int waiting;
+    int ref;
 };
 
-int
-lua_worker_take_top (lua_State *L, Worker *worker)
+void *
+worker_thread (void *arg)
 {
-    return 1;
+    lua_State *W;
+    int i, len, action_table;
+    Worker *worker;
+    
+    worker = arg;
+    W = worker->L;
+    action_table = lua_gettop(W);
+
+    pthread_mutex_lock(&worker->mutex);
+
+    while (worker->working) {
+        if (!lua_istable(W, action_table))
+            goto wait;
+
+        len = luaL_len(W, action_table);
+
+        printf("{");
+        for (i = 1; i <= len; i++) {
+            lua_rawgeti(W, action_table, i);
+            printf(" %s ", lua_tostring(W, -1));
+            lua_pop(W, 1);
+        }
+        printf("}\n");
+
+        lua_pop(W, 1);
+wait:
+        worker->waiting = 1;
+        while (worker->waiting)
+            pthread_cond_wait(&worker->wait_cond, &worker->mutex);
+    }
+
+    return NULL;
+}
+
+Worker *
+worker_start (lua_State *L)
+{
+    /* TODO: check memory here */
+    Worker *worker = malloc(sizeof(*worker));
+    worker->L = lua_newthread(L);
+    worker->working = 1;
+    worker->waiting = 0;
+    worker->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    
+    pthread_mutex_init(&worker->mutex, NULL);
+    pthread_cond_init(&worker->wait_cond, NULL);
+    pthread_create(&worker->thread, NULL, worker_thread, worker);
+
+    return worker;
 }
 
 /*
- * Because this function is implemented through the __call metamethod, the 
- * first argument on the stack *is* the Dialogue table. Then we push the 
- * first Line element and see if it is a Dialogue action. 
- *
- * If it finds the action, it calls it with the given actor and any other data
- * that may have been sent. If it can't find it, it tries to find the 'error'
- * field in the table and send an error.
+ * Have the worker take the action on top of the given Lua stack. 
+ * Returns 1 if the action was taken, 0 if busy.
  */
-//int
-//lua_worker_take_top (lua_State *L, Worker *worker)
-//{
-//    const int action_arg = -1;
-//    const char *error;
-//    int i, len, args;
-//
-//    luaL_checktype(L, action_arg, LUA_TTABLE);
-//    
-//    /* -1 because the first element is always an action as a string */
-//    len  = luaL_len(L, action_arg);
-//    args = len - 1;
-//
-//    lua_rawgeti(L, action_arg, 1);
-//    lua_gettable(L, dialogue_table);
-//
-//    if (!lua_isfunction(L, -1)) {
-//        error = "Bad Action!";
-//        goto error;
-//    }
-//
-//    for (i = 2; i <= len; i++)
-//        lua_rawgeti(L, action_arg, i);
-//
-//    if (lua_pcall(L, args, 0, 0)) {
-//        error = lua_tostring(L, -1);
-//        goto error;
-//    }
-//
-//    return 0;
-//
-//error:
-//    lua_getfield(L, dialogue_table, "error");
-//    lua_pushstring(L, error);
-//    lua_call(L, 1, 0);
-//    return 0;
-//}
+int
+worker_take_action (lua_State *L, Worker *worker)
+{
+    int rc = pthread_mutex_trylock(&worker->mutex);
 
+    if (rc == EBUSY)
+        return 0;
+
+    /* TODO: in the real system this must be utils_move_top. */
+    lua_xmove(L, worker->L, 1);
+    worker->waiting = 0;
+    pthread_mutex_unlock(&worker->mutex);
+    pthread_cond_signal(&worker->wait_cond);
+    return 1;
+}
+
+void
+worker_stop (lua_State *L, Worker *worker)
+{
+    pthread_mutex_lock(&worker->mutex);
+    worker->working = 0;
+    worker->waiting = 0;
+    pthread_mutex_unlock(&worker->mutex);
+    pthread_cond_signal(&worker->wait_cond);
+
+    luaL_unref(L, LUA_REGISTRYINDEX, worker->ref);
+    pthread_join(worker->thread, NULL);
+    free(worker);
+}

@@ -21,6 +21,7 @@ director_or_init (lua_State *L)
     const char *pointer = "__ptr";
     const int default_workers = 4;
     const int dialogue_table = 1;
+    int i;
 
     lua_getfield(L, dialogue_table, pointer);
 
@@ -32,6 +33,7 @@ director_or_init (lua_State *L)
     lua_pop(L, 1);
 
     director = malloc(sizeof(*director));
+
     if (director == NULL)
         luaL_error(L, "Not enough memory for Director!");
 
@@ -39,6 +41,16 @@ director_or_init (lua_State *L)
     director->worker_count = luaL_optinteger(L, -1, default_workers);
     director->rand_seed = time(NULL);
     lua_pop(L, 1);
+
+    director->workers = malloc(sizeof(Worker*) * director->worker_count);
+
+    if (director->workers == NULL) {
+        free(director);
+        luaL_error(L, "Not enough memory for the Director workers!");
+    }
+
+    for (i = 0; i < director->worker_count; i++) 
+        director->workers[i] = worker_start(L);
 
     lua_pushlightuserdata(L, director);
     lua_setfield(L, dialogue_table, pointer);
@@ -67,7 +79,7 @@ lua_director_action (lua_State *L)
     start = rand() % count;
 
     for (i = start; i < count; i = (i + 1) % count)
-        if (lua_worker_take_top(L, director->workers[i]))
+        if (worker_take_action(L, director->workers[i]))
             break;
 
     return 0;
@@ -79,6 +91,8 @@ lua_director_quit (lua_State *L)
     Director *director;
     const char *pointer = "__ptr";
     const int dialogue_table = 1;
+    int i;
+
     lua_pushstring(L, "__ptr");
     lua_getfield(L, dialogue_table, pointer);
 
@@ -86,7 +100,13 @@ lua_director_quit (lua_State *L)
         goto exit;
 
     director = lua_touserdata(L, -1);
-    printf("Stopping %d workers ...\n", director->worker_count);
+
+    for (i = 0; i < director->worker_count; i++) {
+        printf("Stopping worker %d ...\n", i);
+        worker_stop(L, director->workers[i]);
+    }
+
+    free(director->workers);
     free(director);
 
 exit:
