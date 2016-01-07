@@ -103,10 +103,8 @@ lua_director_quit (lua_State *L)
 
     director = lua_touserdata(L, -1);
 
-    for (i = 0; i < director->worker_count; i++) {
-        printf("Stopping worker %d ...\n", i);
+    for (i = 0; i < director->worker_count; i++)
         worker_stop(L, director->workers[i]);
-    }
 
     free(director->workers);
     free(director);
