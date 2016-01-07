@@ -1,3 +1,5 @@
 Dialogue = require("Dialogue")
 
-Dialogue{"new", "foo"}
+Dialogue{"new", "Matt"}
+Dialogue{"new", "John"}
+Dialogue{"new", "James"}
