@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include "worker.h"
+#include "utils.h"
 
 struct Worker {
     lua_State *L;
@@ -17,7 +18,8 @@ void *
 worker_thread (void *arg)
 {
     lua_State *W;
-    int i, len, action_table;
+    //int i, len, action_table;
+    int action_table;
     Worker *worker;
     
     worker = arg;
@@ -27,21 +29,26 @@ worker_thread (void *arg)
     pthread_mutex_lock(&worker->mutex);
 
     while (worker->working) {
-        if (!lua_istable(W, action_table))
+        //if (!lua_istable(W, action_table))
+        //    goto wait;
+
+        if (lua_gettop(W) != 1)
             goto wait;
 
-        len = luaL_len(W, action_table);
-
-        printf("%p doing {", worker);
-        for (i = 1; i <= len; i++) {
-            lua_rawgeti(W, action_table, i);
-            printf(" %s ", lua_tostring(W, -1));
-            lua_pop(W, 1);
-        }
-        printf("}\n");
-
+        printf("%p %s\n", worker, lua_tostring(W, -1));
         lua_pop(W, 1);
+
+        //printf("%p WORK {", worker);
+        //len = luaL_len(W, 2);
+        //for (i = 1; i <= len; i++) {
+        //    lua_rawgeti(W, 2, i);
+        //    printf(" %s ", lua_tostring(W, -1));
+        //    lua_pop(W, 1);
+        //}
+        //printf("}\n");
+
 wait:
+        printf("%p WAIT\n", worker);
         worker->waiting = 1;
         while (worker->waiting)
             pthread_cond_wait(&worker->wait_cond, &worker->mutex);
@@ -56,6 +63,7 @@ worker_start (lua_State *L)
     /* TODO: check memory here */
     Worker *worker = malloc(sizeof(*worker));
     worker->L = lua_newthread(L);
+    /* worker->L = luaL_newstate(); */
     worker->working = 1;
     worker->waiting = 0;
     worker->ref = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -79,13 +87,20 @@ worker_take_action (lua_State *L, Worker *worker)
     if (rc == EBUSY)
         return 0;
 
-    printf("%p taking action\n", worker);
+    if (!worker->waiting) {
+        pthread_mutex_unlock(&worker->mutex);
+        return 0;
+    }
+
+    if (lua_istable(L, -1))
+        printf("%p TAKE\n", worker);
 
     /* TODO: in the real system this must be utils_move_top. */
     lua_xmove(L, worker->L, 1);
     worker->waiting = 0;
     pthread_mutex_unlock(&worker->mutex);
     pthread_cond_signal(&worker->wait_cond);
+
     return 1;
 }
 

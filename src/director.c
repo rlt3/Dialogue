@@ -42,6 +42,8 @@ director_or_init (lua_State *L)
     director->rand_seed = time(NULL);
     lua_pop(L, 1);
 
+    srand(director->rand_seed);
+
     director->workers = malloc(sizeof(Worker*) * director->worker_count);
 
     if (director->workers == NULL) {

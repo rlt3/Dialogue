@@ -1,7 +1,7 @@
 UNAME := $(shell uname)
 CC=clang
 
-SOURCES=src/dialogue.o src/director.o src/worker.o
+SOURCES=src/dialogue.o src/director.o src/worker.o src/utils.o
 
 ifeq ($(DIALOGUE_HEADLESS), true)
   MODULE=Dialogue.so
