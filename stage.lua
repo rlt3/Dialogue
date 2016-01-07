@@ -1,3 +1,3 @@
 Dialogue = require("Dialogue")
 
-Dialogue{"new"}
+Dialogue{"new", "foo"}
