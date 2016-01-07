@@ -32,7 +32,7 @@ worker_thread (void *arg)
 
         len = luaL_len(W, action_table);
 
-        printf("{");
+        printf("%p doing {", worker);
         for (i = 1; i <= len; i++) {
             lua_rawgeti(W, action_table, i);
             printf(" %s ", lua_tostring(W, -1));
@@ -78,6 +78,8 @@ worker_take_action (lua_State *L, Worker *worker)
 
     if (rc == EBUSY)
         return 0;
+
+    printf("%p taking action\n", worker);
 
     /* TODO: in the real system this must be utils_move_top. */
     lua_xmove(L, worker->L, 1);

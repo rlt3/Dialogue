@@ -27,9 +27,9 @@ director_or_init (lua_State *L)
 
     if (!lua_isnil(L, -1)) {
         director = lua_touserdata(L, -1);
+        lua_pop(L, 1);
         goto exit;
     }
-
     lua_pop(L, 1);
 
     director = malloc(sizeof(*director));
@@ -69,7 +69,7 @@ int
 lua_director_action (lua_State *L)
 {
     Director *director;
-    const int action_arg = 1;
+    const int action_arg = 2;
     int count, start, i;
 
     luaL_checktype(L, action_arg, LUA_TTABLE);
