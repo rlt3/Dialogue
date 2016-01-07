@@ -17,31 +17,56 @@ struct Worker {
 void *
 worker_thread (void *arg)
 {
-    const int action_index = 1;
+    const char *error;
+    const int dialogue_table = 1;
+    const int action_table = 2;
     Worker *worker = arg;
     lua_State *W = worker->L;
-    int i, len;
+    int i, args, len;
 
     pthread_mutex_lock(&worker->mutex);
+    lua_getglobal(W, "Dialogue");
 
     while (worker->working) {
-        if (lua_gettop(W) != action_index)
+        if (lua_gettop(W) != action_table)
             goto wait;
 
-        len = luaL_len(W, action_index);
-        printf("%p {", worker);
-        for (i = 1; i <= len; i++) {
-            lua_rawgeti(W, action_index, i);
-            printf(" %s ", lua_tostring(W, -1));
+        /* -1 because the first element is always an action as a string */
+        len  = luaL_len(W, action_table);
+        args = len - 1;
+
+        lua_rawgeti(W, action_table, 1);
+        lua_gettable(W, dialogue_table);
+
+        if (!lua_isfunction(W, -1)) {
             lua_pop(W, 1);
+            error = "Bad Action!";
+            printf("%s\n", error);
+            goto wait;
         }
-        printf("}\n");
+
+        for (i = 2; i <= len; i++)
+            lua_rawgeti(W, action_table, i);
+
+        if (lua_pcall(W, args, 0, 0)) {
+            error = lua_tostring(W, -1);
+            printf("%s\n", error);
+            lua_pop(W, 1);
+            goto wait;
+        }
+
         lua_pop(W, 1);
 
 wait:
         worker->waiting = 1;
         while (worker->waiting)
             pthread_cond_wait(&worker->wait_cond, &worker->mutex);
+
+//error:  /* incidentally loops around and ends up at `wait' */
+//        lua_getfield(W, dialogue_table, "error");
+//        lua_pushstring(W, error);
+//        lua_call(W, 1, 0);
+//        lua_pop(W, 1);
     }
 
     pthread_mutex_unlock(&worker->mutex);
