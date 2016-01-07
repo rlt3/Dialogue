@@ -1,68 +1,15 @@
 #include "dialogue.h"
 #include "director.h"
+#include "action.h"
 #include "worker.h"
 
-int
-lua_dialogue_create (lua_State *L)
-{
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Creating %s\n", actor);
-    return 0;
-}
-
-int
-lua_dialogue_bench (lua_State *L)
-{
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Benching %s\n", actor);
-    return 0;
-}
-
-int
-lua_dialogue_join (lua_State *L)
-{
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Joining %s\n", actor);
-    return 0;
-}
-
-int
-lua_dialogue_send (lua_State *L)
-{
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Sending %s\n", actor);
-    return 0;
-}
-
-int
-lua_dialogue_load (lua_State *L)
-{
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Loading %s\n", actor);
-    return 0;
-}
-
-int
-lua_dialogue_error (lua_State *L)
-{
-    const int error_arg = 1;
-    const char *error = luaL_checkstring(L, error_arg);
-    printf("%s\n", error);
-    return 0;
-}
-
 static const luaL_Reg dialogue_actions[] = {
-    {"new",   lua_dialogue_create},
-    {"bench", lua_dialogue_bench},
-    {"join",  lua_dialogue_join},
-    {"send",  lua_dialogue_send},
-    {"load",  lua_dialogue_load},
-    {"error", lua_dialogue_error},
+    {"new",   lua_action_create},
+    {"bench", lua_action_bench},
+    {"join",  lua_action_join},
+    {"send",  lua_action_send},
+    {"load",  lua_action_load},
+    {"error", lua_action_error},
     { NULL, NULL }
 };
 

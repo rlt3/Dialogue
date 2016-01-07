@@ -14,6 +14,22 @@ struct Worker {
     int ref;
 };
 
+/*
+ * Actually do the actions of our Dialogue.
+ *
+ * _Always_ has the Dialogue table at index 1. At every loop it expects the 
+ * action table at index 2. Pushes the first element of the action table to see
+ * if it exists in the Dialogue table.
+ *
+ * If the action exists, the action function is called and the rest of the elements
+ * in the action table are used as arguments, if any. If there is an error with
+ * the function call an error is printed.
+ *
+ * If the action doesn't exist it prints an error.
+ *
+ * The worker then cleans up the stack for the next loop and then waits for an
+ * action table to be placed on its stack.
+ */
 void *
 worker_thread (void *arg)
 {
@@ -39,9 +55,10 @@ worker_thread (void *arg)
         lua_gettable(W, dialogue_table);
 
         if (!lua_isfunction(W, -1)) {
-            lua_pop(W, 1);
-            error = "Bad Action!";
-            printf("%s\n", error);
+            lua_rawgeti(W, action_table, 1);
+            error = lua_tostring(W, -1);
+            printf("`%s' is not an Action recognized by Dialogue1\n", error);
+            lua_pop(W, 2); /* action and the not function */
             goto wait;
         }
 
@@ -51,22 +68,16 @@ worker_thread (void *arg)
         if (lua_pcall(W, args, 0, 0)) {
             error = lua_tostring(W, -1);
             printf("%s\n", error);
-            lua_pop(W, 1);
+            lua_pop(W, 1); /* error string */
             goto wait;
         }
 
-        lua_pop(W, 1);
+       lua_pop(W, 1); /* action table */
 
 wait:
         worker->waiting = 1;
         while (worker->waiting)
             pthread_cond_wait(&worker->wait_cond, &worker->mutex);
-
-//error:  /* incidentally loops around and ends up at `wait' */
-//        lua_getfield(W, dialogue_table, "error");
-//        lua_pushstring(W, error);
-//        lua_call(W, 1, 0);
-//        lua_pop(W, 1);
     }
 
     pthread_mutex_unlock(&worker->mutex);
@@ -80,9 +91,9 @@ worker_start (lua_State *L)
     /* TODO: check memory here */
     Worker *worker = malloc(sizeof(*worker));
     worker->L = lua_newthread(L);
-    /* worker->L = luaL_newstate(); */
     worker->working = 1;
     worker->waiting = 0;
+    /* ref (which pops) the thread object so we control garbage collection */
     worker->ref = luaL_ref(L, LUA_REGISTRYINDEX);
     
     pthread_mutex_init(&worker->mutex, NULL);
@@ -94,7 +105,8 @@ worker_start (lua_State *L)
 
 /*
  * Have the worker take the action on top of the given Lua stack. 
- * Returns 1 if the action was taken, 0 if busy.
+ * Pops the top of the given Lua stack if the action is taken.
+ * Returns 1 if the action is taken, 0 if busy.
  */
 int
 worker_take_action (lua_State *L, Worker *worker)
@@ -118,6 +130,10 @@ worker_take_action (lua_State *L, Worker *worker)
     return 1;
 }
 
+/*
+ * Wait for the Worker to wait for work, then join it back to the main thread.
+ * Frees the worker and releases its reference.
+ */
 void
 worker_stop (lua_State *L, Worker *worker)
 {
@@ -127,7 +143,7 @@ worker_stop (lua_State *L, Worker *worker)
     pthread_mutex_unlock(&worker->mutex);
     pthread_cond_signal(&worker->wait_cond);
 
-    luaL_unref(L, LUA_REGISTRYINDEX, worker->ref);
     pthread_join(worker->thread, NULL);
+    luaL_unref(L, LUA_REGISTRYINDEX, worker->ref);
     free(worker);
 }
