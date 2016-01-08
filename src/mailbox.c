@@ -86,5 +86,10 @@ cleanup:
 void
 mailbox_destroy (lua_State *L, Mailbox *mailbox)
 {
+    pthread_mutex_lock(&mailbox->mutex);
+    if (lua_gettop(mailbox->L) > 0)
+        printf("%p quit with %d left\n", mailbox, lua_gettop(mailbox->L));
+    pthread_mutex_unlock(&mailbox->mutex);
+    pthread_mutex_destroy(&mailbox->mutex);
     free(mailbox);
 }
