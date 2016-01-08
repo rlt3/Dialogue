@@ -1,30 +1,27 @@
 #ifndef DIALOGUE_MAILBOX
 #define DIALOGUE_MAILBOX
 
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
+#include "dialogue.h"
 
-struct Mailbox *
-mailbox_create ();
+typedef struct Mailbox Mailbox;
+
+Mailbox *
+mailbox_create (lua_State *L);
+
+/*
+ * Try pushing to the mailbox. Pops the top of the Lua stack and pushes it to
+ * the Mailbox if it isn't busy.  Returns 1 if the action is taken, 0 if busy.
+ */
+int
+mailbox_push_top (lua_State *L, Mailbox *mailbox);
+
+/*
+ * Pop all of the actions off the Mailbox onto the given Lua stack.
+ */
+void
+mailbox_pop_all (lua_State *L, Mailbox *mailbox);
 
 void
-mailbox_destroy (struct Mailbox *mailbox);
-
-/*
- * This is a blocking function. Wait for the Mailbox and then copy the expected
- * Envelope on top of the given Lua stack. Adds the envelope to the queue.
- * Returns 1 if the envelope was sent, 0 if busy.
- */
-int
-mailbox_send_lua_top (struct Mailbox *mailbox, lua_State *L);
-
-/*
- * Pops all of the Mailbox's envelopes (a destructive operation) as a table
- * and pushes it onto the given Lua state. Returns the number of envelopes
- * inside the table.
- */
-int
-mailbox_pop_envelopes (struct Mailbox *mailbox, lua_State *L);
+mailbox_destroy (lua_State *L, Mailbox *mailbox);
 
 #endif

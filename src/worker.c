@@ -1,14 +1,14 @@
 #include <stdlib.h>
 #include <pthread.h>
+#include <unistd.h>
 #include <errno.h>
 #include "worker.h"
-#include "utils.h"
+#include "mailbox.h"
 
 struct Worker {
     lua_State *L;
     pthread_t thread;
-    pthread_mutex_t mutex;
-    pthread_cond_t wait_cond;
+    Mailbox *mailbox;
     int working;
     int waiting;
     int ref;
@@ -40,12 +40,13 @@ worker_thread (void *arg)
     lua_State *W = worker->L;
     int i, args, len;
 
-    pthread_mutex_lock(&worker->mutex);
     lua_getglobal(W, "Dialogue");
 
     while (worker->working) {
-        if (lua_gettop(W) != action_table)
-            goto wait;
+        while (worker->working && lua_gettop(W) == dialogue_table) {
+            mailbox_pop_all(W, worker->mailbox);
+            usleep(1000);
+        }
 
         /* -1 because the first element is always an action as a string */
         len  = luaL_len(W, action_table);
@@ -59,7 +60,7 @@ worker_thread (void *arg)
             error = lua_tostring(W, -1);
             printf("`%s' is not an Action recognized by Dialogue1\n", error);
             lua_pop(W, 2); /* action and the not function */
-            goto wait;
+            goto next;
         }
 
         for (i = 2; i <= len; i++)
@@ -82,6 +83,11 @@ worker_thread (void *arg)
          * Returns a table of actions to resend and a boolean to determine if
          * the messages should be resent through the Director or if this Worker
          * should just redo it
+         *
+         * 0 - Normal case, can pus nil for table
+         * 1 - Resend the current message
+         * 2 - Resend the list of messages
+         * 3 - Redo - push the list onto the Worker stack and loop
          */
         if (lua_pcall(W, args, 0, 0)) {
             error = lua_tostring(W, -1);
@@ -89,15 +95,9 @@ worker_thread (void *arg)
             lua_pop(W, 1); /* error string */
         }
 
+next:
        lua_pop(W, 1); /* action table */
-
-wait:
-        worker->waiting = 1;
-        while (worker->waiting)
-            pthread_cond_wait(&worker->wait_cond, &worker->mutex);
     }
-
-    pthread_mutex_unlock(&worker->mutex);
 
     return NULL;
 }
@@ -110,41 +110,21 @@ worker_start (lua_State *L)
     worker->L = lua_newthread(L);
     worker->working = 1;
     worker->waiting = 0;
+    worker->mailbox = mailbox_create(L);
     /* ref (which pops) the thread object so we control garbage collection */
     worker->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    
-    pthread_mutex_init(&worker->mutex, NULL);
-    pthread_cond_init(&worker->wait_cond, NULL);
     pthread_create(&worker->thread, NULL, worker_thread, worker);
 
     return worker;
 }
 
 /*
- * Have the worker take the action on top of the given Lua stack. 
- * Pops the top of the given Lua stack if the action is taken.
- * Returns 1 if the action is taken, 0 if busy.
+ * Call `mailbox_push_top' for the Worker's mailbox.
  */
 int
 worker_take_action (lua_State *L, Worker *worker)
 {
-    int rc = pthread_mutex_trylock(&worker->mutex);
-
-    if (rc == EBUSY)
-        return 0;
-
-    if (!worker->waiting) {
-        pthread_mutex_unlock(&worker->mutex);
-        return 0;
-    }
-
-    /* TODO: in the real system this must be utils_move_top. */
-    lua_xmove(L, worker->L, 1);
-    worker->waiting = 0;
-    pthread_mutex_unlock(&worker->mutex);
-    pthread_cond_signal(&worker->wait_cond);
-
-    return 1;
+    return mailbox_push_top(L, worker->mailbox);
 }
 
 /*
@@ -154,13 +134,9 @@ worker_take_action (lua_State *L, Worker *worker)
 void
 worker_stop (lua_State *L, Worker *worker)
 {
-    pthread_mutex_lock(&worker->mutex);
     worker->working = 0;
-    worker->waiting = 0;
-    pthread_mutex_unlock(&worker->mutex);
-    pthread_cond_signal(&worker->wait_cond);
-
     pthread_join(worker->thread, NULL);
+    mailbox_destroy(L, worker->mailbox);
     luaL_unref(L, LUA_REGISTRYINDEX, worker->ref);
     free(worker);
 }

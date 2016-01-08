@@ -9,107 +9,70 @@
 #include "luaf.h"
 
 /*
- * The Mailbox has its own state and mutex. It collects the messages for an
- * Actor while the Actor does other things. When an Actor is ready to process
- * the messages, the Mailbox locks, the Actor locks, and they processed until
- * there are no messages.
+ * The Mailbox holds its own Lua stack just for the stack itself. It holds the
+ * messages for a Worker and it just pops them off when done with them.
  */
-typedef struct Mailbox {
+struct Mailbox {
     lua_State *L;
     pthread_mutex_t mutex;
-    int envelope_count;
+    int action_count;
     int ref;
-} Mailbox;
-
-/*
- * The Mailbox keeps the table at index 1 for all operations to make it fast.
- */
-static const int envelopes_table = 1;
+};
 
 Mailbox *
-mailbox_create ()
+mailbox_create (lua_State *L)
 {
-    lua_State *B;
-    pthread_mutexattr_t mutex_attr;
     Mailbox *mailbox = malloc(sizeof(*mailbox));
 
-    mailbox->envelope_count = 0;
-    mailbox->L = luaL_newstate();
+    //if (mailbox == NULL)
 
-    B = mailbox->L;
-    luaL_openlibs(B);
-
-    /*
-     * TODO:
-     *  *if* we treat each Envelope as simply a table in the form of
-     *      { author, action [, arg1 [, arg2 ...]] }
-     *  then we can simply loop through the table and for each slot that could
-     *  contain an actor, we check for the existence of a 'reference' field. If
-     *  it exists, we call it as a function (incrementing whatever it may be).
-     */
-
-    luaL_requiref(B, "eval", luaopen_eval, 1);
-    luaL_requiref(B, "Collection", luaopen_Collection, 1);
-    luaL_requiref(B, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(B, 3);
-
-    /* Envelopes table */
-    lua_newtable(B);
-
-    pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&mailbox->mutex, &mutex_attr);
+    mailbox->L = lua_newthread(L);
+    mailbox->action_count = 0;
+    mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    pthread_mutex_init(&mailbox->mutex, NULL);
 
     return mailbox;
 }
 
-void
-mailbox_destroy (Mailbox *mailbox)
-{
-    free(mailbox);
-}
-
 /*
- * This is a blocking function. Wait for the Mailbox and then copy the expected
- * Envelope on top of the given Lua stack. Adds the envelope to the queue.
- * Returns 1 if the envelope was sent, 0 if busy.
+ * Try pushing to the mailbox. Pops the top of the Lua stack and pushes it to
+ * the Mailbox if it isn't busy.  Returns 1 if the action is taken, 0 if busy.
  */
 int
-mailbox_send_lua_top (Mailbox *mailbox, lua_State *L)
+mailbox_push_top (lua_State *L, Mailbox *mailbox)
 {
     int rc;
     lua_State *B = mailbox->L;
 
     rc = pthread_mutex_trylock(&mailbox->mutex);
+
     if (rc == EBUSY)
         return 0;
 
-    utils_copy_top(B, L);
-    lua_rawseti(B, envelopes_table, mailbox->envelope_count + 1);
-    mailbox->envelope_count++;
+    lua_xmove(L, B, 1);
+    mailbox->action_count++;
     pthread_mutex_unlock(&mailbox->mutex);
 
     return 1;
 }
 
 /*
- * Pops all of the Mailbox's envelopes (a destructive operation) as a table
- * and pushes it onto the given Lua state. Returns the number of envelopes
- * inside the table.
+ * Pop all of the actions off the Mailbox onto the given Lua stack.
  */
-int
-mailbox_pop_envelopes (Mailbox *mailbox, lua_State *L)
+void
+mailbox_pop_all (lua_State *L, Mailbox *mailbox)
 {
-    int count;
     lua_State *B = mailbox->L;
 
     pthread_mutex_lock(&mailbox->mutex);
-    utils_copy_top(L, B);
-    lua_pop(B, 1);
-    lua_newtable(B);
-    count = mailbox->envelope_count;
-    mailbox->envelope_count = 0;
+    lua_xmove(B, L, mailbox->action_count);
+    mailbox->action_count = 0;
     pthread_mutex_unlock(&mailbox->mutex);
+}
 
-    return count;
+void
+mailbox_destroy (lua_State *L, Mailbox *mailbox)
+{
+    luaL_unref(L, LUA_REGISTRYINDEX, mailbox->ref);
+    free(mailbox);
 }
