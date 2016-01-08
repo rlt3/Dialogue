@@ -7,6 +7,7 @@ ifeq ($(DIALOGUE_HEADLESS), true)
   MODULE=Dialogue.so
 else
   MODULE=dialogue
+  SOURCES+=src/main.o 
 endif
 
 ifeq ($(UNAME), Linux)

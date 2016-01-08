@@ -1,57 +1,35 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <signal.h>
-#include <sys/time.h>
 
 #include "dialogue.h"
-#include "interpreter.h"
-
-void
-usage (const char *program)
-{
-    fprintf(stderr, "%s [script]\n", program);
-    exit(1);
-}
+#include "worker.h"
+#include "mailbox.h"
 
 int
 main (int argc, char **argv)
 {
-    struct timeval stop, start;
-    short int running = 1;
-    const char *file;
-    lua_State *L;
+    int i;
+    const int max_boxes = 2;
+    Mailbox *boxes[max_boxes];
+    lua_State *G = luaL_newstate();
+    lua_State *W = lua_newthread(G);
+    luaL_openlibs(G);
 
-    if (argc == 1)
-        usage(argv[0]);
+    for (i = 0; i < max_boxes; i++)
+        boxes[i] = mailbox_create(G);
 
-    file = argv[1];
-    L = luaL_newstate();
-    luaL_openlibs(L);
-
-    luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(L, 1);
-
-    //interpreter_register(L, &running);
-
-    /*
-     * from http://stackoverflow.com/questions/10192903/time-in-milliseconds
-     */
-    gettimeofday(&start, NULL);
-
-    if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
-        fprintf(stderr, "%s\n", lua_tostring(L, -1));
-        interpreter_exit();
-        goto exit;
+    for (i = 0; i < 1000; i++) {
+        lua_newtable(G);
+        lua_pushstring(G, "foo");
+        lua_rawseti(G, -2, 1);
+        mailbox_push_top(G, boxes[0]);
     }
 
-   // while (running)
-   //     lua_interpret(L);
+    mailbox_pop_all(W, boxes[0]);
 
-    gettimeofday(&stop, NULL);
-    printf("%f\n", (double)(stop.tv_usec - start.tv_usec) / 1000000 
-                   + (double)(stop.tv_sec - start.tv_sec));
+    for (i = 0; i < max_boxes; i++)
+        mailbox_destroy(G, boxes[i]);
 
-exit:
-    lua_close(L);
+    lua_close(G);
     return 0;
 }

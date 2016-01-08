@@ -3,8 +3,8 @@
 int
 lua_action_create (lua_State *L)
 {
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
+    //const int actor_arg = 1;
+    //const char *actor = luaL_checkstring(L, actor_arg);
     //printf("Creating %s\n", actor);
     return 0;
 }

@@ -22,9 +22,7 @@ Mailbox *
 mailbox_create (lua_State *L)
 {
     Mailbox *mailbox = malloc(sizeof(*mailbox));
-
     //if (mailbox == NULL)
-
     mailbox->L = lua_newthread(L);
     mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
     pthread_mutex_init(&mailbox->mutex, NULL);
@@ -71,19 +69,22 @@ mailbox_pop_all (lua_State *L, Mailbox *mailbox)
 
     pthread_mutex_lock(&mailbox->mutex);
     count = lua_gettop(B);
-    if (count > 0)
-        lua_xmove(B, L, count);
-    pthread_mutex_unlock(&mailbox->mutex);
 
+    if (count > 0) {
+        if (!lua_checkstack(L, count)) {
+            count = 0;
+            goto cleanup;
+        }
+        lua_xmove(B, L, count);
+    }
+
+cleanup:
+    pthread_mutex_unlock(&mailbox->mutex);
     return count;
 }
 
 void
 mailbox_destroy (lua_State *L, Mailbox *mailbox)
 {
-    pthread_mutex_lock(&mailbox->mutex);
-    printf("%p actions %d\n", mailbox, lua_gettop(mailbox->L));
-    luaL_unref(L, LUA_REGISTRYINDEX, mailbox->ref);
-    pthread_mutex_unlock(&mailbox->mutex);
     free(mailbox);
 }
