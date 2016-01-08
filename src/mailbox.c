@@ -19,9 +19,12 @@ struct Mailbox {
     int ref;
 };
 
+static const int action_table = 1;
+
 Mailbox *
 mailbox_create (lua_State *L)
 {
+    
     Mailbox *mailbox = malloc(sizeof(*mailbox));
 
     //if (mailbox == NULL)
@@ -30,6 +33,9 @@ mailbox_create (lua_State *L)
     mailbox->action_count = 0;
     mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
     pthread_mutex_init(&mailbox->mutex, NULL);
+
+    /* create the `action_table' whose index is defined above */
+    lua_newtable(mailbox->L);
 
     return mailbox;
 }
@@ -51,6 +57,7 @@ mailbox_push_top (lua_State *L, Mailbox *mailbox)
 
     lua_xmove(L, B, 1);
     mailbox->action_count++;
+    lua_rawseti(B, action_table, mailbox->action_count);
     pthread_mutex_unlock(&mailbox->mutex);
 
     return 1;
@@ -65,10 +72,9 @@ mailbox_pop_all (lua_State *L, Mailbox *mailbox)
     lua_State *B = mailbox->L;
 
     pthread_mutex_lock(&mailbox->mutex);
-    if (mailbox->action_count > 0) {
-        lua_xmove(B, L, mailbox->action_count); 
-        mailbox->action_count = 0;
-    }
+    lua_xmove(B, L, 1); 
+    lua_newtable(B);
+    mailbox->action_count = 0;
     pthread_mutex_unlock(&mailbox->mutex);
 }
 

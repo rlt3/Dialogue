@@ -9,6 +9,7 @@ struct Worker {
     lua_State *L;
     pthread_t thread;
     Mailbox *mailbox;
+    int processed;
     int working;
     int ref;
 };
@@ -32,58 +33,61 @@ struct Worker {
 void *
 worker_thread (void *arg)
 {
-    const char *error;
-    const int dialogue_table = 1;
     Worker *worker = arg;
     lua_State *W = worker->L;
-    int i, args, len, top_action;
+    const char *error;
+    const int dialogue_table = 1;
+    const int action_list = 2;
+    int top_action;
+    int i, args, len;
 
     lua_getglobal(W, "Dialogue");
 
-get_work:
     while (worker->working) {
         mailbox_pop_all(W, worker->mailbox);
-        top_action = lua_gettop(W);
 
-        if (top_action == dialogue_table)
-            goto get_work;
+        lua_pushnil(W);
+        while (lua_next(W, action_list)) {
+            top_action = lua_gettop(W);
 
-        /* -1 because the first element is always an action as a string */
-        len  = luaL_len(W, top_action);
-        args = len - 1;
+            len  = luaL_len(W, top_action);
+            args = len - 1;
 
-        lua_rawgeti(W, top_action, 1);
-        lua_gettable(W, dialogue_table);
-
-        if (!lua_isfunction(W, -1)) {
             lua_rawgeti(W, top_action, 1);
-            error = lua_tostring(W, -1);
-            printf("`%s' is not an Action recognized by Dialogue!\n", error);
-            lua_pop(W, 2); /* action and the not function */
-            goto next;
-        }
+            lua_gettable(W, dialogue_table);
 
-        for (i = 2; i <= len; i++)
-            lua_rawgeti(W, top_action, i);
+            if (!lua_isfunction(W, -1)) {
+                lua_rawgeti(W, top_action, 1);
+                error = lua_tostring(W, -1);
+                printf("`%s' is not an Action recognized by Dialogue!\n", error);
+                lua_pop(W, 2); /* action and the not function */
+                goto next;
+            }
 
-        /*
-         * Returns a table of actions to resend and a boolean to determine if
-         * the messages should be resent through the Director or if this Worker
-         * should just redo it
-         *
-         * 0 - Normal case, can pus nil for table
-         * 1 - Resend the current message
-         * 2 - Resend the list of messages
-         * 3 - Redo - push the list onto the Worker stack and loop
-         */
-        if (lua_pcall(W, args, 0, 0)) {
-            error = lua_tostring(W, -1);
-            printf("%s\n", error);
-            lua_pop(W, 1); /* error string */
-        }
+            for (i = 2; i <= len; i++)
+                lua_rawgeti(W, top_action, i);
 
+            /*
+             * Returns a table of actions to resend and a boolean to determine if
+             * the messages should be resent through the Director or if this Worker
+             * should just redo it
+             *
+             * 0 - Normal case, can pus nil for table
+             * 1 - Resend the current message
+             * 2 - Resend the list of messages
+             * 3 - Redo - push the list onto the Worker stack and loop
+             */
+            if (lua_pcall(W, args, 0, 0)) {
+                error = lua_tostring(W, -1);
+                printf("%s\n", error);
+                lua_pop(W, 1); /* error string */
+            }
 next:
-       lua_pop(W, 1); /* action table */
+            worker->processed++;
+            lua_pop(W, 1); /* action table */
+        }
+
+        lua_pop(W, 1); /* action list */
     }
 
     return NULL;
@@ -95,10 +99,11 @@ worker_start (lua_State *L)
     /* TODO: check memory here */
     Worker *worker = malloc(sizeof(*worker));
     worker->L = lua_newthread(L);
-    worker->working = 1;
     worker->mailbox = mailbox_create(L);
     /* ref (which pops) the thread object so we control garbage collection */
     worker->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    worker->working = 1;
+    worker->processed = 0;
     pthread_create(&worker->thread, NULL, worker_thread, worker);
 
     return worker;
@@ -123,6 +128,7 @@ worker_stop (lua_State *L, Worker *worker)
     worker->working = 0;
     pthread_join(worker->thread, NULL);
     mailbox_destroy(L, worker->mailbox);
+    printf("%p processed %d\n", worker, worker->processed);
     luaL_unref(L, LUA_REGISTRYINDEX, worker->ref);
     free(worker);
 }
