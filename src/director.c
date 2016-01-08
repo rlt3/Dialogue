@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
 #include "director.h"
 #include "worker.h"
 
@@ -8,6 +9,7 @@ struct Director {
     struct Mailbox *mailbox;
     int worker_count;
     int rand_seed;
+    struct timeval stop, start;
 };
 
 /*
@@ -56,6 +58,8 @@ director_or_init (lua_State *L)
 
     lua_pushlightuserdata(L, director);
     lua_setfield(L, dialogue_table, pointer);
+
+    gettimeofday(&director->start, NULL);
 
 exit:
     return director;
@@ -108,6 +112,10 @@ lua_director_quit (lua_State *L)
 
     for (i = 0; i < director->worker_count; i++)
         worker_stop(L, director->workers[i]);
+
+    gettimeofday(&director->stop, NULL);
+    printf("%f\n", (double)(director->stop.tv_usec - director->start.tv_usec) / 1000000 
+                   + (double)(director->stop.tv_sec - director->start.tv_sec));
 
     free(director->workers);
     free(director);

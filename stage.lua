@@ -17,8 +17,11 @@ Dialogue.worker_count = 2
 -- order or in any order.
 Dialogue.sequential_tones = true
 
-Dialogue{"new", "Matt"}
-Dialogue{"new"}
-Dialogue{"new", "Kim"}
-Dialogue{"lol", "John"}
-Dialogue{"new", "Jenny"}
+for i = 0, 1000 do
+    Dialogue{"new", "Matt"}
+end
+
+--Dialogue{"new"}
+--Dialogue{"new", "Kim"}
+--Dialogue{"lol", "John"}
+--Dialogue{"new", "Jenny"}

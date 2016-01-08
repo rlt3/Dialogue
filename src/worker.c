@@ -16,8 +16,8 @@ struct Worker {
 /*
  * Actually do the actions of our Dialogue.
  *
- * _Always_ has the Dialogue table at index 1. At every loop it expects the 
- * action table at index 2. Pushes the first element of the action table to see
+ * _Always_ has the Dialogue table at index 1. At every loop it expects an
+ * action table on top. Pushes the first element of the action table to see
  * if it exists in the Dialogue table.
  *
  * If the action exists, the action function is called and the rest of the elements
