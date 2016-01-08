@@ -20,10 +20,11 @@ struct Worker {
 void *
 worker_thread (void *arg)
 {
+    const char *error;
+    const int dialogue_table = 1;
+    int i, len, args, top;
     Worker *worker = arg;
     lua_State *W = worker->L;
-    const int dialogue_table = 1;
-    int i, top_action;
 
     /* push the initial two tables onto the stack */
     lua_getglobal(W, "Dialogue");
@@ -32,11 +33,44 @@ worker_thread (void *arg)
         if (mailbox_pop_all(W, worker->mailbox) == 0)
             continue;
         
-        top_action = lua_gettop(W);
-
-        for (i = top_action; i > dialogue_table; i--) {
+        for (top = lua_gettop(W); top > dialogue_table; top--) {
+//            len  = luaL_len(W, top);
+//            args = len - 1;
+//
+//            /* push the action type to see if it exists */
+//            lua_rawgeti(W, top, 1);
+//            lua_gettable(W, dialogue_table);
+//
+//            if (!lua_isfunction(W, -1)) {
+//                lua_rawgeti(W, top, 1);
+//                error = lua_tostring(W, -1);
+//                printf("`%s' is not an Action recognized by Dialogue!\n", error);
+//                lua_pop(W, 2); /* action type and the `function' */
+//                goto next;
+//            }
+//
+//            /* push the rest of the table as arguments */
+//            for (i = 2; i <= len; i++)
+//                lua_rawgeti(W, top, i);
+//
+//            /*
+//             * Returns a table of actions to resend and a boolean to determine if
+//             * the messages should be resent through the Director or if this Worker
+//             * should just redo it
+//             *
+//             * 0 - Normal case, can pus nil for table
+//             * 1 - Resend the current message
+//             * 2 - Resend the list of messages
+//             * 3 - Redo - push the list onto the Worker stack and loop
+//             */
+//            if (lua_pcall(W, args, 0, 0)) {
+//                error = lua_tostring(W, -1);
+//                printf("%s\n", error);
+//                lua_pop(W, 1); /* error string */
+//            }
+next:
             worker->processed++;
-            lua_pop(W, 1);
+            lua_pop(W, 1); /* the top action */
         }
     }
 

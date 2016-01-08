@@ -17,13 +17,8 @@ Dialogue.worker_count = 2
 -- order or in any order.
 Dialogue.sequential_tones = true
 
-Dialogue{"new"}
-os.execute("sleep " .. tonumber(0.25))
-
 for i = 1, 100000 do
     Dialogue{"new", "Matt"}
 end
-
---Dialogue{"new", "Kim"}
+os.execute("sleep " .. tonumber(0.25))
 --Dialogue{"lol", "John"}
---Dialogue{"new", "Jenny"}
