@@ -4,12 +4,13 @@
 #include "worker.h"
 
 static const luaL_Reg dialogue_actions[] = {
-    {"new",   lua_action_create},
-    {"bench", lua_action_bench},
-    {"join",  lua_action_join},
-    {"send",  lua_action_send},
-    {"load",  lua_action_load},
-    {"error", lua_action_error},
+    {"new",     lua_action_create},
+    {"bench",   lua_action_bench},
+    {"join",    lua_action_join},
+    {"receive", lua_action_receive},
+    {"send",    lua_action_send},
+    {"load",    lua_action_load},
+    {"error",   lua_action_error},
     { NULL, NULL }
 };
 

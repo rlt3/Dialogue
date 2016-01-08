@@ -65,11 +65,28 @@ worker_thread (void *arg)
         for (i = 2; i <= len; i++)
             lua_rawgeti(W, action_table, i);
 
+        /*
+         * Right here, we can return a boolean to see if we resend the action
+         * or not.
+         * 
+         * This is also a special place -- I have the direct worker available
+         * for a return value which can be more actions to send! If I handled
+         * tones here, I could have the specific actor's actions inserted here
+         * before it needs to wait.
+         *
+         * this also could be an option for messages that may want to be sent
+         * sequentially?
+         */
+
+        /*
+         * Returns a table of actions to resend and a boolean to determine if
+         * the messages should be resent through the Director or if this Worker
+         * should just redo it
+         */
         if (lua_pcall(W, args, 0, 0)) {
             error = lua_tostring(W, -1);
             printf("%s\n", error);
             lua_pop(W, 1); /* error string */
-            goto wait;
         }
 
        lua_pop(W, 1); /* action table */

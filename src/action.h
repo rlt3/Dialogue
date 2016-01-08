@@ -4,7 +4,7 @@
 #include "dialogue.h"
 
 /*
- * These are the Actions of Dialogue -- the primitives of the system.
+ * These are the Actions of Dialogue -- all the primitives of the system.
  */
 
 int
@@ -17,7 +17,7 @@ int
 lua_action_join (lua_State *L);
 
 int
-lua_action_send (lua_State *L);
+lua_action_deliver (lua_State *L);
 
 int
 lua_action_load (lua_State *L);

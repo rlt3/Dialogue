@@ -28,6 +28,15 @@ lua_action_join (lua_State *L)
 }
 
 int
+lua_action_receive (lua_State *L)
+{
+    const int actor_arg = 1;
+    const char *actor = luaL_checkstring(L, actor_arg);
+    printf("Sending %s\n", actor);
+    return 0;
+}
+
+int
 lua_action_send (lua_State *L)
 {
     const int actor_arg = 1;
