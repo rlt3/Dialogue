@@ -2,11 +2,12 @@
 #define DIALOGUE_MAILBOX
 
 #include "dialogue.h"
+#include "worker.h"
 
 typedef struct Mailbox Mailbox;
 
 Mailbox *
-mailbox_create (lua_State *L);
+mailbox_create (lua_State *L, Worker *worker);
 
 /*
  * Try to push onto the Mailbox's stack. If the stack is full or busy, it 

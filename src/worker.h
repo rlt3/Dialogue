@@ -9,6 +9,9 @@ typedef struct Worker Worker;
 Worker *
 worker_start (lua_State *L);
 
+void
+worker_wake (Worker *worker);
+
 /*
  * Have the worker take the action on top of the given Lua stack. 
  * Pops the top of the given Lua stack if the action is taken.

@@ -1,12 +1,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
-#include "dialogue.h"
-#include "luaf.h"
-#include "collection.h"
 #include "mailbox.h"
-#include "utils.h"
-#include "luaf.h"
 
 /*
  * The Mailbox holds its own Lua stack just for the stack itself. It holds the
@@ -15,16 +10,18 @@
 struct Mailbox {
     lua_State *L;
     pthread_mutex_t mutex;
+    Worker *worker;
     int ref;
 };
 
 Mailbox *
-mailbox_create (lua_State *L)
+mailbox_create (lua_State *L, Worker *worker)
 {
     Mailbox *mailbox = malloc(sizeof(*mailbox));
     //if (mailbox == NULL)
     mailbox->L = lua_newthread(L);
     mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    mailbox->worker = worker;
     pthread_mutex_init(&mailbox->mutex, NULL);
 
     return mailbox;
@@ -51,6 +48,7 @@ mailbox_push_top (lua_State *L, Mailbox *mailbox)
 
     lua_xmove(L, B, 1);
     ret = 1;
+    worker_wake(mailbox->worker);
 
 cleanup:
     pthread_mutex_unlock(&mailbox->mutex);
@@ -76,6 +74,9 @@ mailbox_pop_all (lua_State *L, Mailbox *mailbox)
             goto cleanup;
         }
         lua_xmove(B, L, count);
+        
+        if (count > 1)
+            printf("%p xmove %d\n", mailbox, count);
     }
 
 cleanup:
