@@ -15,39 +15,32 @@
 struct Mailbox {
     lua_State *L;
     pthread_mutex_t mutex;
-    int action_count;
     int ref;
 };
-
-static const int action_table = 1;
 
 Mailbox *
 mailbox_create (lua_State *L)
 {
-    
     Mailbox *mailbox = malloc(sizeof(*mailbox));
 
     //if (mailbox == NULL)
 
     mailbox->L = lua_newthread(L);
-    mailbox->action_count = 0;
     mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
     pthread_mutex_init(&mailbox->mutex, NULL);
-
-    /* create the `action_table' whose index is defined above */
-    lua_newtable(mailbox->L);
 
     return mailbox;
 }
 
 /*
- * Try pushing to the mailbox. Pops the top of the Lua stack and pushes it to
- * the Mailbox if it isn't busy.  Returns 1 if the action is taken, 0 if busy.
+ * Try to push onto the Mailbox's stack. If the stack is full or busy, it 
+ * returns 0. Else, it pops the top element off the given Lua stack and pushes
+ * it onto the Mailbox's stack and returns 1.
  */
 int
 mailbox_push_top (lua_State *L, Mailbox *mailbox)
 {
-    int rc;
+    int rc, ret = 0;
     lua_State *B = mailbox->L;
 
     rc = pthread_mutex_trylock(&mailbox->mutex);
@@ -55,32 +48,42 @@ mailbox_push_top (lua_State *L, Mailbox *mailbox)
     if (rc == EBUSY)
         return 0;
 
-    lua_xmove(L, B, 1);
-    mailbox->action_count++;
-    lua_rawseti(B, action_table, mailbox->action_count);
-    pthread_mutex_unlock(&mailbox->mutex);
+    if (!lua_checkstack(B, 1))
+        goto cleanup;
 
-    return 1;
+    lua_xmove(L, B, 1);
+    ret = 1;
+
+cleanup:
+    pthread_mutex_unlock(&mailbox->mutex);
+    return ret;
 }
 
 /*
- * Pop all of the actions off the Mailbox onto the given Lua stack.
+ * Pop all of the actions onto the given Lua stack.
+ * Returns the number of actions pushed onto the given Lua stack.
  */
-void
+int
 mailbox_pop_all (lua_State *L, Mailbox *mailbox)
 {
+    int count;
     lua_State *B = mailbox->L;
 
     pthread_mutex_lock(&mailbox->mutex);
-    lua_xmove(B, L, 1); 
-    lua_newtable(B);
-    mailbox->action_count = 0;
+    count = lua_gettop(B);
+    if (count > 0)
+        lua_xmove(B, L, count);
     pthread_mutex_unlock(&mailbox->mutex);
+
+    return count;
 }
 
 void
 mailbox_destroy (lua_State *L, Mailbox *mailbox)
 {
+    pthread_mutex_lock(&mailbox->mutex);
+    printf("%p actions %d\n", mailbox, lua_gettop(mailbox->L));
     luaL_unref(L, LUA_REGISTRYINDEX, mailbox->ref);
+    pthread_mutex_unlock(&mailbox->mutex);
     free(mailbox);
 }
