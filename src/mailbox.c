@@ -65,8 +65,10 @@ mailbox_pop_all (lua_State *L, Mailbox *mailbox)
     lua_State *B = mailbox->L;
 
     pthread_mutex_lock(&mailbox->mutex);
-    lua_xmove(B, L, mailbox->action_count);
-    mailbox->action_count = 0;
+    if (mailbox->action_count > 0) {
+        lua_xmove(B, L, mailbox->action_count); 
+        mailbox->action_count = 0;
+    }
     pthread_mutex_unlock(&mailbox->mutex);
 }
 

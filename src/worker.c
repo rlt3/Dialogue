@@ -10,7 +10,6 @@ struct Worker {
     pthread_t thread;
     Mailbox *mailbox;
     int working;
-    int waiting;
     int ref;
 };
 
@@ -35,49 +34,37 @@ worker_thread (void *arg)
 {
     const char *error;
     const int dialogue_table = 1;
-    const int action_table = 2;
     Worker *worker = arg;
     lua_State *W = worker->L;
-    int i, args, len;
+    int i, args, len, top_action;
 
     lua_getglobal(W, "Dialogue");
 
+get_work:
     while (worker->working) {
-        while (worker->working && lua_gettop(W) == dialogue_table) {
-            mailbox_pop_all(W, worker->mailbox);
-            usleep(1000);
-        }
+        mailbox_pop_all(W, worker->mailbox);
+        top_action = lua_gettop(W);
+
+        if (top_action == dialogue_table)
+            goto get_work;
 
         /* -1 because the first element is always an action as a string */
-        len  = luaL_len(W, action_table);
+        len  = luaL_len(W, top_action);
         args = len - 1;
 
-        lua_rawgeti(W, action_table, 1);
+        lua_rawgeti(W, top_action, 1);
         lua_gettable(W, dialogue_table);
 
         if (!lua_isfunction(W, -1)) {
-            lua_rawgeti(W, action_table, 1);
+            lua_rawgeti(W, top_action, 1);
             error = lua_tostring(W, -1);
-            printf("`%s' is not an Action recognized by Dialogue1\n", error);
+            printf("`%s' is not an Action recognized by Dialogue!\n", error);
             lua_pop(W, 2); /* action and the not function */
             goto next;
         }
 
         for (i = 2; i <= len; i++)
-            lua_rawgeti(W, action_table, i);
-
-        /*
-         * Right here, we can return a boolean to see if we resend the action
-         * or not.
-         * 
-         * This is also a special place -- I have the direct worker available
-         * for a return value which can be more actions to send! If I handled
-         * tones here, I could have the specific actor's actions inserted here
-         * before it needs to wait.
-         *
-         * this also could be an option for messages that may want to be sent
-         * sequentially?
-         */
+            lua_rawgeti(W, top_action, i);
 
         /*
          * Returns a table of actions to resend and a boolean to determine if
@@ -109,7 +96,6 @@ worker_start (lua_State *L)
     Worker *worker = malloc(sizeof(*worker));
     worker->L = lua_newthread(L);
     worker->working = 1;
-    worker->waiting = 0;
     worker->mailbox = mailbox_create(L);
     /* ref (which pops) the thread object so we control garbage collection */
     worker->ref = luaL_ref(L, LUA_REGISTRYINDEX);

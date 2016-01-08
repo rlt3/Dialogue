@@ -80,6 +80,9 @@ lua_director_action (lua_State *L)
     count = director->worker_count;
     start = rand() % count;
 
+    lua_rawgeti(L, action_arg, 2);
+    lua_pop(L, 1);
+
     for (i = start; i < count; i = (i + 1) % count)
         if (worker_take_action(L, director->workers[i]))
             break;

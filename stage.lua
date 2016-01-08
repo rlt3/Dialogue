@@ -9,7 +9,7 @@ Dialogue.strict_load = true
 Dialogue.unload_at_error_count = 1
 
 -- The number of threads we want processing actions
-Dialogue.worker_count = 4
+Dialogue.worker_count = 2
 
 -- When an actor sends a message, it has a tone. That tone is used as a key to
 -- get the audience. A message almost always has many audience members. With
@@ -18,7 +18,7 @@ Dialogue.worker_count = 4
 Dialogue.sequential_tones = true
 
 Dialogue{"new", "Matt"}
-Dialogue{"lol", "John"}
 Dialogue{"new"}
 Dialogue{"new", "Kim"}
+Dialogue{"lol", "John"}
 Dialogue{"new", "Jenny"}
