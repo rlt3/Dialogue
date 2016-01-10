@@ -12,6 +12,8 @@ struct Director {
     struct timeval stop, start;
 };
 
+static const char *pointer = "__ptr";
+
 /*
  * Returns the Director of the Dialogue in the given Lua state. Initializes it
  * if not done already.
@@ -20,7 +22,6 @@ Director *
 director_or_init (lua_State *L)
 {
     Director *director;
-    const char *pointer = "__ptr";
     const int default_workers = 4;
     const int dialogue_table = 1;
     int i;
@@ -98,11 +99,9 @@ int
 lua_director_quit (lua_State *L)
 {
     Director *director;
-    const char *pointer = "__ptr";
     const int dialogue_table = 1;
     int i;
 
-    lua_pushstring(L, "__ptr");
     lua_getfield(L, dialogue_table, pointer);
 
     if (lua_isnil(L, -1))

@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include "mailbox.h"
+#include "utils.h"
 
 /*
  * The Mailbox holds its own Lua stack just for the stack itself. It holds the
@@ -10,27 +11,23 @@
 struct Mailbox {
     lua_State *L;
     pthread_mutex_t mutex;
-    Worker *worker;
-    int ref;
 };
 
 Mailbox *
-mailbox_create (lua_State *L, Worker *worker)
+mailbox_create ()
 {
     Mailbox *mailbox = malloc(sizeof(*mailbox));
-    //if (mailbox == NULL)
-    mailbox->L = lua_newthread(L);
-    mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    mailbox->worker = worker;
+    /* TODO check mailbox NULL */
+    mailbox->L = luaL_newstate();
+    /* TODO check state NULL */
     pthread_mutex_init(&mailbox->mutex, NULL);
-
     return mailbox;
 }
 
 /*
- * Try to push onto the Mailbox's stack. If the stack is full or busy, it 
- * returns 0. Else, it pops the top element off the given Lua stack and pushes
- * it onto the Mailbox's stack and returns 1.
+ * Attempt to pop & push the top element of `L' to the Mailbox's stack. If the
+ * Mailbox is busy, returns 0. If the Mailbox cannot handle anymore messages,
+ * returns 0. Returns 1 if the top element was popped and pushed.
  */
 int
 mailbox_push_top (lua_State *L, Mailbox *mailbox)
@@ -46,9 +43,8 @@ mailbox_push_top (lua_State *L, Mailbox *mailbox)
     if (!lua_checkstack(B, 1))
         goto cleanup;
 
-    lua_xmove(L, B, 1);
+    utils_transfer(B, L, 1);
     ret = 1;
-    worker_wake(mailbox->worker);
 
 cleanup:
     pthread_mutex_unlock(&mailbox->mutex);
@@ -56,8 +52,8 @@ cleanup:
 }
 
 /*
- * Pop all of the actions onto the given Lua stack.
- * Returns the number of actions pushed onto the given Lua stack.
+ * Pop all of the Mailbox's elements onto `L'. Returns the number of elements
+ * pushed.
  */
 int
 mailbox_pop_all (lua_State *L, Mailbox *mailbox)
@@ -73,10 +69,7 @@ mailbox_pop_all (lua_State *L, Mailbox *mailbox)
             count = 0;
             goto cleanup;
         }
-        lua_xmove(B, L, count);
-        
-        if (count > 1)
-            printf("%p xmove %d\n", mailbox, count);
+        utils_transfer(L, B, count);
     }
 
 cleanup:
@@ -85,12 +78,13 @@ cleanup:
 }
 
 void
-mailbox_destroy (lua_State *L, Mailbox *mailbox)
+mailbox_destroy (Mailbox *mailbox)
 {
     pthread_mutex_lock(&mailbox->mutex);
     if (lua_gettop(mailbox->L) > 0)
         printf("%p quit with %d left\n", mailbox, lua_gettop(mailbox->L));
     pthread_mutex_unlock(&mailbox->mutex);
     pthread_mutex_destroy(&mailbox->mutex);
+    lua_close(mailbox->L);
     free(mailbox);
 }

@@ -20,5 +20,6 @@ Dialogue.sequential_tones = true
 for i = 1, 100000 do
     Dialogue{"new", "Matt"}
 end
+
 --os.execute("sleep " .. tonumber(0.25))
 --Dialogue{"lol", "John"}
