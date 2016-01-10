@@ -3,10 +3,11 @@
 #include <sys/time.h>
 #include "director.h"
 #include "worker.h"
+#include "mailbox.h"
 
 struct Director {
     Worker **workers;
-    struct Mailbox *mailbox;
+    Mailbox *mailbox;
     int worker_count;
     int rand_seed;
     struct timeval stop, start;
@@ -22,12 +23,12 @@ Director *
 director_or_init (lua_State *L)
 {
     Director *director;
-    const int default_workers = 4;
     const int dialogue_table = 1;
+    const int default_workers = 4;
     int i;
 
+    /* try and return the director pointer if it exists already */
     lua_getfield(L, dialogue_table, pointer);
-
     if (!lua_isnil(L, -1)) {
         director = lua_touserdata(L, -1);
         lua_pop(L, 1);
@@ -45,10 +46,7 @@ director_or_init (lua_State *L)
     director->rand_seed = time(NULL);
     lua_pop(L, 1);
 
-    srand(director->rand_seed);
-
     director->workers = malloc(sizeof(Worker*) * director->worker_count);
-
     if (director->workers == NULL) {
         free(director);
         luaL_error(L, "Not enough memory for the Director workers!");
@@ -60,6 +58,7 @@ director_or_init (lua_State *L)
     lua_pushlightuserdata(L, director);
     lua_setfield(L, dialogue_table, pointer);
 
+    srand(director->rand_seed);
     gettimeofday(&director->start, NULL);
 
 exit:
@@ -102,19 +101,15 @@ lua_director_quit (lua_State *L)
     const int dialogue_table = 1;
     int i;
 
-    lua_getfield(L, dialogue_table, pointer);
-
-    if (lua_isnil(L, -1))
-        goto exit;
-
-    director = lua_touserdata(L, -1);
+    director = director_or_init(L);
 
     for (i = 0; i < director->worker_count; i++)
         worker_stop(L, director->workers[i]);
 
     gettimeofday(&director->stop, NULL);
-    printf("%f\n", (double)(director->stop.tv_usec - director->start.tv_usec) / 1000000 
-                   + (double)(director->stop.tv_sec - director->start.tv_sec));
+    printf("%f\n", 
+        (double)(director->stop.tv_usec - director->start.tv_usec) / 1000000 
+        + (double)(director->stop.tv_sec - director->start.tv_sec));
 
     free(director->workers);
     free(director);
