@@ -17,5 +17,15 @@ Dialogue.worker_count = 2
 -- order or in any order.
 Dialogue.sequential_tones = true
 
+-- An actor can be created asynchronously in any Worker thread/main thread
+-- while the system is running. Or they can be created synchronously *before*
+-- the system is running in the stage file. If implicit_actors is true, it will
+-- send all 'creation' actions to the main thread so one can have access to the
+-- actor in the interpreter state (with complete metatables for the scripts).
+-- Otherwise, actors will be created in any thread available and trying to use
+-- that actor in the interpreter is undefined because its metatables might be
+-- messed up.
+Dialogue.implicit_actors = false
+
 Dialogue{"new", "John"}
 os.execute("sleep " .. tonumber(0.25))
