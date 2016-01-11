@@ -100,8 +100,6 @@ lua_director_quit (lua_State *L)
     int i;
     Director *director = director_or_init(L);
 
-    printf("gcing\n");
-
     for (i = 0; i < director->worker_count; i++)
         worker_stop(L, director->workers[i]);
 

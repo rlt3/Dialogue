@@ -21,7 +21,10 @@ static const luaL_Reg director_metamethods[] = {
     { NULL, NULL }
 };
 
-static inline void
+/*
+ * Create the Dialogue table with all the Actions in the given Lua state.
+ */
+void
 create_dialogue_table (lua_State *L)
 {
     lua_newtable(L);
@@ -36,8 +39,8 @@ create_dialogue_table (lua_State *L)
 }
 
 /*
- * The `require' function. Create the Dialogue table in the global Lua state
- * and add the garbage collection function to the metatable.
+ * Create the Dialogue table using above, but add the garbage collection
+ * function to the metatable.
  */
 int
 luaopen_Dialogue (lua_State *L)

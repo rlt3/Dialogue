@@ -17,7 +17,7 @@ Dialogue.worker_count = 2
 -- order or in any order.
 Dialogue.sequential_tones = true
 
-for i = 1, 100000 do
+for i = 1, 1000000 do
     Dialogue{"new", "Matt"}
 end
 

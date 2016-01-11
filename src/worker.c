@@ -27,7 +27,7 @@ worker_thread (void *arg)
     lua_State *W = worker->L;
 
     /* push the initial two tables onto the stack */
-    //lua_getglobal(W, "Dialogue");
+    lua_getglobal(W, "Dialogue");
 
 get_work:
     while (worker->working) {
@@ -35,30 +35,30 @@ get_work:
             goto get_work;
         
         for (top = lua_gettop(W); top > dialogue_table; top--) {
-        //    len  = luaL_len(W, top);
-        //    args = len - 1;
+            len  = luaL_len(W, top);
+            args = len - 1;
 
-        //    /* push the action type to see if it exists */
-        //    lua_rawgeti(W, top, 1);
-        //    lua_gettable(W, dialogue_table);
+            /* push the action type to see if it exists */
+            lua_rawgeti(W, top, 1);
+            lua_gettable(W, dialogue_table);
 
-        //    if (!lua_isfunction(W, -1)) {
-        //        lua_rawgeti(W, top, 1);
-        //        error = lua_tostring(W, -1);
-        //        printf("`%s' is not an Action recognized by Dialogue!\n", error);
-        //        lua_pop(W, 2); /* action type and the `function' */
-        //        goto next;
-        //    }
+            if (!lua_isfunction(W, -1)) {
+                lua_rawgeti(W, top, 1);
+                error = lua_tostring(W, -1);
+                printf("`%s' is not an Action recognized by Dialogue!\n", error);
+                lua_pop(W, 2); /* action type and the `function' */
+                goto next;
+            }
 
-        //    /* push the rest of the table as arguments */
-        //    for (i = 2; i <= len; i++)
-        //        lua_rawgeti(W, top, i);
+            /* push the rest of the table as arguments */
+            for (i = 2; i <= len; i++)
+                lua_rawgeti(W, top, i);
 
-        //    if (lua_pcall(W, args, 0, 0)) {
-        //        error = lua_tostring(W, -1);
-        //        printf("%s\n", error);
-        //        lua_pop(W, 1); /* error string */
-        //    }
+            if (lua_pcall(W, args, 0, 0)) {
+                error = lua_tostring(W, -1);
+                printf("%s\n", error);
+                lua_pop(W, 1); /* error string */
+            }
 next:
             worker->processed++;
             lua_pop(W, 1); /* the top action */
@@ -78,6 +78,12 @@ worker_start (lua_State *L)
     worker->mailbox = mailbox_create();
     worker->working = 1;
     worker->processed = 0;
+
+    /* create the Dialogue table of actions */
+    luaL_openlibs(worker->L);
+    create_dialogue_table(worker->L);
+    lua_setglobal(worker->L, "Dialogue");
+
     pthread_create(&worker->thread, NULL, worker_thread, worker);
     return worker;
 }
