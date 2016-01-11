@@ -29,4 +29,17 @@ lua_director_quit (lua_State *L);
 int
 lua_director_tostring (lua_State *L);
 
+/*
+ * Create the Director table with all the Actions in the given Lua state.
+ */
+void
+create_director_table (lua_State *L);
+
+/*
+ * Create the Director table using above, but add the garbage collection
+ * function to the metatable.
+ */
+int
+luaopen_Dialogue_Director (lua_State *L);
+
 #endif

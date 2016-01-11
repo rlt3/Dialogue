@@ -9,7 +9,7 @@ Dialogue.strict_load = true
 Dialogue.unload_at_error_count = 1
 
 -- The number of threads we want processing actions
-Dialogue.worker_count = 2
+Dialogue.Director.worker_count = 2
 
 -- When an actor sends a message, it has a tone. That tone is used as a key to
 -- get the audience. A message almost always has many audience members. With
@@ -27,5 +27,8 @@ Dialogue.sequential_tones = true
 -- messed up.
 Dialogue.implicit_actors = false
 
-Dialogue{"new", "John"}
-os.execute("sleep " .. tonumber(0.25))
+for i = 0, 1000 do
+    Dialogue.Director{"new", "John"}
+end
+
+--os.execute("sleep " .. tonumber(0.25))

@@ -268,7 +268,7 @@ lua_actor_audience (lua_State *L)
     Actor *actor = lua_check_actor(L, 1);
     const char *tone = luaL_checkstring(L, 2);
     audience_filter_tone(L, actor, tone);
-    return luaf(L, "return Collection(%3)", 1); 
+    return 1;
 }
 
 static int
@@ -286,7 +286,7 @@ lua_actor_scripts (lua_State *L)
     }
     actor_return_state(actor);
 
-    return luaf(L, "return Collection(%2)", 1); 
+    return 1;
 }
 
 static int
@@ -303,7 +303,7 @@ lua_actor_children (lua_State *L)
     }
     actor_return_structure(actor);
 
-    return luaf(L, "return Collection(%2)", 1); 
+    return 1;
 }
 
 static int
@@ -445,9 +445,6 @@ luaopen_Dialogue_Actor (lua_State *L)
     
     luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);
     lua_setfield(L, -2, "Script");
-
-    //luaL_requiref(L, MAILBOX_LIB, luaopen_Dialogue_Actor_Mailbox, 1);
-    //lua_setfield(L, -2, "Mailbox");
 
     return 1;
 }

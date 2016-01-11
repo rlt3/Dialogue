@@ -3,11 +3,11 @@
 int
 lua_action_create (lua_State *L)
 {
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Creating %s\n", actor);
+    //const int actor_arg = 1;
+    //const char *actor = luaL_checkstring(L, actor_arg);
+    //printf("Creating %s\n", actor);
 
-    lua_getglobal(L, "Dialogue");
+    lua_getglobal(L, "Director");
     lua_newtable(L);
 
     lua_pushstring(L, "bench");
@@ -24,9 +24,9 @@ lua_action_create (lua_State *L)
 int
 lua_action_bench (lua_State *L)
 {
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Benching %s\n", actor);
+    //const int actor_arg = 1;
+    //const char *actor = luaL_checkstring(L, actor_arg);
+    //printf("Benching %s\n", actor);
     return 0;
 }
 

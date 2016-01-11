@@ -21,26 +21,25 @@ void *
 worker_thread (void *arg)
 {
     const char *error;
-    const int dialogue_table = 1;
+    const int director_table = 1;
     int i, len, args, top;
     Worker *worker = arg;
     lua_State *W = worker->L;
 
-    /* push the initial two tables onto the stack */
-    lua_getglobal(W, "Dialogue");
+    lua_getglobal(W, "Director");
 
 get_work:
     while (worker->working) {
         if (mailbox_pop_all(W, worker->mailbox) == 0)
             goto get_work;
         
-        for (top = lua_gettop(W); top > dialogue_table; top--) {
+        for (top = lua_gettop(W); top > director_table; top--) {
             len  = luaL_len(W, top);
             args = len - 1;
 
             /* push the action type to see if it exists */
             lua_rawgeti(W, top, 1);
-            lua_gettable(W, dialogue_table);
+            lua_gettable(W, director_table);
 
             if (!lua_isfunction(W, -1)) {
                 lua_rawgeti(W, top, 1);
@@ -79,11 +78,11 @@ worker_start (lua_State *L, Director *director)
     worker->working = 1;
     worker->processed = 0;
 
-    /* create the Dialogue table of actions */
+    /* create the Director table of actions */
     luaL_openlibs(worker->L);
-    create_dialogue_table(worker->L);
+    create_director_table(worker->L);
     director_set(worker->L, 1, director);
-    lua_setglobal(worker->L, "Dialogue");
+    lua_setglobal(worker->L, "Director");
 
     pthread_create(&worker->thread, NULL, worker_thread, worker);
     return worker;

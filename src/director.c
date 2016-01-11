@@ -2,6 +2,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include "director.h"
+#include "action.h"
 #include "worker.h"
 #include "mailbox.h"
 
@@ -26,19 +27,22 @@ director_set (lua_State *L, int index, Director *director)
 }
 
 /*
- * Returns the Director of the Dialogue in the given Lua state. Initializes it
- * if not done already.
+ * Returns the Director in the given Lua state. If the Director doesn't exist, 
+ * one is created. This function looks for 'Dialogue.Director.worker_count' 
+ * (defaults to 4) to see how many Workers are spawned to help the Director.
+ * The Director creates its own Mailbox and acts as a Worker specifically for
+ * the Main thread. The Director also starts Dialogue's clock.
  */
 Director *
 director_or_init (lua_State *L)
 {
     Director *director;
-    const int dialogue_table = 1;
+    const int director_table = 1;
     const int default_workers = 4;
     int i;
 
     /* try and return the director director_field if it exists already */
-    lua_getfield(L, dialogue_table, director_field);
+    lua_getfield(L, director_table, director_field);
     if (!lua_isnil(L, -1)) {
         director = lua_touserdata(L, -1);
         lua_pop(L, 1);
@@ -51,9 +55,8 @@ director_or_init (lua_State *L)
     if (director == NULL)
         luaL_error(L, "Not enough memory for Director!");
 
-    lua_getfield(L, dialogue_table, "worker_count");
+    lua_getfield(L, director_table, "worker_count");
     director->worker_count = luaL_optinteger(L, -1, default_workers);
-    director->rand_seed = time(NULL);
     lua_pop(L, 1);
 
     director->workers = malloc(sizeof(Worker*) * director->worker_count);
@@ -65,9 +68,12 @@ director_or_init (lua_State *L)
     for (i = 0; i < director->worker_count; i++) 
         director->workers[i] = worker_start(L, director);
 
-    director_set(L, dialogue_table, director);
+    director->rand_seed = time(NULL);
+    director->mailbox = mailbox_create();
     srand(director->rand_seed);
     gettimeofday(&director->start, NULL);
+
+    director_set(L, director_table, director);
 
 exit:
     return director;
@@ -75,7 +81,7 @@ exit:
 
 /*
  * Receive an action in this form:
- *     Dialogue{ action, actor [, data1 [, ... [, dataN]]] }
+ *     Director{ action, actor [, data1 [, ... [, dataN]]] }
  *
  * Send the action to an open worker.
  */
@@ -119,6 +125,7 @@ lua_director_quit (lua_State *L)
         (double)(director->stop.tv_usec - director->start.tv_usec) / 1000000 
         + (double)(director->stop.tv_sec - director->start.tv_sec));
 
+    mailbox_destroy(director->mailbox);
     free(director->workers);
     free(director);
 
@@ -128,6 +135,59 @@ lua_director_quit (lua_State *L)
 int
 lua_director_tostring (lua_State *L)
 {
-    lua_pushstring(L, "Dialogue!");
+    Director *director = director_or_init(L);
+    lua_pushfstring(L, "Dialouge.Director %p", director);
+    return 1;
+}
+
+static const luaL_Reg director_actions[] = {
+    {"new",     lua_action_create},
+    {"bench",   lua_action_bench},
+    {"join",    lua_action_join},
+    {"receive", lua_action_receive},
+    {"send",    lua_action_send},
+    {"load",    lua_action_load},
+    {"error",   lua_action_error},
+    { NULL, NULL }
+};
+
+static const luaL_Reg director_metamethods[] = {
+    {"__call",     lua_director_action},
+    {"__tostring", lua_director_tostring},
+    { NULL, NULL }
+};
+
+/*
+ * Create the Director table with all the Actions in the given Lua state. This
+ * function is used to push the Director to the Workers' states without the
+ * gc metamethod so that each Worker is using the same exact Actions without
+ * worrying about garbage collection.
+ */
+void
+create_director_table (lua_State *L)
+{
+    lua_newtable(L);
+    luaL_setfuncs(L, director_actions, 0);
+
+    luaL_newmetatable(L, "Director");
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -1, "__index");
+    luaL_setfuncs(L, director_metamethods, 0);
+
+    lua_setmetatable(L, -2);
+}
+
+/*
+ * Create the Director table using above, but add the garbage collection
+ * function to the metatable.
+ */
+int
+luaopen_Dialogue_Director (lua_State *L)
+{
+    create_director_table(L);
+    lua_getmetatable(L, -1);
+    lua_pushcfunction(L, lua_director_quit);
+    lua_setfield(L, -2, "__gc");
+    lua_setmetatable(L, -2);
     return 1;
 }
