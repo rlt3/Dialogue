@@ -69,7 +69,7 @@ next:
 }
 
 Worker *
-worker_start (lua_State *L)
+worker_start (lua_State *L, Director *director)
 {
     Worker *worker = malloc(sizeof(*worker));
     /* TODO: check memory here */
@@ -82,6 +82,7 @@ worker_start (lua_State *L)
     /* create the Dialogue table of actions */
     luaL_openlibs(worker->L);
     create_dialogue_table(worker->L);
+    director_set(worker->L, 1, director);
     lua_setglobal(worker->L, "Dialogue");
 
     pthread_create(&worker->thread, NULL, worker_thread, worker);

@@ -2,15 +2,13 @@
 #define DIALOGUE_WORKER
 
 #include "dialogue.h"
+#include "director.h"
 
 typedef struct Worker Worker;
 
 
 Worker *
-worker_start (lua_State *L);
-
-void
-worker_wake (Worker *worker);
+worker_start (lua_State *L, Director *director);
 
 /*
  * Have the worker take the action on top of the given Lua stack. 

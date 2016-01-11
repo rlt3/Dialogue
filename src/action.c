@@ -3,9 +3,21 @@
 int
 lua_action_create (lua_State *L)
 {
-    //const int actor_arg = 1;
-    //const char *actor = luaL_checkstring(L, actor_arg);
-    //printf("Creating %s\n", actor);
+    const int actor_arg = 1;
+    const char *actor = luaL_checkstring(L, actor_arg);
+    printf("Creating %s\n", actor);
+
+    lua_getglobal(L, "Dialogue");
+    lua_newtable(L);
+
+    lua_pushstring(L, "bench");
+    lua_rawseti(L, -2, 1);
+
+    lua_pushstring(L, "Tim");
+    lua_rawseti(L, -2, 2);
+
+    lua_call(L, 1, 0);
+
     return 0;
 }
 

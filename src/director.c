@@ -13,7 +13,17 @@ struct Director {
     struct timeval stop, start;
 };
 
-static const char *pointer = "__ptr";
+static const char *director_field = "__ptr";
+
+/*
+ * Set the Director to a table at the index.
+ */
+void
+director_set (lua_State *L, int index, Director *director)
+{
+    lua_pushlightuserdata(L, director);
+    lua_setfield(L, index, director_field);
+}
 
 /*
  * Returns the Director of the Dialogue in the given Lua state. Initializes it
@@ -27,8 +37,8 @@ director_or_init (lua_State *L)
     const int default_workers = 4;
     int i;
 
-    /* try and return the director pointer if it exists already */
-    lua_getfield(L, dialogue_table, pointer);
+    /* try and return the director director_field if it exists already */
+    lua_getfield(L, dialogue_table, director_field);
     if (!lua_isnil(L, -1)) {
         director = lua_touserdata(L, -1);
         lua_pop(L, 1);
@@ -53,11 +63,9 @@ director_or_init (lua_State *L)
     }
 
     for (i = 0; i < director->worker_count; i++) 
-        director->workers[i] = worker_start(L);
+        director->workers[i] = worker_start(L, director);
 
-    lua_pushlightuserdata(L, director);
-    lua_setfield(L, dialogue_table, pointer);
-
+    director_set(L, dialogue_table, director);
     srand(director->rand_seed);
     gettimeofday(&director->start, NULL);
 
@@ -94,6 +102,9 @@ lua_director_action (lua_State *L)
     return 0;
 }
 
+/*
+ * Stop any threads and free any memory associated with them and the director.
+ */
 int
 lua_director_quit (lua_State *L)
 {
