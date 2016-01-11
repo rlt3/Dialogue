@@ -14,6 +14,7 @@ static const luaL_Reg dialogue_actions[] = {
     { NULL, NULL }
 };
 
+/* The metamethods minus __gc because we only want the global state to gc */
 static const luaL_Reg director_metamethods[] = {
     {"__call",     lua_director_action},
     {"__tostring", lua_director_tostring},
@@ -42,9 +43,9 @@ int
 luaopen_Dialogue (lua_State *L)
 {
     create_dialogue_table(L);
-    lua_getfield(L, -1, "__index");
+    lua_getmetatable(L, -1);
     lua_pushcfunction(L, lua_director_quit);
     lua_setfield(L, -2, "__gc");
-    lua_pop(L, 1);
+    lua_setmetatable(L, -2);
     return 1;
 }

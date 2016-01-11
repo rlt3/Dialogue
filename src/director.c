@@ -97,11 +97,10 @@ lua_director_action (lua_State *L)
 int
 lua_director_quit (lua_State *L)
 {
-    Director *director;
-    const int dialogue_table = 1;
     int i;
+    Director *director = director_or_init(L);
 
-    director = director_or_init(L);
+    printf("gcing\n");
 
     for (i = 0; i < director->worker_count; i++)
         worker_stop(L, director->workers[i]);
@@ -114,7 +113,6 @@ lua_director_quit (lua_State *L)
     free(director->workers);
     free(director);
 
-exit:
     return 0;
 }
 
