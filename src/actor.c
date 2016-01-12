@@ -1,12 +1,51 @@
-#include <stdio.h>
-#include <string.h>
-#include "dialogue.h"
+#include <pthread.h>
 #include "actor.h"
-#include "audience.h"
 #include "script.h"
+#include "audience.h"
 #include "utils.h"
-#include "post.h"
-#include "luaf.h"
+
+typedef struct Actor {
+    lua_State *L;
+
+    /* 
+     * A read write lock for the structure of the Actor -- it's place in the
+     * Dialogue tree -- it's parent, siblings, and children.
+     */
+    pthread_rwlock_t structure;
+
+    /* For everything else including the state & scripts */
+    pthread_mutex_t state_mutex;
+
+    /* For everything else including the state & scripts */
+    pthread_mutex_t reference_mutex;
+
+    int reference_count;
+
+    /*
+     * Restrict to single thread. If is_star is true, then restrict to main 
+     * thread. If is_lead is true, then restrict to a Postman thread.
+     */
+    int is_lead;
+    int is_star;
+
+    /* Tree nav: go up, horizontally, and down the tree */
+    struct Actor *parent;
+    struct Actor *next;
+    struct Actor *child;
+
+    /* Go directly to the head of the tree */
+    struct Actor *dialogue;
+
+    struct Script *script_head;
+    struct Script *script_tail;
+
+    /* If a Mailbox is set, the Post will exclusively send envelopes to it */
+    struct Mailbox *mailbox;
+
+    /* A place for a parent to set their reference */
+    int ref;
+} Actor;
+
 
 void
 actor_request_structure (Actor *actor)
@@ -208,6 +247,10 @@ lua_actor_new (lua_State *L)
     actor->is_lead = 0;
     actor->is_star = 0;
 
+    /* 
+     * If the first element is a string, parse it for 'Lead' or 'Star' and
+     * then increment start to skip it when doing scripts later.
+     */
     lua_rawgeti(L, table_arg, start);
     if (lua_type(L, 3) == LUA_TSTRING) {
         start++;
@@ -441,10 +484,6 @@ static const luaL_Reg actor_methods[] = {
 int 
 luaopen_Dialogue_Actor (lua_State *L)
 {
-    utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
-    
-    luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);
-    lua_setfield(L, -2, "Script");
-
+    lua_pushstring(L, "Foo");
     return 1;
 }
