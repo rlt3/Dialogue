@@ -117,8 +117,13 @@ lua_director_quit (lua_State *L)
     int i;
     Director *director = director_or_init(L);
 
+    /* stop everything first */
     for (i = 0; i < director->worker_count; i++)
-        worker_stop(L, director->workers[i]);
+        worker_stop(director->workers[i]);
+
+    /* then cleanup, it avoids a lot of problems */
+    for (i = 0; i < director->worker_count; i++)
+        worker_cleanup(director->workers[i]);
 
     gettimeofday(&director->stop, NULL);
     printf("%f\n", 

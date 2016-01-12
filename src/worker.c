@@ -99,14 +99,22 @@ worker_take_action (lua_State *L, Worker *worker)
 
 /*
  * Wait for the Worker to wait for work, then join it back to the main thread.
- * Frees the worker and releases its reference.
  */
 void
-worker_stop (lua_State *L, Worker *worker)
+worker_stop (Worker *worker)
 {
     worker->working = 0;
     pthread_join(worker->thread, NULL);
+}
+
+/*
+ * Frees the worker and releases its reference.
+ */
+void
+worker_cleanup (Worker *worker)
+{
     printf("%p processed %d\n", worker, worker->processed);
     mailbox_destroy(worker->mailbox);
+    lua_close(worker->L);
     free(worker);
 }

@@ -27,8 +27,6 @@ Dialogue.sequential_tones = true
 -- messed up.
 Dialogue.implicit_actors = false
 
-for i = 0, 1000 do
+for i = 0, 500000 do
     Dialogue.Director{"new", "John"}
 end
-
---os.execute("sleep " .. tonumber(0.25))

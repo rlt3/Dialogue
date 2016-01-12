@@ -23,6 +23,12 @@ worker_take_action (lua_State *L, Worker *worker);
  * Frees the worker and releases its reference.
  */
 void
-worker_stop (lua_State *L, Worker *worker);
+worker_stop (Worker *worker);
+
+/*
+ * Frees the worker and releases its reference.
+ */
+void
+worker_cleanup (Worker *worker);
 
 #endif
