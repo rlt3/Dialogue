@@ -3,8 +3,6 @@
 
 #include "dialogue.h"
 
-#define ACTOR_LIB "Dialogue.Actor"
-
 typedef struct Actor Actor;
 
 /*
@@ -21,6 +19,10 @@ typedef struct Actor Actor;
  * be at the top of that state. The Actor is attached to the `parent' as a 
  * child.  The `parent' may be NULL to denote the created Actor is the root of
  * a Dialogue tree.
+ *
+ * TODO:
+ *  The root of a tree is always put into the interpreter state under the
+ *  variable "rootN" where N is the number of Dialogue trees?
  */
 Actor *
 actor_create (lua_State *W, Actor *parent);
@@ -81,7 +83,18 @@ actor_request_structure (Actor *actor);
 void
 actor_return_structure (Actor *actor);
 
-int 
-luaopen_Dialogue_Actor (lua_State *L);
+/*
+ * Block for access to the Actor's state. An Actor's state is its Lua state 
+ * and its linked-list of Scripts. This function returns the Actor's Lua state
+ * as a convenience.
+ */
+lua_State *
+actor_request_state (Actor *actor);
+
+/*
+ * Return access to an Actor's state. Should follow 'actor_request_state'.
+ */
+void
+actor_return_state (Actor *actor);
 
 #endif
