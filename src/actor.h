@@ -2,6 +2,7 @@
 #define DIALOGUE_ACTOR
 
 #include "dialogue.h"
+#include "director.h"
 
 typedef struct Actor Actor;
 
@@ -16,16 +17,19 @@ typedef struct Actor Actor;
  * respectively.
  *
  * This function accepts the Worker's state and expect the definition above to
- * be at the top of that state. The Actor is attached to the `parent' as a 
- * child.  The `parent' may be NULL to denote the created Actor is the root of
- * a Dialogue tree.
+ * be at the top of that state. The Director pointer is passed along because we
+ * don't want to require (as in Lua's require) the Director module because that
+ * would create a new set of workers.
+ *
+ * The Actor is attached to the `parent' as a child.  The `parent' may be NULL
+ * to denote the created Actor is the root of a Dialogue tree.
  *
  * TODO:
  *  The root of a tree is always put into the interpreter state under the
  *  variable "rootN" where N is the number of Dialogue trees?
  */
 Actor *
-actor_create (lua_State *W, Actor *parent);
+actor_create (lua_State *W, Director *director, Actor *parent);
 
 /*
  * Load an Actor's scripts. The `script_index' should be the index of a Script
