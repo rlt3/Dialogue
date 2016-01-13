@@ -72,17 +72,9 @@ actor_create (lua_State *W, Director *director, Actor *parent)
 
     luaL_openlibs(A);
 
-    /* Create Dialogue table structure without reinitializing the Director */
-    lua_newtable(A);
-
+    /* Load the Actor module into the state so we can use metatable */
     luaL_requiref(A, "Actor", luaopen_Dialogue_Actor, 1);
-    lua_setfield(A, -2, "Actor")
-
-    create_director_table(A);
-    director_set(A, lua_gettop(A), director);
-    lua_setfield(A, -2, "Director");
-
-    lua_setglobal(A, "Dialogue");
+    lua_pop(A, 1);
 
     /* 
      * Allocate memory for the Actor inside its own Lua state. This means each
@@ -137,19 +129,18 @@ actor_create (lua_State *W, Director *director, Actor *parent)
         lua_pop(W, 1);
     }
 
-    /* Call Dialogue.Director{ "load", actor } so scripts load asynchronously */
-    lua_getglobal(A, "Dialogue");
-    lua_getfield(A, -1, "Director");
+    /* Call Director{ "load", actor } so scripts load asynchronously */
+    lua_getglobal(W, "Director");
 
-    lua_newtable(A);
+    lua_newtable(W);
 
-    lua_pushliteral(A, "load");
-    lua_rawseti(A, -2, 1);
+    lua_pushliteral(W, "load");
+    lua_rawseti(W, -2, 1);
 
-    lua_getglobal(A, "actor");
-    lua_rawseti(A, -2, 2);
+    lua_getglobal(W, "actor");
+    lua_rawseti(W, -2, 2);
 
-    lua_call(A, 1, 0);
+    lua_call(W, 1, 0);
 
     return actor;
 }
