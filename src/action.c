@@ -28,6 +28,20 @@ lua_action_create (lua_State *L)
     director = lua_touserdata(L, -1);
     lua_pop(L, 2);
 
+    /*
+     * TODO:
+     *      Push the actor pointer to a table (array) which is a collection of
+     * actor references so that when we cleanup the Worker states, we can clear
+     * out all created Actors.
+     *      This means for deleting actors while the system is running requires
+     * going back to the Worker that created it, which means we need each Actor
+     * to store the Worker as a reference.
+     *      Would it be easier to have each action as a C function instead of
+     * a Lua function? Maybe we pass the Worker (which has the director pointer
+     * in its struct to stop the above nonsense) as a first argument (like a 
+     * method call)?
+     */
+
     actor = actor_create(L, director, parent);
 
     /*

@@ -9,6 +9,7 @@ struct Worker {
     lua_State *L;
     pthread_t thread;
     Mailbox *mailbox;
+    Director *director;
     int processed;
     int working;
     int ref;
