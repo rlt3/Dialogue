@@ -26,7 +26,9 @@ worker_thread (void *arg)
     Worker *worker = arg;
     lua_State *W = worker->L;
 
-    lua_getglobal(W, "Director");
+    lua_getglobal(W, "Dialogue");
+    lua_getfield(W, -1, "Director");
+    lua_insert(W, 1);
 
 get_work:
     while (worker->working) {

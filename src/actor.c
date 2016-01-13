@@ -129,18 +129,5 @@ actor_create (lua_State *W, Director *director, Actor *parent)
         lua_pop(W, 1);
     }
 
-    /* Call Director{ "load", actor } so scripts load asynchronously */
-    lua_getglobal(W, "Director");
-
-    lua_newtable(W);
-
-    lua_pushliteral(W, "load");
-    lua_rawseti(W, -2, 1);
-
-    lua_getglobal(W, "actor");
-    lua_rawseti(W, -2, 2);
-
-    lua_call(W, 1, 0);
-
     return actor;
 }
