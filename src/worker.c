@@ -56,6 +56,13 @@ get_work:
             for (i = 2; i <= len; i++)
                 lua_rawgeti(W, top, i);
 
+            /*
+             * TODO?
+             *      Push lightuserdata of the worker as a final argument which
+             * can be ignored if needed? This solves the issue of the user not
+             * needing to explicitly pass a Worker using an Action.
+             */
+
             if (lua_pcall(W, args + 1, 0, 0)) {
                 error = lua_tostring(W, -1);
                 printf("%s\n", error);

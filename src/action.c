@@ -1,5 +1,6 @@
 #include "action.h"
 #include "director.h"
+#include "worker.h"
 #include "actor.h"
 
 /*
@@ -26,6 +27,7 @@ static const int director_self = 1;
 int
 lua_action_create (lua_State *L)
 {
+    Worker *worker;
     Director *director;
     Actor *actor, *parent = NULL;
     const int definition_arg = 2;
@@ -48,6 +50,12 @@ lua_action_create (lua_State *L)
 
     actor = actor_create(L, director, parent);
     lua_pop(L, 1); /* definition table */
+
+    /*
+     * TODO:
+    worker_save_actor(worker, actor);
+     */
+
 
     /* 
      * after popping, director_self happens to be at top of index.
@@ -95,7 +103,7 @@ lua_action_load (lua_State *L)
 {
     const int actor_arg = 2;
     Actor *actor = lua_touserdata(L, actor_arg);
-    printf("Loading %p\n", actor);
+    //printf("Loading %p\n", actor);
     actor_destroy(actor);
     return 0;
 }
