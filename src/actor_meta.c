@@ -43,4 +43,15 @@ void
 lua_push_actor (lua_State *L, Actor *actor);
 
 int 
-luaopen_Dialogue_Actor (lua_State *L);
+luaopen_Dialogue_Actor (lua_State *L)
+{
+    lua_newtable(L);
+
+    luaL_newmetatable(L, ACTOR_META);
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -1, "__index");
+
+    lua_setmetatable(L, -2);
+
+    return 1;
+}

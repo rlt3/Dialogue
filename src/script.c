@@ -1,7 +1,6 @@
 #include "script.h"
 #include "actor.h"
 #include "utils.h"
-#include "luaf.h"
 
 /*
  * Check the table at index for the requirements of a Script.

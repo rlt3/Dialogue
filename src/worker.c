@@ -9,7 +9,6 @@ struct Worker {
     lua_State *L;
     pthread_t thread;
     Mailbox *mailbox;
-    Director *director;
     int processed;
     int working;
     int ref;
@@ -27,9 +26,7 @@ worker_thread (void *arg)
     Worker *worker = arg;
     lua_State *W = worker->L;
 
-    lua_getglobal(W, "Dialogue");
-    lua_getfield(W, -1, "Director");
-    lua_insert(W, 1);
+    lua_getglobal(W, "Director");
 
 get_work:
     while (worker->working) {
@@ -52,11 +49,14 @@ get_work:
                 goto next;
             }
 
+            /* push the director's 'self' reference for the method call */
+            lua_pushvalue(W, director_table);
+
             /* push the rest of the table as arguments */
             for (i = 2; i <= len; i++)
                 lua_rawgeti(W, top, i);
 
-            if (lua_pcall(W, args, 0, 0)) {
+            if (lua_pcall(W, args + 1, 0, 0)) {
                 error = lua_tostring(W, -1);
                 printf("%s\n", error);
                 lua_pop(W, 1); /* error string */

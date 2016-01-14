@@ -1,6 +1,6 @@
 #include "dialogue.h"
 #include "director.h"
-#include "actor.h"
+#include "actor_meta.h"
 
 int
 luaopen_Dialogue (lua_State *L)

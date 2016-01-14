@@ -26,7 +26,7 @@
  *  why can't this work?
  */
 
-#define ACTOR_LIB "Dialogue.Actor"
+#define ACTOR_META "Dialogue.Actor"
 #include "dialogue.h"
 #include "actor.h"
 

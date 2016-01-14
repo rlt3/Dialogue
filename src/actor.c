@@ -3,7 +3,7 @@
 #include "actor_meta.h"
 #include "script.h"
 
-typedef struct Actor {
+struct Actor {
     lua_State *L;
 
     /* 
@@ -37,7 +37,7 @@ typedef struct Actor {
 
     struct Script *script_head;
     struct Script *script_tail;
-} Actor;
+};
 
 /*
  * Create an Actor from a definition of Scripts, which are defined in Lua as
@@ -56,10 +56,6 @@ typedef struct Actor {
  *
  * The Actor is attached to the `parent' as a child.  The `parent' may be NULL
  * to denote the created Actor is the root of a Dialogue tree.
- *
- * TODO:
- *  The root of a tree is always put into the interpreter state under the
- *  variable "rootN" where N is the number of Dialogue trees?
  */
 Actor *
 actor_create (lua_State *W, Director *director, Actor *parent)
@@ -82,8 +78,8 @@ actor_create (lua_State *W, Director *director, Actor *parent)
      * everywhere else (Worker, Interpreter, etc).
      */
     actor = lua_newuserdata(A, sizeof(*actor));
-    luaL_getmetatable(L, ACTOR_META);
-    lua_setmetatable(L, -2);
+    luaL_getmetatable(A, ACTOR_META);
+    lua_setmetatable(A, -2);
     lua_setglobal(A, "actor");
 
     actor->L = A;
@@ -97,6 +93,12 @@ actor_create (lua_State *W, Director *director, Actor *parent)
     actor->is_lead = 0;
     actor->is_star = 0;
 
+    /*
+     * TODO:
+    if (parent != NULL)
+        actor_add_child(parent, actor);
+     */
+
     pthread_mutex_init(&actor->state_mutex, NULL);
     pthread_mutex_init(&actor->reference_mutex, NULL);
     pthread_rwlock_init(&actor->structure, NULL);
@@ -106,7 +108,7 @@ actor_create (lua_State *W, Director *director, Actor *parent)
      * 'Lead' or 'Star'. Increment script_position to skip the first element
      * when doing scripts later.
      */
-    lua_rawgeti(W, definition_index, start);
+    lua_rawgeti(W, definition_index, script_position);
     if (lua_type(W, -1) == LUA_TSTRING) {
         script_position++;
         switch (lua_tostring(W, -1)[0]) {
@@ -123,11 +125,40 @@ actor_create (lua_State *W, Director *director, Actor *parent)
     }
     lua_pop(W, 1);
 
+    /*
+     * TODO:
+     *   Handle definitions which might want to `name' an Actor. An Actor's
+     *   name lets us reference it by a string (its name) instead of pointer.
+     *   Let's look at an example:
+     *      {"deliver", "input", "yell", "up"}
+     *   The 'input' Actor delivers the line `up' by yelling it to the entire
+     *   Dialogue tree.
+     *
+     *   As of right now, I think named actors are handled in the main thread
+     *   as "input", the string, can literally be interned as `input', the
+     *   variable, in the main Lua state, which makes lookup easy.
+     */
+
     for (i = script_position; i <= len; i++) {
         lua_rawgeti(W, definition_index, i);
+        /*
+         * TODO:
         script_create(W, actor);
+         */
         lua_pop(W, 1);
     }
 
     return actor;
+}
+
+/*
+ * Close the Actor's Lua state and free the memory the Actor is using.
+ */
+void
+actor_destroy (Actor *actor)
+{
+    pthread_mutex_destroy(&actor->reference_mutex);
+    pthread_mutex_destroy(&actor->state_mutex);
+    pthread_rwlock_destroy(&actor->structure);
+    lua_close(actor->L);
 }

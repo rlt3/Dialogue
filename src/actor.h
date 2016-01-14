@@ -23,10 +23,6 @@ typedef struct Actor Actor;
  *
  * The Actor is attached to the `parent' as a child.  The `parent' may be NULL
  * to denote the created Actor is the root of a Dialogue tree.
- *
- * TODO:
- *  The root of a tree is always put into the interpreter state under the
- *  variable "rootN" where N is the number of Dialogue trees?
  */
 Actor *
 actor_create (lua_State *W, Director *director, Actor *parent);

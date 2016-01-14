@@ -1,62 +1,58 @@
 #include "action.h"
+#include "director.h"
 #include "actor.h"
 
-/* All workers have the dialogue_table at the bottom of the stack */
-static const int dialogue_table = 1;
+/*
+ * Since all Actions are methods of the Director metatable, the first argument
+ * of all Actions will be the Director reference. This means we do not have to
+ * keep up with references to the global Dialogue table and that all methods
+ * share a common definition of the Director table at index 1.
+ */
+
+static const int director_self = 1;
 
 /*
- * Director.create(definition_table [, parent])
+ * Synchronous:
+ * Director:new(definition_table [, parent])
  *
- * Director{"create", { {"draw", 2, 2} }, parent}
- * Director{"create", { {"draw", 2, 2} } }
+ * Asynchronous:
+ * Director{"new", definition_table [, parent]}
+ *
+ * See Actor.h (specifically function `actor_create') for the definition of
+ * `definition_table'.
+ *
+ * Create an Actor and then load it asynchronously.
  */
 int
 lua_action_create (lua_State *L)
 {
     Director *director;
     Actor *actor, *parent = NULL;
-    const int definition_arg = 1;
-    const int parent_arg = 2;
+    const int definition_arg = 2;
+    const int parent_arg = 3;
     const int args = lua_gettop(L);
 
-    if (args == parent_arg)
+    luaL_checktype(L, director_self, LUA_TTABLE);
+    luaL_checktype(L, definition_arg, LUA_TTABLE);
+
+    /* get & pop the optional parent arg to keep our stack top at 2 */
+    if (args == parent_arg) {
         parent = lua_touserdata(L, parent_arg);
+        lua_pop(L, 1);
+    }
 
     /* TODO: should this action *know* about __ptr? */
-    lua_getfield(L, dialogue_table, "Director");
-    lua_getfield(L, -1, "__ptr");
+    lua_getfield(L, director_self, "__ptr");
     director = lua_touserdata(L, -1);
-    lua_pop(L, 2);
-
-    /*
-     * TODO:
-     *      Push the actor pointer to a table (array) which is a collection of
-     * actor references so that when we cleanup the Worker states, we can clear
-     * out all created Actors.
-     *      This means for deleting actors while the system is running requires
-     * going back to the Worker that created it, which means we need each Actor
-     * to store the Worker as a reference.
-     *      Would it be easier to have each action as a C function instead of
-     * a Lua function? Maybe we pass the Worker (which has the director pointer
-     * in its struct to stop the above nonsense) as a first argument (like a 
-     * method call)?
-     */
+    lua_pop(L, 1);
 
     actor = actor_create(L, director, parent);
+    lua_pop(L, 1); /* definition table */
 
-    /*
-     * TODO:
-     *      Workers should have Dialogue.Director in its state and Actors 
-     * should have Dialogue.Actor. We make sure all states have the same 
-     * structure (Dialogue table *then* the submodule) so we can have 
-     * uniformity. E.g. the above delcaration doesn't work in the main thread
-     * (the Director's thread) because the main thread has its declaration like
-     * Dialogue.Director.
+    /* 
+     * after popping, director_self happens to be at top of index.
+     * Call Director{ "load", actor } so scripts load asynchronously
      */
-
-    /* Call Director{ "load", actor } so scripts load asynchronously */
-    lua_getfield(L, dialogue_table, "Director");
-
     lua_newtable(L);
 
     lua_pushliteral(L, "load");
@@ -73,54 +69,40 @@ lua_action_create (lua_State *L)
 int
 lua_action_bench (lua_State *L)
 {
-    //const int actor_arg = 1;
-    //const char *actor = luaL_checkstring(L, actor_arg);
-    //printf("Benching %s\n", actor);
     return 0;
 }
 
 int
 lua_action_join (lua_State *L)
 {
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Joining %s\n", actor);
     return 0;
 }
 
 int
 lua_action_receive (lua_State *L)
 {
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Sending %s\n", actor);
     return 0;
 }
 
 int
 lua_action_send (lua_State *L)
 {
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Sending %s\n", actor);
     return 0;
 }
 
 int
 lua_action_load (lua_State *L)
 {
-    const int actor_arg = 1;
-    const char *actor = luaL_checkstring(L, actor_arg);
-    printf("Loading %s\n", actor);
+    const int actor_arg = 2;
+    Actor *actor = lua_touserdata(L, actor_arg);
+    printf("Loading %p\n", actor);
+    actor_destroy(actor);
     return 0;
 }
 
 int
 lua_action_error (lua_State *L)
 {
-    const int error_arg = 1;
-    const char *error = luaL_checkstring(L, error_arg);
-    printf("%s\n", error);
     /*
      * TODO
      *    Use a statically defined mutex to log error to a specific lua table.
