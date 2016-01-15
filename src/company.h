@@ -12,13 +12,20 @@
  * holds a pointer to an Actor, its parent, next sibling, and its first child.
  */
 
+#include "actor.h"
+
+typedef struct Company Company;
+
 /*
  * Create a new Company structure. The buffer_length is how many elements the
  * array is first created with and also how many elements are appended to the 
  * array if it needs to be resized (created more Actors than the buffer length).
  */
 Company *
-company_init (int buffer_length);
+company_create (int buffer_length);
+
+void
+company_close (Company *company);
 
 /*
  * Since the Company has all references to Actors in a single place, we don't
@@ -32,6 +39,9 @@ company_init (int buffer_length);
  * Director) in the different Lua states.
  */
 
+/*
+ * Create an Actor, add it to the Company, and return its ID.
+ */
 int
 company_add_actor (lua_State *L, Company *company);
 
