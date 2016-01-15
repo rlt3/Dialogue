@@ -64,11 +64,16 @@ exit:
 }
 
 /*
+ * Create an Actor using the given Lua stack. Expects a definition table on top
+ * of the stack. Find the first Node not in use and put the Actor pointer (that
+ * was created) in it. If the parent_id is >0, add the Actor as the child of
+ * that parent.
+ *
  * Find the first node not in use and create the Actor in it.
  * Returns -1 if there was an error.
  */
 int
-company_add_actor (lua_State *L, Company *company)
+company_add_actor (Company *company, lua_State *L, int parent_id)
 {
     int i, id = -1;
 
