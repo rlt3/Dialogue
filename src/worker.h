@@ -3,6 +3,7 @@
 
 #include "dialogue.h"
 #include "director.h"
+#include "actor.h"
 
 typedef struct Worker Worker;
 
@@ -19,6 +20,13 @@ int
 worker_take_action (lua_State *L, Worker *worker);
 
 /*
+ * Save an Actor's pointer to a table in the Worker's Lua state so that it can
+ * be easily cleaned up.
+ */
+void
+worker_save_actor (lua_State *W, Actor *actor);
+
+/*
  * Wait for the Worker to wait for work, then join it back to the main thread.
  * Frees the worker and releases its reference.
  */
@@ -26,7 +34,7 @@ void
 worker_stop (Worker *worker);
 
 /*
- * Frees the worker and releases its reference.
+ * Frees the worker. Frees any Actors it created.
  */
 void
 worker_cleanup (Worker *worker);

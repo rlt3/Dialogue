@@ -56,14 +56,10 @@ get_work:
             for (i = 2; i <= len; i++)
                 lua_rawgeti(W, top, i);
 
-            /*
-             * TODO?
-             *      Push lightuserdata of the worker as a final argument which
-             * can be ignored if needed? This solves the issue of the user not
-             * needing to explicitly pass a Worker using an Action.
-             */
+            /* push the Worker's pointer at the end as an optional argument */
+            lua_pushlightuserdata(W, worker);
 
-            if (lua_pcall(W, args + 1, 0, 0)) {
+            if (lua_pcall(W, args + 2, 0, 0)) {
                 error = lua_tostring(W, -1);
                 printf("%s\n", error);
                 lua_pop(W, 1); /* error string */
@@ -94,6 +90,9 @@ worker_start (lua_State *L, Director *director)
     director_set(worker->L, 1, director);
     lua_setglobal(worker->L, "Director");
 
+    lua_newtable(worker->L);
+    lua_setglobal(worker->L, "__actors_reference");
+
     pthread_create(&worker->thread, NULL, worker_thread, worker);
     return worker;
 }
@@ -108,6 +107,19 @@ worker_take_action (lua_State *L, Worker *worker)
 }
 
 /*
+ * Save an Actor's pointer to a table in the Worker's Lua state so that it can
+ * be easily cleaned up.
+ */
+void
+worker_save_actor (lua_State *W, Actor *actor)
+{
+    lua_getglobal(W, "__actors_reference");
+    lua_pushlightuserdata(W, actor);
+    lua_rawseti(W, -2, luaL_len(W, -2) + 1);
+    lua_pop(W, 1);
+}
+
+/*
  * Wait for the Worker to wait for work, then join it back to the main thread.
  */
 void
@@ -118,12 +130,25 @@ worker_stop (Worker *worker)
 }
 
 /*
- * Frees the worker and releases its reference.
+ * Frees the worker. Frees any Actors it created.
  */
 void
 worker_cleanup (Worker *worker)
 {
+    int i, len;
+    lua_State *W = worker->L;
+
     printf("%p processed %d\n", worker, worker->processed);
+
+    lua_getglobal(W, "__actors_reference");
+    len = luaL_len(W, -1);
+
+    for (i = 1; i <= len; i++) {
+        lua_rawgeti(W, -1, i);
+        actor_destroy(lua_touserdata(W, -1));
+        lua_pop(W, 1);
+    }
+
     mailbox_destroy(worker->mailbox);
     lua_close(worker->L);
     free(worker);

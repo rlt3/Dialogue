@@ -148,6 +148,8 @@ actor_create (lua_State *W, Director *director, Actor *parent)
         lua_pop(W, 1);
     }
 
+    printf("Creating Actor %p\n", actor);
+
     return actor;
 }
 
@@ -157,6 +159,7 @@ actor_create (lua_State *W, Director *director, Actor *parent)
 void
 actor_destroy (Actor *actor)
 {
+    printf("Destroying Actor %p\n", actor);
     pthread_mutex_destroy(&actor->reference_mutex);
     pthread_mutex_destroy(&actor->state_mutex);
     pthread_rwlock_destroy(&actor->structure);

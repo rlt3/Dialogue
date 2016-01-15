@@ -27,15 +27,20 @@ static const int director_self = 1;
 int
 lua_action_create (lua_State *L)
 {
+    /* args: director, definition, [parent,] worker */
     Worker *worker;
     Director *director;
     Actor *actor, *parent = NULL;
     const int definition_arg = 2;
     const int parent_arg = 3;
-    const int args = lua_gettop(L);
+    const int args = lua_gettop(L) - 1;
 
     luaL_checktype(L, director_self, LUA_TTABLE);
     luaL_checktype(L, definition_arg, LUA_TTABLE);
+
+    /* the Worker is an optional argument passed last */
+    worker = lua_touserdata(L, args + 1);
+    lua_pop(L, 1);
 
     /* get & pop the optional parent arg to keep our stack top at 2 */
     if (args == parent_arg) {
@@ -50,12 +55,7 @@ lua_action_create (lua_State *L)
 
     actor = actor_create(L, director, parent);
     lua_pop(L, 1); /* definition table */
-
-    /*
-     * TODO:
-    worker_save_actor(worker, actor);
-     */
-
+    worker_save_actor(L, actor);
 
     /* 
      * after popping, director_self happens to be at top of index.
@@ -103,8 +103,7 @@ lua_action_load (lua_State *L)
 {
     const int actor_arg = 2;
     Actor *actor = lua_touserdata(L, actor_arg);
-    //printf("Loading %p\n", actor);
-    actor_destroy(actor);
+    printf("Loading %p\n", actor);
     return 0;
 }
 
