@@ -30,5 +30,11 @@ Dialogue.implicit_actors = false
 --for i = 0, 10000 do
 --    Dialogue.Director{"new", { {"draw", 2, 2} } }
 --end
+
 Dialogue.Director{"new", { {"draw", 2, 2} } }
 os.execute("sleep " .. tonumber(0.5))
+
+-- Can't do this yet because of multiple reasons:
+--      1) "__actors_reference" table doesn't exist in interpreter state
+--      2) New action isn't yet built for non-Worker calling
+--actor = Dialogue.Director:new{ {"draw", 4, 4} }

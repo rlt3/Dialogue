@@ -55,6 +55,20 @@ lua_action_create (lua_State *L)
 
     actor = actor_create(L, director, parent);
     lua_pop(L, 1); /* definition table */
+
+    /*
+     * If instead of `worker_save_actor' there was a `director_save_actor', I
+     * wouldn't need to rely on the Worker state to keep our list of Actors.
+     * *AND* this lets us this method synchronously & asynchronously. The 
+     * Worker is supposed to be an *optional* argument denoting which thread
+     * was used to create an Actor. 
+     *
+     * If it doesn't exist, I want to be able to assume it was the main thread
+     * and a synchronous action. This is because eventually the Director will
+     * become (or create) its own (custom) Worker to work on the main thread.
+     * So, asynchronous Actions, as I'm thinking, will *always* be called with
+     * that optional argument.
+     */
     worker_save_actor(L, actor);
 
     /* 
@@ -71,7 +85,8 @@ lua_action_create (lua_State *L)
 
     lua_call(L, 1, 0);
 
-    return 0;
+    lua_pushlightuserdata(L, actor);
+    return 1;
 }
 
 int

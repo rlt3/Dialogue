@@ -64,6 +64,8 @@ get_work:
                 printf("%s\n", error);
                 lua_pop(W, 1); /* error string */
             }
+
+            printf("top: %d\n", lua_gettop(W));
 next:
             worker->processed++;
             lua_pop(W, 1); /* the top action */
