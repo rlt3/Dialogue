@@ -8,12 +8,11 @@ typedef struct Node {
     int ref_count;
     pthread_mutex_t ref_mutex;
 
-    struct Node *parent;
-    struct Node *next_sibling;
-    struct Node *first_child;
+    /* these are indices to other Nodes */
+    int parent;
+    int next_sibling;
+    int first_child;
     pthread_rwlock_t family_rw_lock;
-
-    int in_use;
 } Node;
 
 struct Company {
@@ -24,13 +23,12 @@ struct Company {
 };
 
 void
-node_init (Node *node)
+node_init (Node *node, Actor *actor)
 {
-    node->actor = NULL;
-    node->parent = NULL;
-    node->next_sibling = NULL;
-    node->first_child = NULL;
-    node->in_use = 0;
+    node->actor = actor;
+    node->parent = -1;
+    node->next_sibling = -1;
+    node->first_child = -1;
     pthread_mutex_init(&node->ref_mutex, NULL);
     pthread_rwlock_init(&node->family_rw_lock, NULL);
 }
@@ -57,24 +55,56 @@ company_create (int buffer_length)
     pthread_rwlock_init(&company->list_rw_lock, NULL);
 
     for (i = 0; i < company->list_size; i++)
-        node_init(&company->list[i]);
+        node_init(&company->list[i], NULL);
 
 exit:
     return company;
 }
 
 /*
- * Create an Actor using the given Lua stack. Expects a definition table on top
- * of the stack. Find the first Node not in use and put the Actor pointer (that
- * was created) in it. If the parent_id is >0, add the Actor as the child of
- * that parent.
+ * Using ids, add the child to the parent. Append the child to the end of the
+ * `linked-list' of children.
+ */
+void
+company_set_parents_child (Company *company, int parent_id, int child_id)
+{
+    Node *sibling;
+    Node *parent = &company->list[parent_id];
+    Node *child  = &company->list[child_id];
+    int sibling_id = parent->first_child;
+
+    /* if the parent has no children (first child not set) */
+    if (sibling_id == -1) {
+        parent->first_child = child_id;
+        goto set_actor_child;
+    }
+
+    /* loop until we find the end of the children list */
+    while (sibling_id >= 0) {
+        sibling = &company->list[sibling_id];
+        sibling_id = sibling->next_sibling;
+    }
+
+    sibling->next_sibling = child_id;
+
+set_actor_child:
+    child->parent = parent_id;
+}
+
+/*
+ * Acquire the write lock on the Company list. Find a Node in the list which
+ * isn't being used. The index of that node becomes the id of the Actor. Create
+ * that Actor.
  *
- * Find the first node not in use and create the Actor in it.
- * Returns -1 if there was an error.
+ * If parent_id is greater than 0, add the created Actor as a child of the 
+ * parent Actor whose id is parent_id.
+ *
+ * Return the id of the created Actor. Returns -1 if an error occurs.
  */
 int
 company_add_actor (Company *company, lua_State *L, int parent_id)
 {
+    Actor *actor;
     int i, id = -1;
 
     pthread_rwlock_wrlock(&company->list_rw_lock);
@@ -82,31 +112,52 @@ company_add_actor (Company *company, lua_State *L, int parent_id)
         /* realloc list */
     }
 
-    for (i = 0; i < company->list_size; i++) {
-        if (!company->list[i].in_use) {
-            company->list[i].in_use = 1;
-            company->nodes_in_use++;
-            id = i;
-        }
-    }
+    for (i = 0; i < company->list_size; i++)
+        if (!company->list[i].actor)
+            break;
+
+    /* if we made it all the way without finding a free node somehow */
+    if (i == company->list_size)
+        goto release;
+
+    actor = actor_create(L, i);
+    if (!actor)
+        goto release;
+
+    company->nodes_in_use++;
+    node_init(&company->list[i], actor);
+    id = i;
+
+    if (parent_id >= 0)
+        company_set_parents_child(company, parent_id, id);
+
+release:
     pthread_rwlock_unlock(&company->list_rw_lock);
-
-    if (id == -1)
-        goto exit;
-
-exit:
     return id;
 }
 
 void
 company_close (Company *company)
 {
-    int i;
+    int sibling_id, i;
 
+    pthread_rwlock_wrlock(&company->list_rw_lock);
     for (i = 0; i < company->list_size; i++) {
-        /* free actor */
-    }
+        if (company->list[i].actor) {
 
+            sibling_id = company->list[i].first_child;
+            while (sibling_id >= 0) {
+                printf("Actor %d had child %d\n", i, sibling_id);
+                sibling_id = company->list[sibling_id].next_sibling;
+            }
+            printf("Actor %d was a child of %d\n", i, company->list[i].parent);
+            actor_destroy(company->list[i].actor);
+            company->list[i].actor = NULL;
+        }
+    }
+    pthread_rwlock_unlock(&company->list_rw_lock);
+
+    pthread_rwlock_destroy(&company->list_rw_lock);
     free(company->list);
     free(company);
 }

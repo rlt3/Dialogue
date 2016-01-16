@@ -43,7 +43,7 @@ company_close (Company *company);
  * Create an Actor, add it to the Company, and return its ID.
  */
 int
-company_add_actor (lua_State *L, Company *company);
+company_add_actor (Company *company, lua_State *L, int parent_id);
 
 /*
  * Increment an Actor's reference count and return its id.
