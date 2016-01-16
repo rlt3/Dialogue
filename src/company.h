@@ -40,21 +40,30 @@ company_close (Company *company);
  */
 
 /*
- * Create an Actor, add it to the Company, and return its ID.
+ * Acquire the write lock on the Company list. Find a Node in the list which
+ * isn't being used. The index of that node becomes the id of the Actor. Create
+ * that Actor.
+ *
+ * If parent_id is greater than 0, add the created Actor as a child of the 
+ * parent Actor whose id is parent_id.
+ *
+ * Return the id of the created Actor. Returns -1 if an error occurs.
  */
 int
 company_add_actor (Company *company, lua_State *L, int parent_id);
 
 /*
- * Increment an Actor's reference count and return its id.
+ * Verify given Actor is in Company and a valid pointer.  Increment the Actor's
+ * reference count and return its id.  Returns -1 if Actor pointer given is
+ * NULL or Actor doesn't belong to company.
  */
 int
 company_ref_actor (Company *company, Actor *actor);
 
 /*
- * Find an Actor by the given id and decrement its reference count. Return the
- * reference'd actor's pointer.  Returns NULL if an Actor doesn't exist with
- * the given id.
+ * Verify id is a valid id for company. Returns the Actor pointer that 
+ * corresponds to the given id and decrements its reference count. Returns NULL
+ * if the Actor doesn't exist for the given id or id isn't a valid index.
  */
 Actor *
 company_deref_actor (Company *company, int id);

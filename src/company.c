@@ -22,6 +22,9 @@ struct Company {
     pthread_rwlock_t list_rw_lock;
 };
 
+/*
+ * Setup a node (an element of the Company's list).
+ */
 void
 node_init (Node *node, Actor *actor)
 {
@@ -31,6 +34,22 @@ node_init (Node *node, Actor *actor)
     node->first_child = -1;
     pthread_mutex_init(&node->ref_mutex, NULL);
     pthread_rwlock_init(&node->family_rw_lock, NULL);
+}
+
+/*
+ * Cleanup a node, destroying the Actor and setting its pointer to NULL,
+ * set references to zero, and destroying the ref mutex and family rwlock.
+ */
+void
+node_cleanup (Node *node)
+{
+    actor_destroy(node->actor);
+    node->actor = NULL;
+    node->parent = -1;
+    node->next_sibling = -1;
+    node->first_child = -1;
+    pthread_mutex_destroy(&node->ref_mutex);
+    pthread_rwlock_destroy(&node->family_rw_lock);
 }
 
 Company *
@@ -55,7 +74,7 @@ company_create (int buffer_length)
     pthread_rwlock_init(&company->list_rw_lock, NULL);
 
     for (i = 0; i < company->list_size; i++)
-        node_init(&company->list[i], NULL);
+        company->list[i].actor = NULL;
 
 exit:
     return company;
@@ -64,6 +83,7 @@ exit:
 /*
  * Using ids, add the child to the parent. Append the child to the end of the
  * `linked-list' of children.
+ * Expects the write lock to be acquired when calling this function.
  */
 void
 company_set_parents_child (Company *company, int parent_id, int child_id)
@@ -136,23 +156,27 @@ release:
     return id;
 }
 
+/*
+ * Acquire the write lock on the Company list and cleanup any existing nodes
+ * (and the Node's corresponding Actor). Then free memory for the Company list
+ * and Company itself.
+ */
 void
 company_close (Company *company)
 {
-    int sibling_id, i;
+    int i;
 
     pthread_rwlock_wrlock(&company->list_rw_lock);
     for (i = 0; i < company->list_size; i++) {
         if (company->list[i].actor) {
+            //int sibling_id = company->list[i].first_child;
+            //while (sibling_id >= 0) {
+            //    printf("Actor %d had child %d\n", i, sibling_id);
+            //    sibling_id = company->list[sibling_id].next_sibling;
+            //}
+            //printf("Actor %d was a child of %d\n", i, company->list[i].parent);
 
-            sibling_id = company->list[i].first_child;
-            while (sibling_id >= 0) {
-                printf("Actor %d had child %d\n", i, sibling_id);
-                sibling_id = company->list[sibling_id].next_sibling;
-            }
-            printf("Actor %d was a child of %d\n", i, company->list[i].parent);
-            actor_destroy(company->list[i].actor);
-            company->list[i].actor = NULL;
+            node_cleanup(&company->list[i]);
         }
     }
     pthread_rwlock_unlock(&company->list_rw_lock);
@@ -160,4 +184,59 @@ company_close (Company *company)
     pthread_rwlock_destroy(&company->list_rw_lock);
     free(company->list);
     free(company);
+    company = NULL;
+}
+
+/*
+ * Verify given Actor is in Company and a valid pointer.  Increment the Actor's
+ * reference count and return its id.  Returns -1 if Actor pointer given is
+ * NULL or Actor doesn't belong to company.
+ */
+int
+company_ref_actor (Company *company, Actor *actor)
+{
+    int id = -1;
+
+    if (!actor)
+        goto exit;
+
+    pthread_rwlock_rdlock(&company->list_rw_lock);
+    if (company->list[actor->id].actor == actor) {
+        id = actor->id;
+
+        pthread_mutex_lock(&company->list[id].ref_mutex);
+        company->list[id].ref_count++;
+        pthread_mutex_unlock(&company->list[id].ref_mutex);
+    }
+    pthread_rwlock_unlock(&company->list_rw_lock);
+
+exit:
+    return id;
+}
+
+/*
+ * Verify id is a valid id for company. Returns the Actor pointer that 
+ * corresponds to the given id and decrements its reference count. Returns NULL
+ * if the Actor doesn't exist for the given id or id isn't a valid index.
+ */
+Actor *
+company_deref_actor (Company *company, int id)
+{
+    Actor *actor = NULL;
+
+    if (id < 0)
+        goto exit;
+
+    pthread_rwlock_rdlock(&company->list_rw_lock);
+    if (company->list[id].actor) {
+        actor = company->list[id].actor;
+
+        pthread_mutex_lock(&company->list[id].ref_mutex);
+        company->list[id].ref_count--;
+        pthread_mutex_unlock(&company->list[id].ref_mutex);
+    }
+    pthread_rwlock_unlock(&company->list_rw_lock);
+
+exit:
+    return actor;
 }

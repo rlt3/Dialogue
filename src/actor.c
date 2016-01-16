@@ -1,15 +1,6 @@
 #include <stdlib.h>
-#include <pthread.h>
 #include "actor.h"
 #include "utils.h"
-
-struct Actor {
-    lua_State *L;
-    pthread_mutex_t mutex;
-    int is_lead; /* restrict to a single thread */
-    int is_star; /* restrict to the main thread */
-    int id;      /* id inside the Company */
-};
 
 Actor *
 actor_create (lua_State *L, int id)
