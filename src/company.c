@@ -2,6 +2,22 @@
 #include <pthread.h>
 #include "company.h"
 
+/*
+ * We have two main read/write locks. One for each Node and another for the
+ * list of the Nodes themselves. 
+ *
+ * Since each Node only explicitly knows one Node in each direction (up
+ * [parent], right [next sibling], down [first child]), when removing a Node
+ * (R) from the tree, we can use a write lock only on the Nodes which reference
+ * it rather than the entire tree itself. So, all Nodes which have R as a
+ * parent, the previous sibling node to a Node, or parent which has it as a
+ * first child.
+ *
+ * Once the Node has been removed from the tree (making it dead to all 
+ * operations of that tree), it can be destroyed. This is where the write lock
+ * of the list comes into play: for destroying the removed actor.
+ */
+
 typedef struct Node {
     Actor *actor;
 
