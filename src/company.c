@@ -185,12 +185,12 @@ company_close (Company *company)
     pthread_rwlock_wrlock(&company->list_rw_lock);
     for (i = 0; i < company->list_size; i++) {
         if (company->list[i].actor) {
-            //int sibling_id = company->list[i].first_child;
-            //while (sibling_id >= 0) {
-            //    printf("Actor %d had child %d\n", i, sibling_id);
-            //    sibling_id = company->list[sibling_id].next_sibling;
-            //}
-            //printf("Actor %d was a child of %d\n", i, company->list[i].parent);
+            int sibling_id = company->list[i].first_child;
+            while (sibling_id >= 0) {
+                printf("Actor %d had child %d\n", i, sibling_id);
+                sibling_id = company->list[sibling_id].next_sibling;
+            }
+            printf("Actor %d was a child of %d\n", i, company->list[i].parent);
 
             node_cleanup(&company->list[i]);
         }
