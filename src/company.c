@@ -126,6 +126,11 @@ node_family_member (Company *company, int id, enum NodeFamily member)
              * TODO:
              *  make sure next and previous are linked. Probably using doubly
              *  linked list here.
+             *
+             * TODO:
+             *  if we add a is_working bool, we can sweep references which are
+             *  pointing to to-be deleted actors. we can do garbage collection
+             *  in this way.
              */
         } else {
             ret = f;
