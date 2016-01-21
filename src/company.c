@@ -3,23 +3,42 @@
 #include "company.h"
 
 /*
- * We have two main read/write locks. One for each Node and another for the
- * list of the Nodes themselves. 
+ * TODO:
+ * The Company is a tree of Actors. To keep tree operations thread-safe and to 
+ * shoot for as little of lock-time possible, we have a specific setup.
  *
- * Since each Node only explicitly knows one Node in each direction (up
- * [parent], right [next sibling], down [first child]), when removing a Node
- * (R) from the tree, we can use a write lock only on the Nodes which reference
- * it rather than the entire tree itself. So, all Nodes which have R as a
- * parent, the previous sibling node to a Node, or parent which has it as a
- * first child.
+ * Individual nodes of the tree are kept in an array. The array index is that
+ * node's id (and consequently, the Actor's too, who is occupying that node). 
+ * The Nodes *are* part of the tree, but can be free from the tree too. So,
+ * each Node has a state of attached or detached.
  *
- * Once the Node has been removed from the tree (making it dead to all 
- * operations of that tree), it can be destroyed. This is where the write lock
- * of the list comes into play: for destroying the removed actor.
+ * We keep a count of the total number of actors under a mutex. Each node is
+ * protected by a read/write lock. The read/write lock keeps throughput (reads)
+ * of the structure flowing (reads from multiple threads) until it changes. And
+ * since each Node has its own read/write lock, we can have parts of the tree
+ * readable while others are locked.
+ *
+ * The node points (by using ids) to three other Nodes, the parent, its next
+ * sibling, and its first child. This way, all references within the tree are
+ * just one step away and isolated.
+ *
+ * If we remove any node, its reference can be updated throughout the tree as
+ * the errors occur. So, when a `next_sibling' reference is pulled up, we can
+ * automate it be set to -1 (our code for nil) when its references inevitably
+ * returns as bad (which it will if a Node exists, yet is not attached).
+ *
+ * The system automatically filters itself of bad references and errors out
+ * gracefully for anything else that uses bad references too.
+ *
+ * (To arbitrarily remove a Node, I need to lock both the Actor mutex and the
+ * write lock on the Node itself. While references can be handled gracefully,
+ * we cannot free memory which another thread might be currently reading.)
  */
 
 typedef struct Node {
     Actor *actor;
+
+    int attached;
 
     /* these are indices to other Nodes */
     int parent;
@@ -32,7 +51,7 @@ struct Company {
     Node *list;
     int list_size;
     int nodes_in_use;
-    pthread_rwlock_t list_rw_lock;
+    pthread_mutex_t list_mutex;
 };
 
 /*
