@@ -2,39 +2,6 @@
 #include <pthread.h>
 #include "company.h"
 
-/*
- * TODO:
- * The Company is a tree of Actors. To keep tree operations thread-safe and to 
- * shoot for as little of lock-time possible, we have a specific setup.
- *
- * Individual nodes of the tree are kept in an array. The array index is that
- * node's id (and consequently, the Actor's too, who is occupying that node). 
- * The Nodes *are* part of the tree, but can be free from the tree too. So,
- * each Node has a state of attached or detached.
- *
- * We keep a count of the total number of actors under a mutex. Each node is
- * protected by a read/write lock. The read/write lock keeps throughput (reads)
- * of the structure flowing (reads from multiple threads) until it changes. And
- * since each Node has its own read/write lock, we can have parts of the tree
- * readable while others are locked.
- *
- * The node points (by using ids) to three other Nodes, the parent, its next
- * sibling, and its first child. This way, all references within the tree are
- * just one step away and isolated.
- *
- * If we remove any node, its reference can be updated throughout the tree as
- * the errors occur. So, when a `next_sibling' reference is pulled up, we can
- * automate it be set to -1 (our code for nil) when its references inevitably
- * returns as bad (which it will if a Node exists, yet is not attached).
- *
- * The system automatically filters itself of bad references and errors out
- * gracefully for anything else that uses bad references too.
- *
- * (To arbitrarily remove a Node, I need to lock both the Actor mutex and the
- * write lock on the Node itself. While references can be handled gracefully,
- * we cannot free memory which another thread might be currently reading.)
- */
-
 #define NODE_FAMILY_MAX 4
 
 enum NodeFamily { 
@@ -72,7 +39,7 @@ node_index_valid (Company *company, int id)
         goto exit;
 
     pthread_rwlock_rdlock(&company->rw_lock);
-    ret = !(id >= company->list_size);
+    ret = !(id > company->list_size);
     pthread_rwlock_unlock(&company->rw_lock);
 
 exit:
@@ -112,10 +79,14 @@ node_read (Company *company, int id)
 static inline void
 node_unlock (Company *company, int id)
 {
-    if (!node_index_valid(company, id))
-        return;
-    pthread_rwlock_unlock(&company->list[id].rw_lock);
+    if (node_index_valid(company, id))
+        pthread_rwlock_unlock(&company->list[id].rw_lock);
 }
+
+enum RetVals {
+    BAD_OPT = -3,
+    BAD_NODE = -2
+};
 
 /*
  * This function verifies the family member reference is both a valid index and
@@ -123,9 +94,11 @@ node_unlock (Company *company, int id)
  * actor and detached with actor. If it is detached without an actor, it is
  * removed because it doesn't reference any operation.
  *
- * If the id given isn't valid, returns -1. If the member type isn't valid, 
- * returns -1. If the family member reference isn't valid as per above, returns
- * -1. Otherwise, this returns the id of the family member.
+ * If the id given isn't valid, returns BAD_NODE.  If the member type isn't
+ * valid, returns BAD_OPT. 
+ *
+ * If the family member reference (not its type) isn't valid as per above,
+ * returns -1.  Otherwise, this returns the id of the family member.
  */
 int
 node_family_member (Company *company, int id, enum NodeFamily member)
@@ -133,8 +106,10 @@ node_family_member (Company *company, int id, enum NodeFamily member)
     int ret = -1;
     int f; /* family member id */
 
-    if (!node_read(company, id))
+    if (!node_read(company, id)) {
+        ret = BAD_NODE;
         goto unlock;
+    }
             
     f = company->list[id].family[member];
 
@@ -168,13 +143,20 @@ node_init (Company *company, int id, Actor *actor)
     if (!node_write(company, id))
         return;
 
+    /* acquire the write lock which tries to do as little as possible */
+    pthread_rwlock_wrlock(&company->rw_lock);
+    company->nodes_in_use++;
+    if (company->nodes_in_use >= company->list_size) {
+        /* TODO: realloc list */
+    }
+    pthread_rwlock_unlock(&company->rw_lock);
+
     company->list[id].actor = actor;
     company->list[id].attached = 1;
     
     for (i = 0; i < NODE_FAMILY_MAX; i++) 
         company->list[id].family[i] = -1;
 
-    pthread_rwlock_init(&company->list[id].rw_lock, NULL);
     node_unlock(company, id);
 }
 
@@ -192,6 +174,11 @@ node_cleanup (Company *company, int id)
 
     actor_destroy(company->list[id].actor);
 
+    /* acquire the write lock which tries to do as little as possible */
+    pthread_rwlock_wrlock(&company->rw_lock);
+    company->nodes_in_use--;
+    pthread_rwlock_unlock(&company->rw_lock);
+
     company->list[id].actor = NULL;
     company->list[id].attached = 0;
 
@@ -199,7 +186,6 @@ node_cleanup (Company *company, int id)
         company->list[id].family[i] = -1;
 
     node_unlock(company, id);
-    pthread_rwlock_destroy(&company->list[id].rw_lock);
 }
 
 Company *
@@ -226,6 +212,7 @@ company_create (int buffer_length)
     for (i = 0; i < company->list_size; i++) {
         company->list[i].actor = NULL;
         company->list[i].attached = 0;
+        pthread_rwlock_init(&company->list[i].rw_lock, NULL);
     }
 
 exit:
@@ -233,21 +220,34 @@ exit:
 }
 
 /*
- * Using ids, add the child to the parent. Append the child to the end of the
- * `linked-list' of children.
+ * Using IDs, add the child to the parent. If either of the child or parent
+ * ids are invalid, it returns early with 0. Otherwise is returns 1. 
+ *
+ * Adds child to parent's first_child slot if it's its first child.  Append the
+ * child to the end of the `linked-list' of siblings and set the child's parent
+ * to the given parent.
  */
-void
+int
 company_set_parents_child (Company *company, int parent_id, int child_id)
 {
     int next;
     int sibling = node_family_member(company, parent_id, NODE_CHILD);
+
+    /* if the parent was bad */
+    if (sibling == BAD_NODE)
+        goto error;
+
+    /* if the child is bad */
+    if (!node_write(company, child_id))
+        goto error;
+    company->list[child_id].family[NODE_PARENT] = parent_id;
+    node_unlock(company, child_id);
 
     /* if the parent has no children (first child not set) */
     if (sibling == -1) {
         node_write(company, parent_id);
         company->list[parent_id].family[NODE_CHILD] = child_id;
         node_unlock(company, parent_id);
-        goto set_node_child;
     }
 
     /* loop until we find the end of the children list */
@@ -264,10 +264,9 @@ company_set_parents_child (Company *company, int parent_id, int child_id)
     company->list[sibling].family[NODE_NEXT_SIBLING] = child_id;
     node_unlock(company, sibling);
 
-set_node_child:
-    node_write(company, child_id);
-    company->list[child_id].family[NODE_PARENT] = parent_id;
-    node_unlock(company, child_id);
+    return 1;
+error:
+    return 0;
 }
 
 /*
@@ -286,6 +285,9 @@ company_add_actor (Company *company, lua_State *L, int parent_id)
     Actor *actor;
     int i, id = -1;
 
+    if (!node_index_valid(company, parent_id))
+        parent_id = -1;
+
     /* Acquire read lock on Company data and each node: finds the first free */
     pthread_rwlock_rdlock(&company->rw_lock);
     for (i = 0; i < company->list_size; i++) {
@@ -298,14 +300,6 @@ company_add_actor (Company *company, lua_State *L, int parent_id)
 unlock_and_write:
     /* Unlock the read locks on the Node we found and also the Company data */
     node_unlock(company, i);
-    pthread_rwlock_unlock(&company->rw_lock);
-
-    /* acquire the write lock which tries to do as little as possible */
-    pthread_rwlock_wrlock(&company->rw_lock);
-    company->nodes_in_use++;
-    if (company->nodes_in_use >= company->list_size) {
-        /* TODO: realloc list */
-    }
     pthread_rwlock_unlock(&company->rw_lock);
 
     /* if the id isn't valid somehow, just error out */
@@ -321,7 +315,7 @@ unlock_and_write:
     node_init(company, id, actor);
 
     if (parent_id >= 0)
-        company_set_parents_child(company, parent_id, id);
+        if (company_set_parents_child(company, parent_id, id))
 
 release:
     node_unlock(company, i); /* i can't be id because id isn't always set */
@@ -340,7 +334,7 @@ company_close (Company *company)
     pthread_rwlock_wrlock(&company->rw_lock);
     for (id = 0; id < company->list_size; id++) {
         if (!node_write(company, id))
-            continue;
+            goto destroy_lock;
 
         int sibling_id = company->list[id].family[NODE_CHILD];
         while (sibling_id >= 0) {
@@ -351,6 +345,8 @@ company_close (Company *company)
                 company->list[id].family[NODE_PARENT]);
 
         node_cleanup(company, id);
+destroy_lock:
+        pthread_rwlock_destroy(&company->list[id].rw_lock);
     }
     pthread_rwlock_unlock(&company->rw_lock);
     pthread_rwlock_destroy(&company->rw_lock);
@@ -360,9 +356,8 @@ company_close (Company *company)
 }
 
 /*
- * Verify given Actor is in Company and a valid pointer.  Increment the Actor's
- * reference count and return its id.  Returns -1 if Actor pointer given is
- * NULL or Actor doesn't belong to company.
+ * Verify given Actor is in Company and a valid pointer.  Returns -1 if Actor
+ * pointer given is NULL or Actor doesn't belong to company.
  */
 int
 company_ref_actor (Company *company, Actor *actor)
@@ -385,9 +380,9 @@ exit:
 }
 
 /*
- * Verify id is a valid id for company. Returns the Actor pointer that 
- * corresponds to the given id and decrements its reference count. Returns NULL
- * if the Actor doesn't exist for the given id or id isn't a valid index.
+ * Verify id is a valid id for company. Returns the Actor pointer that
+ * corresponds to the given id.  Returns NULL if the Actor doesn't exist for
+ * the given id or id isn't a valid index.
  */
 Actor *
 company_deref_actor (Company *company, int id)
