@@ -122,6 +122,11 @@ node_family_member (Company *company, int id, enum NodeFamily member)
             node_unlock(company, id);
             node_write(company, id);
             company->list[id].family[member] = -1;
+            /*
+             * TODO:
+             *  make sure next and previous are linked. Probably using doubly
+             *  linked list here.
+             */
         } else {
             ret = f;
         }
