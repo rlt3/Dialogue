@@ -21,9 +21,6 @@
 typedef struct Node {
     Actor *actor;
 
-    int ref_count;
-    pthread_mutex_t ref_mutex;
-
     /* these are indices to other Nodes */
     int parent;
     int next_sibling;
@@ -48,7 +45,6 @@ node_init (Node *node, Actor *actor)
     node->parent = -1;
     node->next_sibling = -1;
     node->first_child = -1;
-    pthread_mutex_init(&node->ref_mutex, NULL);
     pthread_rwlock_init(&node->family_rw_lock, NULL);
 }
 
@@ -64,7 +60,6 @@ node_cleanup (Node *node)
     node->parent = -1;
     node->next_sibling = -1;
     node->first_child = -1;
-    pthread_mutex_destroy(&node->ref_mutex);
     pthread_rwlock_destroy(&node->family_rw_lock);
 }
 
@@ -217,13 +212,8 @@ company_ref_actor (Company *company, Actor *actor)
         goto exit;
 
     pthread_rwlock_rdlock(&company->list_rw_lock);
-    if (company->list[actor->id].actor == actor) {
+    if (company->list[actor->id].actor == actor)
         id = actor->id;
-
-        pthread_mutex_lock(&company->list[id].ref_mutex);
-        company->list[id].ref_count++;
-        pthread_mutex_unlock(&company->list[id].ref_mutex);
-    }
     pthread_rwlock_unlock(&company->list_rw_lock);
 
 exit:
@@ -244,13 +234,8 @@ company_deref_actor (Company *company, int id)
         goto exit;
 
     pthread_rwlock_rdlock(&company->list_rw_lock);
-    if (company->list[id].actor) {
+    if (company->list[id].actor)
         actor = company->list[id].actor;
-
-        pthread_mutex_lock(&company->list[id].ref_mutex);
-        company->list[id].ref_count--;
-        pthread_mutex_unlock(&company->list[id].ref_mutex);
-    }
     pthread_rwlock_unlock(&company->list_rw_lock);
 
 exit:

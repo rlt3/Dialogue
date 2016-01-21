@@ -31,6 +31,21 @@ company_set_table (lua_State *L,  Company *company)
 static inline void
 lua_push_actor (lua_State *L, int actor_id, Company *company)
 {
+    /*
+     * TODO:
+     *  This function needs to increment the reference counter for actor
+     *  because having an explicit actor object is a reference.
+     *
+     *  So, all of our functions will need to dereference the actor. and then
+     *  reference it again if it sends a message. Since no actor can be used at
+     *  once, and there is a mutex on its state, we can be absolutely sure that
+     *  the reference count on an actor is.
+     *
+     *  If our system can handle bad references to an actor (by just throwing
+     *  an error), why can't we just drop the actor? All the bad messages will
+     *  be automatically 'cleaned up'. Because those references were just 
+     *  integers, we don't have pointers hanging out there.
+     */
     lua_newtable(L);
 
     lua_pushinteger(L, actor_id);
@@ -150,4 +165,15 @@ luaopen_Dialogue_Company (lua_State *L)
     lua_setmetatable(L, -2);
 
     return 1;
+}
+
+/*
+ * Create a Company meta table inside the given Lua state.
+ */
+void
+company_open (lua_State *L, Company *company)
+{
+    luaL_requiref(L, "Actor", luaopen_Dialogue_Company, 1);
+    company_set_table(L, company);
+    lua_pop(L, 1);
 }

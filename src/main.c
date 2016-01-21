@@ -22,9 +22,7 @@ main (int argc, char **argv)
     L = luaL_newstate();
     luaL_openlibs(L);
 
-    luaL_requiref(L, "Actor", luaopen_Dialogue_Company, 1);
-    company_set_table(L, company);
-    lua_pop(L, 1);
+    company_open(L, company);
 
     if (luaL_loadfile(L, argv[1]) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "File: %s could not load: %s\n", argv[1],

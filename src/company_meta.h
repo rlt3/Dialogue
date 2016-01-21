@@ -29,7 +29,10 @@ company_set_table (lua_State *L, Company *company);
 void
 company_push_actor (lua_State *L, int actor_id, Company *company);
 
-int 
-luaopen_Dialogue_Company (lua_State *L);
+/*
+ * Create a Company meta table inside the given Lua state.
+ */
+void
+company_open (lua_State *L, Company *company);
 
 #endif
