@@ -37,69 +37,76 @@
 
 typedef struct Node {
     Actor *actor;
-
     int attached;
-
     /* these are indices to other Nodes */
     int parent;
     int next_sibling;
     int first_child;
-    pthread_rwlock_t family_rw_lock;
+    pthread_rwlock_t rw_lock;
 } Node;
 
 struct Company {
     Node *list;
     int list_size;
     int nodes_in_use;
-    pthread_mutex_t list_mutex;
+    pthread_rwlock_t rw_lock;
 };
 
 /*
- * Setup a node (an element of the Company's list).
+ * Make sure the id is a valid index so we aren't accessing memory out of 
+ * bounds. If id is less than 0, we can assume an invalid index. Otherwise, we
+ * have to do a read lock on the list's size.
  */
-void
-node_init (Node *node, Actor *actor)
+int
+node_index_valid (Company *company, int id)
 {
-    node->actor = actor;
-    node->parent = -1;
-    node->next_sibling = -1;
-    node->first_child = -1;
-    pthread_rwlock_init(&node->family_rw_lock, NULL);
+    int ret = 0;
+
+    if (id < 0)
+        goto exit;
+
+    pthread_rwlock_rdlock(&company->rw_lock);
+    ret = !(id >= company->list_size);
+    pthread_rwlock_unlock(&company->rw_lock);
+
+    return ret;
 }
 
 /*
- * Cleanup a node, destroying the Actor and setting its pointer to NULL,
- * set references to zero, and destroying the ref mutex and family rwlock.
+ * Returns 0 and *does not* acquire the lock if id is not a valid index.
+ * Acquires the write lock otherwise and returns 1.
  */
-void
-node_cleanup (Node *node)
-{
-    actor_destroy(node->actor);
-    node->actor = NULL;
-    node->parent = -1;
-    node->next_sibling = -1;
-    node->first_child = -1;
-    pthread_rwlock_destroy(&node->rw_lock);
-}
-
-inline void
+inline int
 node_write (Company *company, int id)
 {
+    if (!node_valid_index(company, id))
+        return 0;
     pthread_rwlock_wrlock(&company->list[id].rw_lock);
+    return 1;
 }
 
+/*
+ * Returns 0 and *does not* acquire the lock if id is not a valid index.
+ * Acquires the read lock otherwise and returns 1.
+ */
 inline int
 node_read (Company *company, int id)
 {
-    if (id < 0)
+    if (!node_valid_index(company, id))
         return 0;
     pthread_rwlock_rdlock(&company->list[id].rw_lock);
-    return !(!company->list[id].attached);
+    return 1;
 }
 
+/*
+ * *Does not* do anything if id isn't a valid index. Unlocks the read/write
+ * lock otherwise.
+ */
 inline void
 node_unlock (Company *company, int id)
 {
+    if (!node_valid_index(company, id))
+        return;
     pthread_rwlock_unlock(&company->list[id].rw_lock);
 }
 
@@ -152,6 +159,42 @@ node_get_family (Company *company, int id, int which)
 unlock:
     node_lock(company, id);
     return ret;
+}
+
+/*
+ * Setup a node (an element of the Company's list).
+ */
+void
+node_init (Company *company, int id, Actor *actor)
+{
+    if (!node_write(company, id))
+        return;
+    company->list[id].actor = actor;
+    company->list[id].attached = 1;
+    company->list[id].parent = -1;
+    company->list[id].next_sibling = -1;
+    company->list[id].first_child = -1;
+    pthread_rwlock_init(&company->list[id].rw_lock, NULL);
+    node_unlock(company, id);
+}
+
+/*
+ * Cleanup a node, destroying the Actor and setting its pointer to NULL,
+ * set references to zero, and destroying the ref mutex and family rwlock.
+ */
+void
+node_cleanup (Company *company, int id)
+{
+    if (!node_write(company, id))
+        return;
+    actor_destroy(company->list[id].actor);
+    company->list[id].actor = NULL;
+    company->list[id].attached = 0;
+    company->list[id].parent = -1;
+    company->list[id].next_sibling = -1;
+    company->list[id].first_child = -1;
+    pthread_rwlock_destroy(&company->list[id].rw_lock);
+    node_unlock(company, id);
 }
 
 Company *
