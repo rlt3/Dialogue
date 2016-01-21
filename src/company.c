@@ -11,6 +11,11 @@ enum NodeFamily {
     NODE_CHILD 
 };
 
+enum RetVals {
+    BAD_OPT = -3,
+    BAD_NODE = -2
+};
+
 typedef struct Node {
     Actor *actor;
     int attached;
@@ -21,6 +26,7 @@ typedef struct Node {
 struct Company {
     Node *list;
     int list_size;
+    int list_inc;
     int nodes_in_use;
     pthread_rwlock_t rw_lock;
 };
@@ -83,11 +89,6 @@ node_unlock (Company *company, int id)
         pthread_rwlock_unlock(&company->list[id].rw_lock);
 }
 
-enum RetVals {
-    BAD_OPT = -3,
-    BAD_NODE = -2
-};
-
 /*
  * This function verifies the family member reference is both a valid index and
  * a valid operating reference. A node can be operated when it is attached with
@@ -117,7 +118,7 @@ node_family_member (Company *company, int id, enum NodeFamily member)
     if (node_read(company, f)) {
         /* If the Node isn't attached and has no Actor, it isn't valid */
         if (!company->list[f].attached && company->list[f].actor == NULL) {
-            /* immediately unlock calling node and acquire the write lock */
+            /* immediately unlock read lock and acquire the write lock */
             node_unlock(company, id);
             node_write(company, id);
             company->list[id].family[member] = -1;
@@ -143,11 +144,24 @@ node_init (Company *company, int id, Actor *actor)
     if (!node_write(company, id))
         return;
 
-    /* acquire the write lock which tries to do as little as possible */
+    /* acquire the write lock and try to get out as fast as possible. */
     pthread_rwlock_wrlock(&company->rw_lock);
     company->nodes_in_use++;
+
     if (company->nodes_in_use >= company->list_size) {
-        /* TODO: realloc list */
+        company->list = realloc(company->list, 
+                (company->list_size + company->list_inc) * sizeof(Node));
+
+        /* 
+         * a catastrophic error if realloc fails, leaving us with no array.
+         * to attempt to mitigate, we can set all current references invalid by
+         * reducing the list size.
+         * TODO: figure out better error handling here
+         */
+        if (!company->list)
+            company->list_size = 0;
+        else
+            company->list_size += company->list_inc;
     }
     pthread_rwlock_unlock(&company->rw_lock);
 
@@ -206,6 +220,7 @@ company_create (int buffer_length)
     }
 
     company->list_size = buffer_length;
+    company->list_inc = buffer_length;
     company->nodes_in_use = 0;
     pthread_rwlock_init(&company->rw_lock, NULL);
 
