@@ -192,11 +192,15 @@ node_cleanup (Company *company, int id)
 {
     int i;
 
+    printf("Cleaning up %d ... waiting for write lock\n", id);
     if (!node_write(company, id))
         return;
 
+    printf("Cleaning up %d ... waiting for write lock\n", id);
     if (company->list[id].actor)
         actor_destroy(company->list[id].actor);
+
+    printf("Cleaning up %d ... write lock in use\n", id);
 
     /* acquire the write lock which tries to do as little as possible */
     pthread_rwlock_wrlock(&company->rw_lock);
@@ -378,34 +382,44 @@ release:
 void
 company_close (Company *company)
 {
-    int id;
-    pthread_rwlock_wrlock(&company->rw_lock);
-    for (id = 0; id < company->list_size; id++) {
+    int list_size, is_working, id;
 
-        /* TODO:
-        if (node_read(company, id) && node_on(company, id))
-         */
-        if (node_read(company, id)) {
-            int sibling_id = company->list[id].family[NODE_CHILD];
-            while (sibling_id >= 0) {
-                printf("Actor %d had child %d\n", id, sibling_id);
-                if (node_read(company, sibling_id)) {
-                    sibling_id = company->list[sibling_id].family[NODE_NEXT_SIBLING];
-                    node_unlock(company, sibling_id);
-                } else {
-                    sibling_id = -1;
-                }
+    pthread_rwlock_rdlock(&company->rw_lock);
+    list_size = company->list_size;
+    pthread_rwlock_unlock(&company->rw_lock);
+
+    for (id = 0; id < list_size; id++) {
+        node_read(company, id);
+        is_working = !(!company->list[id].attached && 
+                       company->list[id].actor == NULL);
+        int sibling_id = company->list[id].family[NODE_CHILD];
+        if (!is_working)
+            goto cleanup;
+
+        while (sibling_id >= 0) {
+            printf("Actor %d had child %d\n", id, sibling_id);
+            //sibling_id = company->list[sibling_id].family[NODE_NEXT_SIBLING];
+
+            if (node_read(company, sibling_id)) {
+                sibling_id = company->list[sibling_id].family[NODE_NEXT_SIBLING];
+                node_unlock(company, sibling_id);
+            } else {
+                sibling_id = -1;
             }
-            printf("Actor %d was a child of %d\n", id, 
-                    company->list[id].family[NODE_PARENT]);
-            node_unlock(company, id);
         }
 
+        printf("Actor %d was a child of %d\n", id, 
+                company->list[id].family[NODE_PARENT]);
+
+cleanup:
+        printf("Unlock %d\n", id);
+        node_unlock(company, id);
+        printf("Cleanup %d\n", id);
         node_cleanup(company, id);
-destroy_lock:
+        printf("Destroy Lock %d\n", id);
         pthread_rwlock_destroy(&company->list[id].rw_lock);
     }
-    pthread_rwlock_unlock(&company->rw_lock);
+
     pthread_rwlock_destroy(&company->rw_lock);
     free(company->list);
     free(company);
