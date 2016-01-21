@@ -79,7 +79,79 @@ node_cleanup (Node *node)
     node->parent = -1;
     node->next_sibling = -1;
     node->first_child = -1;
-    pthread_rwlock_destroy(&node->family_rw_lock);
+    pthread_rwlock_destroy(&node->rw_lock);
+}
+
+inline void
+node_write (Company *company, int id)
+{
+    pthread_rwlock_wrlock(&company->list[id].rw_lock);
+}
+
+inline int
+node_read (Company *company, int id)
+{
+    if (id < 0)
+        return 0;
+    pthread_rwlock_rdlock(&company->list[id].rw_lock);
+    return !(!company->list[id].attached);
+}
+
+inline void
+node_unlock (Company *company, int id)
+{
+    pthread_rwlock_unlock(&company->list[id].rw_lock);
+}
+
+/*
+ * Get the family member of the Node at the given id. If the id isn't valid,
+ * this returns -1. Looks for the family member by type. If the type isn't 
+ * valid, this returns -1. If the family member of the Node isn't valid it is
+ * replaced with -1 and -1 is returned, otherwise the valid family member
+ * reference is returned.
+ */
+int
+node_get_family (Company *company, int id, int which)
+{
+    int ret = -1;
+    int *ptr = NULL;
+
+    if (!node_read(company, id))
+        goto unlock;
+            
+    /* Get the pointer to which family we're verifying. */
+    switch (which) {
+    case 0:
+        ptr = &company->list[id].parent;
+        break;
+
+    case 1:
+        ptr = &company->list[id].next_sibling;
+        break;
+
+    case 2:
+        ptr = &company->list[id].first_child;
+        break;
+
+    default: /* Not a valid `which` */
+        goto unlock;
+        break;
+    }
+
+    /* if the read is successful (*member is valid) */
+    if (node_read(company, *ptr)) {
+        /* If the Node isn't attached and has no Actor, it isn't valid */
+        if (!company->list[*ptr].attached && company->list[*ptr] == NULL) {
+            *ptr = -1;
+        } else {
+            ret = *ptr;
+        }
+    }
+    node_lock(company, *ptr);
+
+unlock:
+    node_lock(company, id);
+    return ret;
 }
 
 Company *
