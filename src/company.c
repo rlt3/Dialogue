@@ -367,6 +367,22 @@ release:
     return id;
 }
 
+void
+print_children (Company *company, int id)
+{
+    int prev_sibling;
+    int sibling = company->list[id].family[NODE_CHILD];
+    while (sibling >= 0) {
+        printf(" %d ", sibling);
+        if (node_read(company, sibling)) {
+            prev_sibling = sibling;
+            sibling = company->list[sibling].family[NODE_NEXT_SIBLING];
+            node_unlock(company, prev_sibling);
+        }
+    }
+    printf("\n");
+}
+
 /*
  * Acquire the write lock on the Company list and cleanup any existing nodes
  * (and the Node's corresponding Actor). Then free memory for the Company list
@@ -390,6 +406,7 @@ company_close (Company *company)
             goto cleanup;
 
         printf("Actor %d\n", id);
+        print_children(company, id);
         printf("  [fc] -> %d\n", company->list[id].family[NODE_CHILD]);
         printf("  [nc] -> %d\n", company->list[id].family[NODE_NEXT_SIBLING]);
         printf("  [pa] -> %d\n", company->list[id].family[NODE_PARENT]);
