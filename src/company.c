@@ -22,6 +22,8 @@ typedef struct Node {
     int benched;  /* if not attached & not benched, it is a unused Node */
     int family[NODE_FAMILY_MAX];
     pthread_rwlock_t rw_lock;
+    pthread_mutex_t ref_lock;
+    int ref_count;
 } Node;
 
 struct Company {
@@ -58,6 +60,22 @@ exit:
     return ret;
 }
 
+static inline void
+node_ref (Company *company, int id)
+{
+    pthread_mutex_lock(&company->list[id].ref_lock);
+    company->list[id].ref_count++;
+    pthread_mutex_unlock(&company->list[id].ref_lock);
+}
+
+static inline void
+node_deref (Company *company, int id)
+{
+    pthread_mutex_lock(&company->list[id].ref_lock);
+    company->list[id].ref_count--;
+    pthread_mutex_unlock(&company->list[id].ref_lock);
+}
+
 /*
  * Returns 0 and *does not* acquire the lock if id is not a valid index.
  * Acquires the write lock otherwise and returns 1.
@@ -67,6 +85,7 @@ node_write (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
+    node_ref(company, id);
     pthread_rwlock_wrlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -80,6 +99,7 @@ node_read (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
+    node_ref(company, id);
     pthread_rwlock_rdlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -91,19 +111,52 @@ node_read (Company *company, int id)
 static inline void
 node_unlock (Company *company, int id)
 {
-    if (node_index_valid(company, id))
+    if (node_index_valid(company, id)) {
+        node_deref(company, id);
         pthread_rwlock_unlock(&company->list[id].rw_lock);
+    }
 }
 
 /*
- * This is effectively the garbage collection.
+ * With a write lock:
+ * Toggles an Actor at id to be a either attached and not benched, or not
+ * attached and benched.
  */
 void
-node_unlink (Company *company, int id, int unlink_sibling)
+node_toggle_bench_wr (Company *company, int id)
 {
-    int prev, next, parent, child, fam, is_first_child, has_children, has_next;
+    company->list[id].attached = !company->list[id].attached;
+    company->list[id].benched = !company->list[id].benched;
+}
 
-    if (!node_read(company, id))
+/*
+ * With a write lock:
+ * Invalidate a node, effectively turning it off.
+ */
+void
+node_invalidate_wr (Company *company, int id)
+{
+    company->list[id].attached = 0;
+    company->list[id].benched = 0;
+}
+
+/*
+ * We want the Node to be valid for as long as it is around, but not yet 
+ * deleted. So, here we unlink it. While it is not in the tree's linked-list it
+ * is still a valid Node. We count all functions requesting a Node for write
+ * or read. When that is zero, then we can be sure that no `weird stuff' 
+ * happens by trying to read over memory that is being deleted.
+ *
+ * We can bench a Node (detach it, but still 'active' -- for fixing a bug in
+ * real time by reloading the code and reattaching) or have it be deleted by
+ * passing in 1 (true) or 0 (false) for delete or not delete.
+ */
+void
+node_unlink (Company *company, int id, int is_delete)
+{
+    int prev, next, parent, child, family, is_first_child, has_child, has_next;
+
+    if (!node_write(company, id))
         return;
 
     prev = company->list[id].family[NODE_PREV_SIBLING];
@@ -112,8 +165,13 @@ node_unlink (Company *company, int id, int unlink_sibling)
     child = company->list[id].family[NODE_CHILD];
 
     is_first_child = !(prev >= 0);
-    has_children = (child >= 0);
+    has_child = (child >= 0);
     has_next = (next >= 0);
+
+    if (is_delete)
+        node_invalidate_wr(company, id);
+    else
+        node_toggle_bench_wr(company, id);
 
     /* 
      * The first child's prev `pointer' ends up being the parent if you think
@@ -121,35 +179,29 @@ node_unlink (Company *company, int id, int unlink_sibling)
      */
     if (is_first_child) {
         prev = parent;
-        fam = NODE_CHILD;
+        family = NODE_CHILD;
     } else {
-        fam = NODE_NEXT_SIBLING;
+        family = NODE_NEXT_SIBLING;
+    }
+
+    if (has_child && node_write(company, id)) {
+        /* TODO: recursively invalidate or delete ALL child nodes */
     }
 
     node_unlock(company, id);
 
     if ((is_first_child || has_next) && node_write(company, prev)) {
-        company->list[prev].family[fam] = next;
+        company->list[prev].family[family] = next;
         node_unlock(company, prev);
     }
 
     if (has_next && node_write(company, next)) {
-        company->list[next].family[NODE_PREV_SIBLING] = (is_first_child ? -1 : prev);
+        if (is_first_child)
+            company->list[next].family[NODE_PREV_SIBLING] = -1;
+        else
+            company->list[next].family[NODE_PREV_SIBLING] = prev;
         node_unlock(company, prev);
-        if (unlink_sibling)
-            node_unlink(company, next, unlink_sibling);
     }
-
-    if (has_children && node_write(company, id)) {
-        /* I think simply setting the first_child to -1 right now will keep 
-         * a lot of work from us. Doing that will let Nodes fall to the wayside,
-         * the Actor address (id) still valid. They aren't active, thus will
-         * not receive messages, and will be garbage collected when an needs to
-         * be created.
-         */
-        node_unlock(company, id);
-    }
-
 }
 
 /*
