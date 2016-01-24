@@ -1,5 +1,5 @@
-#ifndef DIALOGUE_ACTOR_META
-#define DIALOGUE_ACTOR_META
+#ifndef DIALOGUE_COMPANY_META
+#define DIALOGUE_COMPANY_META
 
 /*
  * Since all Lua metatables should point to the same Actor, we have the ability
@@ -10,8 +10,8 @@
  * We call the Company inside lua "Actor" to avoid confusion.
  */
 
+#define COMPANY_GLOBAL "Actor"
 #define COMPANY_META "Dialogue.Company"
-#define ACTOR_META "Dialogue.Company.Actor"
 
 #include "dialogue.h"
 #include "company.h"

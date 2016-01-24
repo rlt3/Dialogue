@@ -256,7 +256,7 @@ exit:
  * to the given parent.
  */
 int
-company_set_parents_child (Company *company, int parent_id, int child_id)
+company_parent_add_child (Company *company, int parent_id, int child_id)
 {
     int next;
     int sibling = node_family_member(company, parent_id, NODE_CHILD);
@@ -360,7 +360,7 @@ unlock_and_write:
     node_init(company, id, actor);
 
     if (parent_id >= 0)
-        company_set_parents_child(company, parent_id, id);
+        company_parent_add_child(company, parent_id, id);
 
 release:
     node_unlock(company, i); /* i can't be id because id isn't always set */
