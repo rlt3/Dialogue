@@ -17,8 +17,9 @@ enum RetVals {
 };
 
 typedef struct Node {
-    Actor *actor;
-    int attached;
+    Actor *actor;  /* if not attached, should be benched */
+    int attached; /* if attached, should be not benched */
+    int benched;  /* if not attached & not benched, it is a unused Node */
     int family[NODE_FAMILY_MAX];
     pthread_rwlock_t rw_lock;
 } Node;
@@ -95,6 +96,63 @@ node_unlock (Company *company, int id)
 }
 
 /*
+ * This is effectively the garbage collection.
+ */
+void
+node_unlink (Company *company, int id, int unlink_sibling)
+{
+    int prev, next, parent, child, fam, is_first_child, has_children, has_next;
+
+    if (!node_read(company, id))
+        return;
+
+    prev = company->list[id].family[NODE_PREV_SIBLING];
+    next = company->list[id].family[NODE_NEXT_SIBLING];
+    parent = company->list[id].family[NODE_PARENT];
+    child = company->list[id].family[NODE_CHILD];
+
+    is_first_child = !(prev >= 0);
+    has_children = (child >= 0);
+    has_next = (next >= 0);
+
+    /* 
+     * The first child's prev `pointer' ends up being the parent if you think
+     * of the parent as the head of a doubly linked list.
+     */
+    if (is_first_child) {
+        prev = parent;
+        fam = NODE_CHILD;
+    } else {
+        fam = NODE_NEXT_SIBLING;
+    }
+
+    node_unlock(company, id);
+
+    if ((is_first_child || has_next) && node_write(company, prev)) {
+        company->list[prev].family[fam] = next;
+        node_unlock(company, prev);
+    }
+
+    if (has_next && node_write(company, next)) {
+        company->list[next].family[NODE_PREV_SIBLING] = (is_first_child ? -1 : prev);
+        node_unlock(company, prev);
+        if (unlink_sibling)
+            node_unlink(company, next, unlink_sibling);
+    }
+
+    if (has_children && node_write(company, id)) {
+        /* I think simply setting the first_child to -1 right now will keep 
+         * a lot of work from us. Doing that will let Nodes fall to the wayside,
+         * the Actor address (id) still valid. They aren't active, thus will
+         * not receive messages, and will be garbage collected when an needs to
+         * be created.
+         */
+        node_unlock(company, id);
+    }
+
+}
+
+/*
  * This function verifies the family member reference is both a valid index and
  * a valid operating reference. A node can be operated when it is attached with
  * actor and detached with actor. If it is detached without an actor, it is
@@ -118,14 +176,28 @@ node_family_member (Company *company, int id, enum NodeFamily member)
             
     f = company->list[id].family[member];
 
+    /*
+     * I don't think this next portion of code is valid anymore. Actors that
+     * are being deleted (because an Action for it to be deleted was sent) are
+     * unlinked then. When another actor is created, it sees the unlinked 
+     * actor, frees its memory, and replaces it, attached and unbenched this
+     * time too.
+     *
+     * An actor is unbenched (if it was) and detached (if it was) which then
+     * removes itself from any further messages. This seems the most efficient
+     * way of dealing with creation and deletion -- at the same time.
+     */
+
     /* if the read is successful (*ptr is a valid index) */
     if (node_read(company, f)) {
         /* If the Node isn't attached and has no Actor, it isn't valid */
-        if (!company->list[f].attached && company->list[f].actor == NULL) {
+        if (!company->list[f].attached && !company->list[f].benched) {
             /* immediately unlock read lock and acquire the write lock */
             node_unlock(company, id);
             node_write(company, id);
+
             company->list[id].family[member] = -1;
+
             /*
              * TODO:
              *  make sure next and previous are linked. Probably using doubly
