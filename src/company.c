@@ -494,7 +494,7 @@ print_children (Company *company, int id)
 void
 company_close (Company *company)
 {
-    int list_size, is_working, id;
+    int list_size, id;
 
     pthread_rwlock_rdlock(&company->rw_lock);
     list_size = company->list_size;
@@ -502,10 +502,7 @@ company_close (Company *company)
 
     for (id = 0; id < list_size; id++) {
         node_read(company, id);
-        is_working = !(!company->list[id].attached && 
-                       company->list[id].actor == NULL);
-
-        if (!is_working)
+        if (node_is_garbage_rd(company, id))
             goto cleanup;
 
         printf("Actor %d\n", id);

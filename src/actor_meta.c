@@ -32,19 +32,6 @@ lua_actor_id (lua_State *L, int index)
 }
 
 /*
- * Get the Company of the actor object reference at the index.
- */
-static inline Company *
-lua_actor_company (lua_State *L, int index)
-{
-    Company *company;
-    lua_rawgeti(L, index, 2);
-    company = lua_touserdata(L, -1);
-    lua_pop(L, 1);
-    return company;
-}
-
-/*
  * actor:child{ ["Star"|"Lead",] [ { "module" [, arg1 [, ... [, argN]]]} ] }
  * Create a child of the `actor' object.
  */
@@ -83,9 +70,8 @@ lua_actor_delete (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = lua_actor_id(L, actor_arg);
-    Company *company = lua_actor_company(L, actor_arg);
-    printf("Company %p\n", company);
-    //company_remove_actor(company, id);
+    Company *company = lua_get_company(L, actor_arg);
+    company_remove_actor(company, id);
     return 0;
 }
 

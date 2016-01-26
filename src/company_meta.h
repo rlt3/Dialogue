@@ -17,6 +17,9 @@
 #include "company.h"
 #include "actor.h"
 
+Company *
+lua_get_company (lua_State *L, int index);
+
 /*
  * Expects a table on top of the Lua stack. Set the company in that table.
  */

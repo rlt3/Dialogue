@@ -19,7 +19,6 @@ main (int argc, char **argv)
         usage(argv[0]);
 
     company = company_create(10);
-    printf("Company %p\n", company);
     L = luaL_newstate();
     luaL_openlibs(L);
 
