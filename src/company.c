@@ -62,7 +62,7 @@ node_write (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
-    printf("Write lock %d\n", id);
+    //printf("Write lock %d\n", id);
     pthread_rwlock_wrlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -76,7 +76,7 @@ node_read (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
-    printf("Read lock %d\n", id);
+    //printf("Read lock %d\n", id);
     pthread_rwlock_rdlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -90,7 +90,7 @@ node_unlock (Company *company, int id)
 {
     if (node_index_valid(company, id)) {
         pthread_rwlock_unlock(&company->list[id].rw_lock);
-        printf("Unlock %d\n", id);
+        //printf("Unlock %d\n", id);
     }
 }
 
@@ -474,11 +474,17 @@ unlock_and_write:
     id = i;
     node_init_wr(company, id, actor);
 
-    if (parent_id >= 0)
-        company_parent_add_child(company, parent_id, id);
-
 release:
     node_unlock(company, i); /* i can't be id because id isn't always set */
+
+    /* 
+     * We call this after unlocking the write lock to avoid mental friction
+     * between writes & read locks and children. To avoid jumps looking to
+     * error-out, we check that the id has been set, i.e. not -1.
+     */
+    if (id >= 0 && parent_id >= 0)
+        company_parent_add_child(company, parent_id, id);
+
     return id;
 }
 
