@@ -22,8 +22,6 @@ typedef struct Node {
     int benched;  /* if not attached & not benched, it is a unused Node */
     int family[NODE_FAMILY_MAX];
     pthread_rwlock_t rw_lock;
-    pthread_mutex_t ref_lock;
-    int ref_count;
 } Node;
 
 struct Company {
@@ -35,14 +33,9 @@ struct Company {
 };
 
 /*
- * Make sure the id is a valid index so we aren't accessing memory out of 
- * bounds. If id is less than 0, we can assume an invalid index. Otherwise, we
- * have to do a read lock on the list's size.
- *
- * If we stay in the bounds of list_size and 0, all ids are guaranteed to
- * be valid (wether the Node is valid or not is another matter). This means
- * we don't have to acquire the read lock to read the list of Nodes, but
- * need to acquire the read lock of any Node.
+ * Since we guarantee that the set of the valid indices always grows and never
+ * shrinks, all we need to do is check that `id' is >= 0 and <= max index and
+ * the id will *always* be valid.
  */
 static inline int
 node_index_valid (Company *company, int id)
@@ -60,22 +53,6 @@ exit:
     return ret;
 }
 
-static inline void
-node_ref (Company *company, int id)
-{
-    pthread_mutex_lock(&company->list[id].ref_lock);
-    company->list[id].ref_count++;
-    pthread_mutex_unlock(&company->list[id].ref_lock);
-}
-
-static inline void
-node_deref (Company *company, int id)
-{
-    pthread_mutex_lock(&company->list[id].ref_lock);
-    company->list[id].ref_count--;
-    pthread_mutex_unlock(&company->list[id].ref_lock);
-}
-
 /*
  * Returns 0 and *does not* acquire the lock if id is not a valid index.
  * Acquires the write lock otherwise and returns 1.
@@ -85,7 +62,6 @@ node_write (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
-    node_ref(company, id);
     pthread_rwlock_wrlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -99,7 +75,6 @@ node_read (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
-    node_ref(company, id);
     pthread_rwlock_rdlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -111,10 +86,18 @@ node_read (Company *company, int id)
 static inline void
 node_unlock (Company *company, int id)
 {
-    if (node_index_valid(company, id)) {
-        node_deref(company, id);
+    if (node_index_valid(company, id))
         pthread_rwlock_unlock(&company->list[id].rw_lock);
-    }
+}
+
+/*
+ * With a read lock:
+ * Is the node garbage or not?
+ */
+static inline int
+node_is_garbage_rd (Company *company, int id)
+{
+    return (!(company->list[id].attached || company->list[id].benched));
 }
 
 /*
@@ -122,7 +105,7 @@ node_unlock (Company *company, int id)
  * Toggles an Actor at id to be a either attached and not benched, or not
  * attached and benched.
  */
-void
+static inline void
 node_toggle_bench_wr (Company *company, int id)
 {
     company->list[id].attached = !company->list[id].attached;
@@ -133,7 +116,7 @@ node_toggle_bench_wr (Company *company, int id)
  * With a write lock:
  * Invalidate a node, effectively turning it off.
  */
-void
+static inline void
 node_invalidate_wr (Company *company, int id)
 {
     company->list[id].attached = 0;
@@ -154,7 +137,7 @@ node_invalidate_wr (Company *company, int id)
 void
 node_unlink (Company *company, int id, int is_delete)
 {
-    int prev, next, parent, child, family, is_first_child, has_child, has_next;
+    int prev, next, parent, child, family, is_first_child, has_child;
 
     if (!node_write(company, id))
         return;
@@ -166,12 +149,15 @@ node_unlink (Company *company, int id, int is_delete)
 
     is_first_child = !(prev >= 0);
     has_child = (child >= 0);
-    has_next = (next >= 0);
 
     if (is_delete)
         node_invalidate_wr(company, id);
     else
         node_toggle_bench_wr(company, id);
+
+    if (has_child) {
+        /* TODO: recursively invalidate or delete ALL child nodes */
+    }
 
     /* 
      * The first child's prev `pointer' ends up being the parent if you think
@@ -184,24 +170,28 @@ node_unlink (Company *company, int id, int is_delete)
         family = NODE_NEXT_SIBLING;
     }
 
-    if (has_child && node_write(company, id)) {
-        /* TODO: recursively invalidate or delete ALL child nodes */
-    }
+    /*
+     * Imagine three actors -- A, B, and C -- who are siblings of one another
+     * with A being the first sibling (or first child of parent P) and we are
+     * removing B.  If we don't lock A (the prev) while also locking B, we risk
+     * a read on A's next, which is B (which should be invalid). We have to do
+     * the same for C for going backwards (this is a doubly-linked list).
+     */
 
-    node_unlock(company, id);
-
-    if ((is_first_child || has_next) && node_write(company, prev)) {
+    if (node_write(company, prev)) {
         company->list[prev].family[family] = next;
         node_unlock(company, prev);
     }
 
-    if (has_next && node_write(company, next)) {
+    if (node_write(company, next)) {
         if (is_first_child)
             company->list[next].family[NODE_PREV_SIBLING] = -1;
         else
             company->list[next].family[NODE_PREV_SIBLING] = prev;
         node_unlock(company, prev);
     }
+
+    node_unlock(company, id);
 }
 
 /*
@@ -303,6 +293,7 @@ node_init (Company *company, int id, Actor *actor)
 
     company->list[id].actor = actor;
     company->list[id].attached = 1;
+    company->list[id].benched = 0;
     
     for (i = 0; i < NODE_FAMILY_MAX; i++) 
         company->list[id].family[i] = -1;
@@ -332,6 +323,7 @@ node_cleanup (Company *company, int id)
 
     company->list[id].actor = NULL;
     company->list[id].attached = 0;
+    company->list[id].benched = 0;
 
     for (i = 0; i < NODE_FAMILY_MAX; i++) 
         company->list[id].family[i] = -1;
