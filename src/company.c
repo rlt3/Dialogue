@@ -95,7 +95,7 @@ node_unlock (Company *company, int id)
 }
 
 /*
- * With a read lock:
+ * With a read or write lock:
  * Is the node garbage or not?
  */
 static inline int
@@ -128,6 +128,44 @@ node_invalidate_wr (Company *company, int id)
 }
 
 /*
+ * With the write lock:
+ * Initialize an unused node (classified as garbage) with the given actor at
+ * the id.
+ */
+void
+node_init_wr (Company *company, int id, Actor *actor)
+{
+    Node *array;
+    int i;
+
+    /* acquire the write lock and try to get out as fast as possible. */
+    pthread_rwlock_wrlock(&company->rw_lock);
+
+    if (company->nodes_in_use == company->list_size) {
+        array = realloc(company->list, 
+                (company->list_size + company->list_inc) * sizeof(Node));
+
+        /* If realloc fails, our current memory layout is still valid */
+        if (array) {
+            company->list = array;
+            company->list_size += company->list_inc;
+            company->nodes_in_use = company->list_size;
+        }
+    } else {
+        company->nodes_in_use++;
+    }
+
+    pthread_rwlock_unlock(&company->rw_lock);
+
+    company->list[id].actor = actor;
+    company->list[id].attached = 1;
+    company->list[id].benched = 0;
+    
+    for (i = 0; i < NODE_FAMILY_MAX; i++) 
+        company->list[id].family[i] = -1;
+}
+
+/*
  * We want the Node to be valid for as long as it is around, but not yet 
  * deleted. So, here we unlink it. While it is not in the tree's linked-list it
  * is still a valid Node. We count all functions requesting a Node for write
@@ -138,13 +176,13 @@ node_invalidate_wr (Company *company, int id)
  * real time by reloading the code and reattaching) or have it be deleted by
  * passing in 1 (true) or 0 (false) for delete or not delete.
  */
-void
+int
 node_unlink (Company *company, int id, int is_delete)
 {
     int prev, next, parent, child, family, is_first_child, has_child;
 
     if (!node_write(company, id))
-        return;
+        return BAD_NODE;
 
     prev = company->list[id].family[NODE_PREV_SIBLING];
     next = company->list[id].family[NODE_NEXT_SIBLING];
@@ -196,68 +234,43 @@ node_unlink (Company *company, int id, int is_delete)
     }
 
     node_unlock(company, id);
+
+    return 0;
 }
 
 /*
- * This function verifies the family member reference is both a valid index and
- * a valid operating reference. A node can be operated when it is attached with
- * actor and detached with actor. If it is detached without an actor, it is
- * removed because it doesn't reference any operation.
+ * Retrieve a node's family member. If the the requested family member
+ * reference is garbage, set that reference to -1. Else return the family
+ * memeber reference.
  *
  * If the id given isn't valid, returns BAD_NODE.
  *
- * If the family member reference (not its type) isn't valid as per above,
- * returns -1.  Otherwise, this returns the id of the family member.
+ * TODO:
+ * Is setting the reference to -1 needed? Will there ever be a case where a 
+ * family member reference is invalid after calling node_unlink?
  */
 int
 node_family_member (Company *company, int id, enum NodeFamily member)
 {
     int ret = -1;
-    int f; /* family member id */
+    int family_member;
 
     if (!node_read(company, id)) {
         ret = BAD_NODE;
         goto unlock;
     }
             
-    f = company->list[id].family[member];
+    family_member = company->list[id].family[member];
 
-    /*
-     * I don't think this next portion of code is valid anymore. Actors that
-     * are being deleted (because an Action for it to be deleted was sent) are
-     * unlinked then. When another actor is created, it sees the unlinked 
-     * actor, frees its memory, and replaces it, attached and unbenched this
-     * time too.
-     *
-     * An actor is unbenched (if it was) and detached (if it was) which then
-     * removes itself from any further messages. This seems the most efficient
-     * way of dealing with creation and deletion -- at the same time.
-     */
-
-    /* if the read is successful (*ptr is a valid index) */
-    if (node_read(company, f)) {
-        /* If the Node isn't attached and has no Actor, it isn't valid */
-        if (!company->list[f].attached && !company->list[f].benched) {
-            /* immediately unlock read lock and acquire the write lock */
+    if (node_read(company, family_member)) {
+        if (node_is_garbage_rd(company, family_member)) {
             node_unlock(company, id);
             node_write(company, id);
-
             company->list[id].family[member] = -1;
-
-            /*
-             * TODO:
-             *  make sure next and previous are linked. Probably using doubly
-             *  linked list here.
-             *
-             * TODO:
-             *  if we add a is_working bool, we can sweep references which are
-             *  pointing to to-be deleted actors. we can do garbage collection
-             *  in this way.
-             */
         } else {
-            ret = f;
+            ret = family_member;
         }
-        node_unlock(company, f);
+        node_unlock(company, family_member);
     }
 
 unlock:
@@ -266,45 +279,9 @@ unlock:
 }
 
 /*
- * With the write lock:
- * Setup a node (an element of the Company's list).
- */
-void
-node_init_wr (Company *company, int id, Actor *actor)
-{
-    Node *array;
-    int i;
-
-    /* acquire the write lock and try to get out as fast as possible. */
-    pthread_rwlock_wrlock(&company->rw_lock);
-
-    if (company->nodes_in_use == company->list_size) {
-        array = realloc(company->list, 
-                (company->list_size + company->list_inc) * sizeof(Node));
-
-        /* If realloc fails, our current memory layout is still valid */
-        if (array) {
-            company->list = array;
-            company->list_size += company->list_inc;
-            company->nodes_in_use = company->list_size;
-        }
-    } else {
-        company->nodes_in_use++;
-    }
-
-    pthread_rwlock_unlock(&company->rw_lock);
-
-    company->list[id].actor = actor;
-    company->list[id].attached = 1;
-    company->list[id].benched = 0;
-    
-    for (i = 0; i < NODE_FAMILY_MAX; i++) 
-        company->list[id].family[i] = -1;
-}
-
-/*
- * Cleanup a node, destroying the Actor and setting its pointer to NULL,
- * set references to zero, and destroying the ref mutex and family rwlock.
+ * Cleanup a node at the given id. If the node possesses an Actor pointer, 
+ * destory it. Decrement the Company's nodes in use and invalid the node, 
+ * marking it as garbage.
  */
 void
 node_cleanup (Company *company, int id)
@@ -323,8 +300,7 @@ node_cleanup (Company *company, int id)
     pthread_rwlock_unlock(&company->rw_lock);
 
     company->list[id].actor = NULL;
-    company->list[id].attached = 0;
-    company->list[id].benched = 0;
+    node_invalidate_wr(company, id);
 
     for (i = 0; i < NODE_FAMILY_MAX; i++) 
         company->list[id].family[i] = -1;
@@ -420,7 +396,7 @@ error:
  * isn't being used. The index of that node becomes the id of the Actor. Create
  * that Actor.
  *
- * If parent_id is greater than 0, add the created Actor as a child of the 
+ * If parent_id is greater than -1, add the created Actor as a child of the 
  * parent Actor whose id is parent_id.
  *
  * Return the id of the created Actor. Returns -1 if an error occurs.
@@ -461,7 +437,7 @@ unlock_and_write:
      *  before we acquire the write lock. If so, we unlock the write lock, then
      *  go and find a new one.
      */
-    if (company->list[i].attached || company->list[i].benched) {
+    if (!node_is_garbage_rd(company, i)) {
         node_unlock(company, i);
         goto find_unused_node;
     }
@@ -486,6 +462,12 @@ release:
         company_parent_add_child(company, parent_id, id);
 
     return id;
+}
+
+int
+company_remove_actor (Company *company, int id)
+{
+    return node_unlink(company, id, 1);
 }
 
 void

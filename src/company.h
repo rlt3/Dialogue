@@ -63,6 +63,9 @@ company_close (Company *company);
 int
 company_add_actor (Company *company, lua_State *L, int parent_id);
 
+int
+company_remove_actor (Company *company, int id);
+
 /*
  * Verify given Actor is in Company and a valid pointer.  Returns -1 if Actor
  * pointer given is NULL or Actor doesn't belong to company.
