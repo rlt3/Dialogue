@@ -62,6 +62,7 @@ node_write (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
+    printf("Write lock %d\n", id);
     pthread_rwlock_wrlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -75,6 +76,7 @@ node_read (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
+    printf("Read lock %d\n", id);
     pthread_rwlock_rdlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -86,8 +88,10 @@ node_read (Company *company, int id)
 static inline void
 node_unlock (Company *company, int id)
 {
-    if (node_index_valid(company, id))
+    if (node_index_valid(company, id)) {
         pthread_rwlock_unlock(&company->list[id].rw_lock);
+        printf("Unlock %d\n", id);
+    }
 }
 
 /*
@@ -262,16 +266,14 @@ unlock:
 }
 
 /*
+ * With the write lock:
  * Setup a node (an element of the Company's list).
  */
 void
-node_init (Company *company, int id, Actor *actor)
+node_init_wr (Company *company, int id, Actor *actor)
 {
     Node *array;
     int i;
-
-    if (!node_write(company, id))
-        return;
 
     /* acquire the write lock and try to get out as fast as possible. */
     pthread_rwlock_wrlock(&company->rw_lock);
@@ -282,6 +284,7 @@ node_init (Company *company, int id, Actor *actor)
 
         /* If realloc fails, our current memory layout is still valid */
         if (array) {
+            company->list = array;
             company->list_size += company->list_inc;
             company->nodes_in_use = company->list_size;
         }
@@ -297,8 +300,6 @@ node_init (Company *company, int id, Actor *actor)
     
     for (i = 0; i < NODE_FAMILY_MAX; i++) 
         company->list[id].family[i] = -1;
-
-    node_unlock(company, id);
 }
 
 /*
@@ -356,6 +357,7 @@ company_create (int buffer_length)
     for (i = 0; i < company->list_size; i++) {
         company->list[i].actor = NULL;
         company->list[i].attached = 0;
+        company->list[i].benched = 0;
         pthread_rwlock_init(&company->list[i].rw_lock, NULL);
     }
 
@@ -452,17 +454,14 @@ find_unused_node:
 
 unlock_and_write:
     node_unlock(company, i);
-
-    /* it's a serious error if somehow i isn't a valid index now */
-    if (!node_write(company, i))
-        goto release;
+    node_write(company, i);
 
     /*
      *  Theoretically, the id we found `i', could be locked and 'messed with'
-     *  before we acquire the write thread. So, we unlock the write lock, then
+     *  before we acquire the write lock. If so, we unlock the write lock, then
      *  go and find a new one.
      */
-    if (company->list[i].attached || company->list[i].actor) {
+    if (company->list[i].attached || company->list[i].benched) {
         node_unlock(company, i);
         goto find_unused_node;
     }
@@ -473,7 +472,7 @@ unlock_and_write:
 
     /* finally, set the valid id we've found */
     id = i;
-    node_init(company, id, actor);
+    node_init_wr(company, id, actor);
 
     if (parent_id >= 0)
         company_parent_add_child(company, parent_id, id);

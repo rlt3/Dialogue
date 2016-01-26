@@ -38,7 +38,7 @@ test:
 	cd spec/ && busted test.lua
 
 mem:
-	valgrind --leak-check=full -v ./$(MODULE)
+	valgrind --leak-check=full -v ./$(MODULE) stage.lua
 
 clean:
 	rm -f $(MODULE) src/*o
