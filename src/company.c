@@ -1,4 +1,6 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdlib.h>
+#include <errno.h>
 #include <pthread.h>
 #include "company.h"
 
@@ -35,7 +37,6 @@ struct Company {
 static inline void
 company_read (Company *company)
 {
-    printf("\tCompany Read\n");
     if (pthread_rwlock_rdlock(&company->rw_lock) != 0)
         printf("\t -> Read lock error!\n");
 }
@@ -43,15 +44,13 @@ company_read (Company *company)
 static inline void
 company_write (Company *company)
 {
-    printf("\tCompany Write\n");
-    if (pthread_rwlock_wrlock(&company->rw_lock) != 0)
-        printf("\t -> Write lock error!\n");
+    if (pthread_rwlock_wrlock(&company->rw_lock) == EDEADLK)
+        printf("\t -> DEADLOCK!\n");
 }
 
 static inline void
 company_unlock (Company *company)
 {
-    printf("\t -> unlocked\n");
     if (pthread_rwlock_unlock(&company->rw_lock) != 0)
         printf("\t -> Unlock error!\n");
 }
