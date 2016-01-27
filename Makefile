@@ -40,5 +40,8 @@ test:
 mem:
 	valgrind --leak-check=full -v ./$(MODULE) stage.lua
 
+hel:
+	valgrind --tool=helgrind -v ./$(MODULE) stage.lua
+
 clean:
 	rm -f $(MODULE) src/*o

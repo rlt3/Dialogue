@@ -31,6 +31,8 @@ actor_create (lua_State *L, int id)
 
     utils_copy_top(A, L);
 
+    printf("Creating Actor %d\n", id);
+
 exit:
     return actor;
 }
@@ -41,6 +43,7 @@ exit:
 void
 actor_destroy (Actor *actor)
 {
+    printf("Destroying Actor %d\n", actor->id);
     pthread_mutex_destroy(&actor->mutex);
     lua_close(actor->L);
     free(actor);

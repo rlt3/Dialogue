@@ -32,6 +32,30 @@ struct Company {
     pthread_rwlock_t rw_lock;
 };
 
+static inline void
+company_read (Company *company)
+{
+    printf("\tCompany Read\n");
+    if (pthread_rwlock_rdlock(&company->rw_lock) != 0)
+        printf("\t -> Read lock error!\n");
+}
+
+static inline void
+company_write (Company *company)
+{
+    printf("\tCompany Write\n");
+    if (pthread_rwlock_wrlock(&company->rw_lock) != 0)
+        printf("\t -> Write lock error!\n");
+}
+
+static inline void
+company_unlock (Company *company)
+{
+    printf("\t -> unlocked\n");
+    if (pthread_rwlock_unlock(&company->rw_lock) != 0)
+        printf("\t -> Unlock error!\n");
+}
+
 /*
  * Since we guarantee that the set of the valid indices always grows and never
  * shrinks, all we need to do is check that `id' is >= 0 and <= max index and
@@ -45,9 +69,9 @@ node_index_valid (Company *company, int id)
     if (id < 0)
         goto exit;
 
-    pthread_rwlock_rdlock(&company->rw_lock);
+    company_read(company);
     ret = !(id > company->list_size);
-    pthread_rwlock_unlock(&company->rw_lock);
+    company_unlock(company);
 
 exit:
     return ret;
@@ -62,7 +86,7 @@ node_write (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
-    //printf("Write lock %d\n", id);
+    printf("%d Write\n", id);
     pthread_rwlock_wrlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -76,7 +100,7 @@ node_read (Company *company, int id)
 {
     if (!node_index_valid(company, id))
         return 0;
-    //printf("Read lock %d\n", id);
+    printf("%d Read\n", id);
     pthread_rwlock_rdlock(&company->list[id].rw_lock);
     return 1;
 }
@@ -90,7 +114,7 @@ node_unlock (Company *company, int id)
 {
     if (node_index_valid(company, id)) {
         pthread_rwlock_unlock(&company->list[id].rw_lock);
-        //printf("Unlock %d\n", id);
+        printf("%d Unlock\n", id);
     }
 }
 
@@ -139,7 +163,7 @@ node_init_wr (Company *company, int id, Actor *actor)
     int i;
 
     /* acquire the write lock and try to get out as fast as possible. */
-    pthread_rwlock_wrlock(&company->rw_lock);
+    company_write(company);
 
     if (company->nodes_in_use == company->list_size) {
         array = realloc(company->list, 
@@ -155,7 +179,7 @@ node_init_wr (Company *company, int id, Actor *actor)
         company->nodes_in_use++;
     }
 
-    pthread_rwlock_unlock(&company->rw_lock);
+    company_unlock(company);
 
     company->list[id].actor = actor;
     company->list[id].attached = 1;
@@ -307,9 +331,9 @@ node_cleanup (Company *company, int id)
         actor_destroy(company->list[id].actor);
 
     /* acquire the write lock which tries to do as little as possible */
-    pthread_rwlock_wrlock(&company->rw_lock);
+    company_write(company);
     company->nodes_in_use--;
-    pthread_rwlock_unlock(&company->rw_lock);
+    company_unlock(company);
 
     company->list[id].actor = NULL;
     node_invalidate_wr(company, id);
@@ -427,9 +451,9 @@ company_add_actor (Company *company, lua_State *L, int parent_id)
         parent_id = -1;
 
 find_unused_node:
-    pthread_rwlock_rdlock(&company->rw_lock);
+    company_read(company);
     list_size = company->list_size;
-    pthread_rwlock_unlock(&company->rw_lock);
+    company_unlock(company);
 
     /* Acquire read lock on Company data and each node: finds the first free */
     for (i = 0; i < list_size; i++) {
@@ -508,22 +532,26 @@ company_close (Company *company)
 {
     int list_size, id;
 
-    pthread_rwlock_rdlock(&company->rw_lock);
+    company_read(company);
     list_size = company->list_size;
-    pthread_rwlock_unlock(&company->rw_lock);
+    company_unlock(company);
+
+    printf("Starting close\n");
 
     for (id = 0; id < list_size; id++) {
         node_read(company, id);
+        printf("Is garbage? %d\n", id);
         if (node_is_garbage_rd(company, id))
             goto cleanup;
 
         printf("Actor %d\n", id);
-        print_children(company, id);
+        //print_children(company, id);
         printf("  [fc] -> %d\n", company->list[id].family[NODE_CHILD]);
         printf("  [nc] -> %d\n", company->list[id].family[NODE_NEXT_SIBLING]);
         printf("  [pa] -> %d\n", company->list[id].family[NODE_PARENT]);
 
 cleanup:
+        printf("Unlock and cleanup %d\n", id);
         node_unlock(company, id);
         node_cleanup(company, id);
         pthread_rwlock_destroy(&company->list[id].rw_lock);
