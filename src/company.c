@@ -179,10 +179,17 @@ node_init_wr (Company *company, int id, Actor *actor)
 int
 node_unlink (Company *company, int id, int is_delete)
 {
-    int prev, next, parent, child, family, is_first_child, has_child;
+    int prev, next, parent, child, family;
+    int is_first_child, has_child, next_sibling, sibling;
+    void (*unlink_func)(Company*, int);
 
     if (!node_write(company, id))
         return BAD_NODE;
+
+    if (is_delete)
+        unlink_func = node_invalidate_wr;
+    else
+        unlink_func = node_toggle_bench_wr;
 
     prev = company->list[id].family[NODE_PREV_SIBLING];
     next = company->list[id].family[NODE_NEXT_SIBLING];
@@ -192,13 +199,18 @@ node_unlink (Company *company, int id, int is_delete)
     is_first_child = !(prev >= 0);
     has_child = (child >= 0);
 
-    if (is_delete)
-        node_invalidate_wr(company, id);
-    else
-        node_toggle_bench_wr(company, id);
+    unlink_func(company, id);
 
     if (has_child) {
-        /* TODO: recursively invalidate or delete ALL child nodes */
+        sibling = company->list[id].family[NODE_CHILD];
+        while (sibling >= 0) {
+            if (node_write(company, sibling)) {
+                next_sibling = company->list[sibling].family[NODE_NEXT_SIBLING];
+                unlink_func(company, sibling);
+                node_unlock(company, sibling);
+                sibling = next_sibling;
+            }
+        }
     }
 
     /* 
