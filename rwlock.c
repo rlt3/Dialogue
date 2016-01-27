@@ -14,22 +14,22 @@ static pthread_rwlock_t list_rw_lock;
 static int list_size = 10;
 static Node *list;
 
-void
+int
 list_read ()
 {
-    pthread_rwlock_rdlock(&list_rw_lock);
+    return pthread_rwlock_rdlock(&list_rw_lock);
 }
 
-void
+int
 list_write ()
 {
-    pthread_rwlock_wrlock(&list_rw_lock);
+    return pthread_rwlock_wrlock(&list_rw_lock);
 }
 
-void
+int
 list_unlock ()
 {
-    pthread_rwlock_unlock(&list_rw_lock);
+    return pthread_rwlock_unlock(&list_rw_lock);
 }
 
 /*
@@ -56,6 +56,7 @@ node_write (int id)
 {
     if (!id_valid_index(id))
         return 1;
+    //printf("Write %d\n", id);
     return pthread_rwlock_wrlock(&list[id].rw_lock);
 }
 
@@ -64,54 +65,98 @@ node_read (int id)
 {
     if (!id_valid_index(id))
         return 1;
+    //printf("Read %d\n", id);
     return pthread_rwlock_rdlock(&list[id].rw_lock);
 }
 
 int 
 node_unlock (int id)
 {
+    //printf("Unlock %d\n", id);
     return pthread_rwlock_unlock(&list[id].rw_lock);
 }
 
 /*
+ * With read lock:
  * Returns 1 (true) or 0 (false) if the node is being used or not.
- * Can return -1 (error) if the id isn't valid.
  */
 int
-node_is_used (int id)
+node_is_used_rd (int id)
 {
-    int ret = -1;
+    return (list[id].attached || list[id].benched);
+}
 
-    if (!id_valid_index(id))
-        goto exit;
+void
+node_init_wr (int id)
+{
+    list[id].attached = 0;
+    list[id].benched = 0;
+    pthread_rwlock_init(&list[id].rw_lock, NULL);
+}
 
-    node_read(id);
-    ret = (list[id].attached || list[id].benched);
-    node_unlock(id);
+/*
+ * Acquires the write-lock for the list. Resizes the list to double its current 
+ * size. Returns 1 if successful, 0 otherwise.
+ */
+int
+double_list_size ()
+{
+    const int factor = 2;
+    Node *array = NULL;
+    int id, ret = 0;
 
-exit:
+    list_write();
+
+    id = list_size;
+    array = realloc(list, (list_size * factor) * sizeof(Node));
+
+    if (array != NULL) {
+        ret = 1;
+        list = array;
+        list_size *= factor;
+        for (; id < list_size; id++)
+            node_init_wr(id);
+    }
+
+    list_unlock();
+
     return ret;
 }
 
 /*
- * Find an `unused' Node, set it to be `used', and return its id.
+ * Find an `unused' Node, set it to be `used', and return its id.  Returns -1
+ * if no unused Node was found *and* the attempt to resize the Node list (to
+ * create more unused nodes) failed.
  */
 int
 find_free_node ()
 {
-    int id, max_id;
+    int max_id, id = 0;
 
 find_unused_node:
     list_read();
     max_id = list_size;
     list_unlock();
 
-    /* TODO: fail state where no free node is found */
-    for (id = 0; id < max_id; id++)
-        if (!node_is_used(id))
-            goto acquire_write_lock;
+    /* Find the first unused node and then jump to get the write-lock on it */
+    for (; id < max_id; id++) {
+        if (node_read(id) == 0) {
+            if (!node_is_used_rd(id))
+                goto unlock_and_write;
+            node_unlock(id);
+        }
+    }
 
-acquire_write_lock:
+    /* if we're here, no unused node was found */
+    if (!double_list_size()) {
+        id = -1;
+        goto exit;
+    } else {
+        goto find_unused_node;
+    }
+
+unlock_and_write:
+    node_unlock(id);
     node_write(id);
 
     /*
@@ -119,21 +164,16 @@ acquire_write_lock:
      * after acquiring the write-lock on it, we double-check it is unused or we
      * loop back to find another unused one.
      */
-    if (node_is_used(id))
+    if (node_is_used_rd(id)) {
+        node_unlock(id);
         goto find_unused_node;
+    }
 
     list[id].attached = 1;
     node_unlock(id);
 
+exit:
     return id;
-}
-
-void
-node_init (id)
-{
-    list[id].attached = 0;
-    list[id].benched = 0;
-    pthread_rwlock_init(&list[id].rw_lock, NULL);
 }
 
 int 
@@ -144,15 +184,13 @@ main (int argc, char **argv)
     list = malloc(sizeof(Node) * list_size);
     if (!list)
         goto exit;
+
     pthread_rwlock_init(&list_rw_lock, NULL);
     for (i = 0; i < list_size; i++)
-        node_init(i);
+        node_init_wr(i);
 
-    printf("%d\n", find_free_node());
-    printf("%d\n", find_free_node());
-    printf("%d\n", find_free_node());
-    printf("%d\n", find_free_node());
-    printf("%d\n", find_free_node());
+    for (i = 0; i < 15; i++)
+        printf("%d\n", find_free_node());
 
     status_code = 0;
     free(list);
