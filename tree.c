@@ -112,23 +112,6 @@ node_unlock (int id)
 }
 
 /*
- * Acquire the write lock and cleanup the node according to the cleanup_func
- * which was given at tree_init. Also set the node's flags so it is marked as
- * unused.
- */
-void
-node_cleanup (int id)
-{
-    if (node_write(id) == 0) {
-        global_tree->cleanup_func(global_tree->list[id].data);
-        global_tree->list[id].data = NULL;
-        global_tree->list[id].attached = 0;
-        global_tree->list[id].benched = 0;
-        node_unlock(id);
-    }
-}
-
-/*
  * With read or write lock:
  * Returns 1 (true) or 0 (false) if the node is being used or not.
  */
@@ -146,6 +129,7 @@ node_is_used_rd (int id)
 void
 node_init_wr (int id)
 {
+    global_tree->list[id].data = NULL;
     global_tree->list[id].attached = 0;
     global_tree->list[id].benched = 0;
     pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
@@ -184,6 +168,42 @@ node_mark_unused_wr (int id)
 {
     global_tree->list[id].attached = 0;
     global_tree->list[id].benched = 0;
+}
+
+/*
+ * Acquire the read lock first and make sure the node is marked for cleanup. If
+ * the node is being used or has already been cleaned up, exit. Otherwise
+ * acquire the write lock and cleanup the node according to the cleanup_func
+ * which was given at tree_init.
+ *
+ * Returns 0 if the node is cleaned up and a free-to-use node, 1 otherwise.
+ */
+int
+node_cleanup (int id)
+{
+    int ret = 1;
+
+    if (node_read(id) != 0)
+        goto exit;
+    
+    if (node_is_used_rd(id))
+        goto unlock;
+
+    /* if it isn't used and there's no data, it's good */
+    if (!global_tree->list[id].data) {
+        ret = 0;
+        goto unlock;
+    }
+
+    node_unlock(id);
+    node_write(id);
+    global_tree->cleanup_func(global_tree->list[id].data);
+    global_tree->list[id].data = NULL;
+    ret = 0;
+unlock:
+    node_unlock(id);
+exit:
+    return ret;
 }
 
 /*
@@ -238,14 +258,10 @@ tree_add_reference (void *data)
 find_unused_node:
     max_id = tree_list_size();
 
-    /* Find the first unused node and then jump to get the write-lock on it */
-    for (id = 0; id < max_id; id++) {
-        if (node_read(id) == 0) {
-            if (!node_is_used_rd(id))
-                goto unlock_and_write;
-            node_unlock(id);
-        }
-    }
+    /* find first unused node and clean it up if needed */
+    for (id = 0; id < max_id; id++)
+        if (node_cleanup(id) == 0)
+            goto write;
 
     /* if we're here, no unused node was found */
     if (tree_resize() == 0) {
@@ -255,8 +271,7 @@ find_unused_node:
         goto exit;
     }
 
-unlock_and_write:
-    node_unlock(id);
+write:
     node_write(id);
 
     /*
@@ -277,6 +292,53 @@ exit:
 }
 
 /*
+ * Add the child to the parent. Returns 0 if successful, 1 if either parent_id
+ * or child_id are invalid.
+ */
+int
+node_add_child (int parent_id, int child_id)
+{
+    int sibling, next = 0, ret = 1;
+
+    if (node_read(parent_id) != 0)
+        goto exit;
+    sibling = global_tree->list[parent_id].family[NODE_CHILD];
+    node_unlock(parent_id);
+
+    if (node_write(child_id) != 0)
+        goto exit;
+    global_tree->list[child_id].family[NODE_PARENT] = parent_id;
+    node_unlock(child_id);
+
+    /* if the parent has no children (first child not set) */
+    if (sibling == -1) {
+        node_write(parent_id);
+        global_tree->list[parent_id].family[NODE_CHILD] = child_id;
+        node_unlock(parent_id);
+    }
+
+    /* loop until we find the end of the children list */
+    while (sibling >= 0) {
+        node_read(sibling);
+        next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
+        node_unlock(sibling);
+
+        if (next == -1)
+            break;
+
+        sibling = next;
+    }
+
+    node_write(sibling);
+    global_tree->list[sibling].family[NODE_NEXT_SIBLING] = child_id;
+    node_unlock(sibling);
+
+    ret = 0;
+exit:
+    return ret;
+}
+
+/*
  * Unlink the reference Node (by id) inside the tree and all its children.
  *
  * This function doesn't cleanup the reference data (given in 
@@ -291,7 +353,7 @@ exit:
  * but still exists. This may be used for temporarily removing a reference from
  * the tree and then adding it back.
  *
- * Returns 0 if successful.
+ * Returns 0 if successful, 1 if the id is invalid.
  */
 int
 tree_unlink_reference (int id, int is_delete)
@@ -409,11 +471,22 @@ exit:
 void
 tree_cleanup ()
 {
-    int id;
+    int id, max_id;
 
-    for (id = 0; id < global_tree->list_size; id++)
+    if (tree_write() != 0)
+        goto free;
+    /* 
+     * get the last max range and all references (future and current) invalid
+     * because no can fit in range -1 < id < -1 
+     */
+    max_id = global_tree->list_size;
+    global_tree->list_size = -1;
+    tree_unlock();
+
+    for (id = 0; id < max_id; id++)
         node_cleanup(id);
 
+free:
     free(global_tree->list);
     free(global_tree);
 }

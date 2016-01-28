@@ -25,6 +25,26 @@ int
 tree_add_reference (void *ptr);
 
 /*
+ * Unlink the reference Node (by id) inside the tree and all its children.
+ *
+ * This function doesn't cleanup the reference data (given in 
+ * tree_add_reference) for any of the nodes unlinked. 
+ *
+ * If `is_delete' is true, then the nodes will be marked for cleanup (which
+ * happens in tree_add_reference) and the reference id will be invalid (should
+ * be discarded).
+ *
+ * If `is_delete' is false, the nodes aren't marked for cleanup and the
+ * reference id will still be valid meaning the node is unlinked from the tree
+ * but still exists. This may be used for temporarily removing a reference from
+ * the tree and then adding it back.
+ *
+ * Returns 0 if successful, 1 if the id is invalid.
+ */
+int
+tree_unlink_reference (int id, int is_delete);
+
+/*
  * Get the pointer associated with the reference id. This function doesn't pass
  * ownership. Returns NULL if the given id is invalid (either not a valid index
  * or if the id itself is invalid).
