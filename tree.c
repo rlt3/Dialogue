@@ -55,7 +55,7 @@ tree_list_size ()
  * Return 1 (true) or 0 (false) if the id is a valid index or not.
  *
  * Since we guarantee that the set of the valid indices always grows and never
- * shrinks, all we need to do is check that `id' is >= 0 and <= max index and
+ * shrinks, all we need to do is check that `id' is >= 0 and <= max-index and
  * the id will *always* be valid.
  */
 int
@@ -66,7 +66,9 @@ tree_index_is_valid (int id)
     if (id < 0)
         goto exit;
 
-    tree_read();
+    if (tree_read() != 0)
+        goto exit;
+
     ret = !(id > global_tree->list_size);
     tree_unlock();
 
@@ -97,6 +99,23 @@ node_unlock (int id)
 {
     //printf("Unlock %d\n", id);
     return pthread_rwlock_unlock(&global_tree->list[id].rw_lock);
+}
+
+/*
+ * Acquire the write lock and cleanup the node according to the cleanup_func
+ * which was given at tree_init. Also set the node's flags so it is marked as
+ * unused.
+ */
+void
+node_cleanup (int id)
+{
+    if (node_write(id) == 0) {
+        global_tree->cleanup_func(global_tree->list[id].data);
+        global_tree->list[id].data = NULL;
+        global_tree->list[id].attached = 0;
+        global_tree->list[id].benched = 0;
+        node_unlock(id);
+    }
 }
 
 /*
@@ -135,7 +154,7 @@ node_attach_wr (int id, void *data)
 }
 
 /*
- * Acquires the write-lock for the list. Resizes the list by the factor given
+ * Acquires the write-lock for the tree. Resizes the list by the factor given
  * at tree_init-- 2 doubles its size, 3 triples, etc. Returns 0 if successful.
  */
 int
@@ -259,13 +278,10 @@ exit:
     return ret;
 }
 
-void
-node_cleanup (int id)
-{
-    global_tree->cleanup_func(global_tree->list[id].data);
-    pthread_rwlock_destroy(&global_tree->list[id].rw_lock);
-}
-
+/*
+ * Acquire the write lock on the tree and then each of the nodes (one at a
+ * time) and clean them up. Free the tree's memory.
+ */
 void
 tree_cleanup ()
 {

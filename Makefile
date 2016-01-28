@@ -15,7 +15,7 @@ ifeq ($(UNAME), Linux)
   ifeq ($(DIALOGUE_HEADLESS), true)
     SOFLAGS=-shared
   endif
-  CFLAGS+=-ggdb -O0 -Wall -Isrc/ -I./ -I/usr/include/lua5.2/ -D _BSD_SOURCE -fPIC
+  CFLAGS+=-Wall -Isrc/ -I./ -I/usr/include/lua5.2/ -D _BSD_SOURCE -fPIC
   LDFLAGS+=-L./ -L/usr/local/lib -llua5.2 -lpthread -lreadline
 endif
 
