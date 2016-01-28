@@ -2,7 +2,7 @@ UNAME := $(shell uname)
 CC=clang
 
 SOURCES=src/main.o src/actor.o src/actor_meta.o src/company.o src/company_meta.o
-TSOURCES=rwlock.c
+TSOURCES=tree.o
 
 ifeq ($(DIALOGUE_HEADLESS), true)
   MODULE=Dialogue.so
