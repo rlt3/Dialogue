@@ -91,7 +91,6 @@ node_write (int id)
 {
     if (!tree_index_is_valid(id))
         return 1;
-    //printf("Write %d\n", id);
     return pthread_rwlock_wrlock(&global_tree->list[id].rw_lock);
 }
 
@@ -100,14 +99,12 @@ node_read (int id)
 {
     if (!tree_index_is_valid(id))
         return 1;
-    //printf("Read %d\n", id);
     return pthread_rwlock_rdlock(&global_tree->list[id].rw_lock);
 }
 
 int 
 node_unlock (int id)
 {
-    //printf("Unlock %d\n", id);
     return pthread_rwlock_unlock(&global_tree->list[id].rw_lock);
 }
 
@@ -122,21 +119,7 @@ node_is_used_rd (int id)
 }
 
 /*
- * With the write lock:
- * Initialize the node at the id. Typically is only called when the tree is initially 
- * created and everytime a realloc occurs producing unitialized pointers.
- */
-void
-node_init_wr (int id)
-{
-    global_tree->list[id].data = NULL;
-    global_tree->list[id].attached = 0;
-    global_tree->list[id].benched = 0;
-    pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
-}
-
-/*
- * With the write lock:
+ * With a write lock:
  * Attach (and unbench) the node to the tree system and give it a reference to hold.
  */
 void
@@ -168,6 +151,22 @@ node_mark_unused_wr (int id)
 {
     global_tree->list[id].attached = 0;
     global_tree->list[id].benched = 0;
+}
+
+/*
+ * With a write lock:
+ * Initialize the node at the id. Typically is only called when the tree is initially 
+ * created and everytime a realloc occurs producing unitialized pointers.
+ */
+void
+node_init_wr (int id)
+{
+    int i;
+    node_mark_unused_wr(id);
+    global_tree->list[id].data = NULL;
+    for (i = 0; i < NODE_FAMILY_MAX; i++)
+        global_tree->list[id].family[i] = -1;
+    pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
 }
 
 /*
