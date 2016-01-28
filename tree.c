@@ -48,7 +48,7 @@ tree_list_size ()
         ret = global_tree->list_size;
         tree_unlock();
     }
-    return 0;
+    return ret;
 }
 
 /*
@@ -123,35 +123,6 @@ node_init_wr (int id)
 }
 
 /*
- * Acquires the write-lock for the list. Resizes the list by the factor given
- * at tree_init-- 2 doubles its size, 3 triples, etc. Returns 0 if successful.
- */
-int
-tree_resize ()
-{
-    Node *array = NULL;
-    int id, factor, ret = 1;
-
-    tree_write();
-
-    factor = global_tree->list_resize_factor;
-    id = global_tree->list_size;
-    array = realloc(global_tree->list, (id * factor) * sizeof(Node));
-
-    if (array != NULL) {
-        ret = 0;
-        global_tree->list = array;
-        global_tree->list_size *= factor;
-        for (; id < global_tree->list_size; id++)
-            node_init_wr(id);
-    }
-
-    tree_unlock();
-
-    return ret;
-}
-
-/*
  * With the write lock:
  * Attach (and unbench) the node to the tree system and give it a reference to hold.
  */
@@ -164,6 +135,43 @@ node_attach_wr (int id, void *data)
 }
 
 /*
+ * Acquires the write-lock for the list. Resizes the list by the factor given
+ * at tree_init-- 2 doubles its size, 3 triples, etc. Returns 0 if successful.
+ */
+int
+tree_resize ()
+{
+    Node *memory = NULL;
+    int id, size, ret = 1;
+
+    tree_write();
+
+    if (global_tree->list_size >= global_tree->list_max_size)
+        goto unlock;
+
+    id = global_tree->list_size;
+    size = global_tree->list_size * global_tree->list_resize_factor;
+
+    /* ceiling the size as the factor may cause it to overflow */
+    if (size > global_tree->list_max_size)
+        size = global_tree->list_max_size;
+
+    memory = realloc(global_tree->list, size * sizeof(Node));
+
+    if (memory != NULL) {
+        ret = 0;
+        global_tree->list = memory;
+        global_tree->list_size = size;
+        for (; id < global_tree->list_size; id++)
+            node_init_wr(id);
+    }
+
+unlock:
+    tree_unlock();
+    return ret;
+}
+
+/*
  * Have the tree take ownship of the pointer. The tree will cleanup that pointer
  * with the data_cleanup_func_t given in tree_init.
  *
@@ -173,13 +181,13 @@ node_attach_wr (int id, void *data)
 int
 tree_add_reference (void *data)
 {
-    int max_id, id = 0;
+    int max_id, id;
 
 find_unused_node:
     max_id = tree_list_size();
 
     /* Find the first unused node and then jump to get the write-lock on it */
-    for (; id < max_id; id++) {
+    for (id = 0; id < max_id; id++) {
         if (node_read(id) == 0) {
             if (!node_is_used_rd(id))
                 goto unlock_and_write;
@@ -189,10 +197,10 @@ find_unused_node:
 
     /* if we're here, no unused node was found */
     if (tree_resize() == 0) {
+        goto find_unused_node;
+    } else {
         id = -1;
         goto exit;
-    } else {
-        goto find_unused_node;
     }
 
 unlock_and_write:
@@ -252,8 +260,25 @@ exit:
 }
 
 void
+node_cleanup (int id)
+{
+    global_tree->cleanup_func(global_tree->list[id].data);
+    pthread_rwlock_destroy(&global_tree->list[id].rw_lock);
+}
+
+void
 tree_cleanup ()
 {
+    int id;
+
+    if (tree_write() != 0)
+        goto free;
+
+    for (id = 0; id < global_tree->list_size; id++)
+        node_cleanup(id);
+
+    tree_unlock();
+free:
     free(global_tree->list);
     free(global_tree);
 }
@@ -269,11 +294,11 @@ main (int argc, char **argv)
 {
     int i, status = 1;
 
-    if (tree_init(10, 50, 2, cu) != 0)
+    if (tree_init(10, 20, 2, cu) != 0)
         goto exit;
 
-    for (i = 0; i < 2; i++)
-        printf("%d\n", tree_add_reference((void*)1));
+    for (i = 0; i < 21; i++)
+        printf("%d\n", tree_add_reference(NULL));
 
     status = 0;
     tree_cleanup();
