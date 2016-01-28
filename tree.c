@@ -4,10 +4,20 @@
 #include <pthread.h>
 #include "tree.h"
 
+#define NODE_FAMILY_MAX 4
+
+enum NodeFamily { 
+    NODE_PARENT, 
+    NODE_NEXT_SIBLING, 
+    NODE_PREV_SIBLING, 
+    NODE_CHILD 
+};
+
 typedef struct Node {
     void *data;
     int attached;
     int benched;
+    int family[NODE_FAMILY_MAX];
     pthread_rwlock_t rw_lock;
 } Node;
 
@@ -146,11 +156,34 @@ node_init_wr (int id)
  * Attach (and unbench) the node to the tree system and give it a reference to hold.
  */
 void
-node_attach_wr (int id, void *data)
+node_mark_attached_wr (int id, void *data)
 {
     global_tree->list[id].attached = 1;
     global_tree->list[id].benched = 0;
     global_tree->list[id].data = data;
+}
+
+/*
+ * With a write lock:
+ * Mark a node as benched. This keeps its reference id valid and its data from
+ * being cleaned-up even if it removed from the tree.
+ */
+void
+node_mark_benched_wr (int id)
+{
+    global_tree->list[id].attached = 0;
+    global_tree->list[id].benched = 1;
+}
+
+/*
+ * With a write lock:
+ * Mark a node unusued, telling to system it is free to be cleaned-up.
+ */
+void
+node_mark_unused_wr (int id)
+{
+    global_tree->list[id].attached = 0;
+    global_tree->list[id].benched = 0;
 }
 
 /*
@@ -236,11 +269,102 @@ unlock_and_write:
         goto find_unused_node;
     }
 
-    node_attach_wr(id, data);
+    node_mark_attached_wr(id, data);
     node_unlock(id);
 
 exit:
     return id;
+}
+
+/*
+ * Unlink the reference Node (by id) inside the tree and all its children.
+ *
+ * This function doesn't cleanup the reference data (given in 
+ * tree_add_reference) for any of the nodes unlinked. 
+ *
+ * If `is_delete' is true, then the nodes will be marked for cleanup (which
+ * happens in tree_add_reference) and the reference id will be invalid (should
+ * be discarded).
+ *
+ * If `is_delete' is false, the nodes aren't marked for cleanup and the
+ * reference id will still be valid meaning the node is unlinked from the tree
+ * but still exists. This may be used for temporarily removing a reference from
+ * the tree and then adding it back.
+ *
+ * Returns 0 if successful.
+ */
+int
+tree_unlink_reference (int id, int is_delete)
+{
+    int ret = 1;
+    int prev, next, parent, child, family, is_first_child, next_sib, sibling;
+    void (*unlink_func)(int);
+
+    if (node_write(id) != 0)
+        goto exit;
+
+    if (is_delete)
+        unlink_func = node_mark_unused_wr;
+    else
+        unlink_func = node_mark_benched_wr;
+
+    parent = global_tree->list[id].family[NODE_PARENT];
+    prev = global_tree->list[id].family[NODE_PREV_SIBLING];
+    next = global_tree->list[id].family[NODE_NEXT_SIBLING];
+    child = global_tree->list[id].family[NODE_CHILD];
+    is_first_child = !(prev >= 0);
+
+    unlink_func(id);
+
+    if (child >= 0) {
+        sibling = global_tree->list[id].family[NODE_CHILD];
+        while (sibling >= 0) {
+            if (node_write(sibling) == 0) {
+                next_sib = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
+                unlink_func(sibling);
+                node_unlock(sibling);
+                sibling = next_sib;
+            }
+        }
+    }
+
+    /* 
+     * So we can keep being DRY, The first child's prev `pointer' (which is -1)
+     * ends up being the parent if you think of the parent as the head of a
+     * doubly linked list. 
+     */
+    if (is_first_child) {
+        prev = parent;
+        family = NODE_CHILD;
+    } else {
+        family = NODE_NEXT_SIBLING;
+    }
+
+    /*
+     * Imagine three actors -- A, B, and C -- who are siblings of one another
+     * with A being the first sibling (or first child of parent P) and we are
+     * removing B.  If we don't lock A (the prev) while also locking B, we risk
+     * a read on A's next, which is B (which should be invalid). We have to do
+     * the same for C for going backwards (this is a doubly-linked list).
+     */
+
+    if (node_write(prev) == 0) {
+        global_tree->list[prev].family[family] = next;
+        node_unlock(prev);
+    }
+
+    if (node_write(next) == 0) {
+        if (is_first_child)
+            global_tree->list[next].family[NODE_PREV_SIBLING] = -1;
+        else
+            global_tree->list[next].family[NODE_PREV_SIBLING] = prev;
+        node_unlock(prev);
+    }
+
+    ret = 0;
+    node_unlock(id);
+exit:
+    return ret;
 }
 
 /*
@@ -287,14 +411,9 @@ tree_cleanup ()
 {
     int id;
 
-    if (tree_write() != 0)
-        goto free;
-
     for (id = 0; id < global_tree->list_size; id++)
         node_cleanup(id);
 
-    tree_unlock();
-free:
     free(global_tree->list);
     free(global_tree);
 }
