@@ -15,14 +15,21 @@ int
 tree_init (int length, int max_length, int scale_factor, data_cleanup_func_t f);
 
 /*
- * Have the tree take ownship of the pointer. The tree will cleanup that pointer
- * with the data_cleanup_func_t given in tree_init.
+ * Have the tree take ownship of the pointer. The tree will cleanup that
+ * pointer with the data_cleanup_func_t given in tree_init. 
  *
- * Returns the id of the reference inside the tree. Returns -1 if the tree was
- * unable to allocate more memory to hold the reference.
+ * The tree attaches the pointer to a Node which is added as a child of
+ * parent_id.  If parent_id <= -1 then the Node won't have a parent.
+ *
+ * Returns the id of the Node inside the tree. 
+ *
+ * Returns -1 if the tree was unable to allocate more memory for Nodes to hold
+ * the reference.
+ *
+ * Returns -2 if parent_id > -1 *and* the parent_id is invalid.
  */
 int
-tree_add_reference (void *ptr);
+tree_add_reference (void *data, int parent_id);
 
 /*
  * Unlink the reference Node (by id) inside the tree and all its children.

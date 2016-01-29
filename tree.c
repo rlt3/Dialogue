@@ -6,6 +6,11 @@
 
 #define NODE_FAMILY_MAX 4
 
+enum NodeType {
+    NODE_ERROR = -2,
+    NODE_INVALID = -1
+};
+
 enum NodeFamily { 
     NODE_PARENT, 
     NODE_NEXT_SIBLING, 
@@ -165,7 +170,7 @@ node_init_wr (int id)
     node_mark_unused_wr(id);
     global_tree->list[id].data = NULL;
     for (i = 0; i < NODE_FAMILY_MAX; i++)
-        global_tree->list[id].family[i] = -1;
+        global_tree->list[id].family[i] = NODE_INVALID;
     pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
 }
 
@@ -243,16 +248,89 @@ unlock:
 }
 
 /*
- * Have the tree take ownship of the pointer. The tree will cleanup that pointer
- * with the data_cleanup_func_t given in tree_init.
- *
- * Returns the id of the reference inside the tree. Returns -1 if the tree was
- * unable to allocate more memory to hold the reference.
+ * Add the child to the parent. Returns 0 if successful, 1 if either parent_id
+ * or child_id are invalid.
  */
 int
-tree_add_reference (void *data)
+node_add_child (int parent_id, int child_id)
 {
-    int max_id, id;
+    int sibling, next = 0, ret = 1;
+
+    /*
+     * TODO: There is an issue with atomicity here like with unlinking a Node.
+     * Can we assume that the parent Node will stay the same (not be marked as
+     * garbage) between read locks and write locks? Do I need to lock the 
+     * parent under a write lock for the duration of this function?
+     */
+
+    if (node_read(parent_id) != 0)
+        goto exit;
+    sibling = global_tree->list[parent_id].family[NODE_CHILD];
+    node_unlock(parent_id);
+
+    if (node_write(child_id) != 0)
+        goto exit;
+    global_tree->list[child_id].family[NODE_PARENT] = parent_id;
+    node_unlock(child_id);
+
+    /* if the parent has no children (first child not set) */
+    if (sibling == NODE_INVALID) {
+        node_write(parent_id);
+        global_tree->list[parent_id].family[NODE_CHILD] = child_id;
+        node_unlock(parent_id);
+    }
+
+    /* loop until we find the end of the children list */
+    while (sibling >= 0) {
+        node_read(sibling);
+        next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
+        node_unlock(sibling);
+
+        if (next == NODE_INVALID)
+            break;
+
+        sibling = next;
+    }
+
+    node_write(sibling);
+    global_tree->list[sibling].family[NODE_NEXT_SIBLING] = child_id;
+    node_unlock(sibling);
+
+    ret = 0;
+exit:
+    return ret;
+}
+
+/*
+ * Have the tree take ownship of the pointer. The tree will cleanup that
+ * pointer with the data_cleanup_func_t given in tree_init. 
+ *
+ * The tree attaches the pointer to a Node which is added as a child of
+ * parent_id.  If parent_id <= NODE_INVALID then the Node won't have a parent.
+ *
+ * Returns the id of the Node inside the tree. 
+ *
+ * Returns NODE_INVALID if the tree was unable to allocate more memory for
+ * Nodes to hold the reference.
+ *
+ * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use (a
+ * valid, non-garbage reference).
+ */
+int
+tree_add_reference (void *data, int parent_id)
+{
+    int max_id, id = NODE_ERROR;
+
+    if (parent_id > NODE_INVALID) {
+        if (node_read(parent_id) != 0)
+            goto exit;
+
+        if (!node_is_used_rd(parent_id)) {
+            node_unlock(parent_id);
+            goto exit;
+        }
+        node_unlock(parent_id);
+    }
 
 find_unused_node:
     max_id = tree_list_size();
@@ -266,7 +344,7 @@ find_unused_node:
     if (tree_resize() == 0) {
         goto find_unused_node;
     } else {
-        id = -1;
+        id = NODE_INVALID;
         goto exit;
     }
 
@@ -286,55 +364,11 @@ write:
     node_mark_attached_wr(id, data);
     node_unlock(id);
 
+    if (parent_id > NODE_INVALID)
+        node_add_child(parent_id, id);
+
 exit:
     return id;
-}
-
-/*
- * Add the child to the parent. Returns 0 if successful, 1 if either parent_id
- * or child_id are invalid.
- */
-int
-node_add_child (int parent_id, int child_id)
-{
-    int sibling, next = 0, ret = 1;
-
-    if (node_read(parent_id) != 0)
-        goto exit;
-    sibling = global_tree->list[parent_id].family[NODE_CHILD];
-    node_unlock(parent_id);
-
-    if (node_write(child_id) != 0)
-        goto exit;
-    global_tree->list[child_id].family[NODE_PARENT] = parent_id;
-    node_unlock(child_id);
-
-    /* if the parent has no children (first child not set) */
-    if (sibling == -1) {
-        node_write(parent_id);
-        global_tree->list[parent_id].family[NODE_CHILD] = child_id;
-        node_unlock(parent_id);
-    }
-
-    /* loop until we find the end of the children list */
-    while (sibling >= 0) {
-        node_read(sibling);
-        next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
-        node_unlock(sibling);
-
-        if (next == -1)
-            break;
-
-        sibling = next;
-    }
-
-    node_write(sibling);
-    global_tree->list[sibling].family[NODE_NEXT_SIBLING] = child_id;
-    node_unlock(sibling);
-
-    ret = 0;
-exit:
-    return ret;
 }
 
 /*
@@ -416,7 +450,7 @@ tree_unlink_reference (int id, int is_delete)
 
     if (node_write(next) == 0) {
         if (is_first_child)
-            global_tree->list[next].family[NODE_PREV_SIBLING] = -1;
+            global_tree->list[next].family[NODE_PREV_SIBLING] = NODE_INVALID;
         else
             global_tree->list[next].family[NODE_PREV_SIBLING] = prev;
         node_unlock(prev);
@@ -479,7 +513,7 @@ tree_cleanup ()
      * because no can fit in range -1 < id < -1 
      */
     max_id = global_tree->list_size;
-    global_tree->list_size = -1;
+    global_tree->list_size = NODE_INVALID;
     tree_unlock();
 
     for (id = 0; id < max_id; id++)
@@ -504,8 +538,13 @@ main (int argc, char **argv)
     if (tree_init(10, 20, 2, cu) != 0)
         goto exit;
 
-    for (i = 0; i < 21; i++)
-        printf("%d\n", tree_add_reference(NULL));
+    //for (i = 0; i < 21; i++)
+    //    printf("%d\n", tree_add_reference(NULL, NODE_INVALID));
+    
+    printf("%d\n", tree_add_reference(NULL, NODE_INVALID));
+    printf("%d\n", tree_add_reference(NULL, 0));
+    printf("%d\n", tree_add_reference(NULL, 0));
+    printf("%d\n", tree_add_reference(NULL, 1));
 
     status = 0;
     tree_cleanup();
