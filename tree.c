@@ -31,6 +31,7 @@ typedef struct Tree {
     int list_size;
     int list_max_size;
     int list_resize_factor;
+    int root;
     data_cleanup_func_t cleanup_func;
     Node *list;
 } Tree;
@@ -53,6 +54,17 @@ int
 tree_unlock ()
 {
     return pthread_rwlock_unlock(&global_tree->rw_lock);
+}
+
+int
+tree_root ()
+{
+    int id = NODE_INVALID;
+    if (tree_read() == 0) {
+        id = global_tree->root;
+        tree_unlock();
+    }
+    return id;
 }
 
 int
@@ -185,7 +197,7 @@ node_init_wr (int id)
 int
 node_cleanup (int id)
 {
-    int ret = 1;
+    int i, ret = 1;
 
     if (node_read(id) != 0)
         goto exit;
@@ -193,16 +205,25 @@ node_cleanup (int id)
     if (node_is_used_rd(id))
         goto unlock;
 
-    /* if it isn't used and there's no data, it's good */
-    if (!global_tree->list[id].data) {
-        ret = 0;
-        goto unlock;
-    }
+    if (global_tree->list[id].data == NULL)
+        goto clean_exit;
 
     node_unlock(id);
     node_write(id);
+
+    printf("Node %d\n", id);
+    printf("  data -> %p\n", global_tree->list[id].data);
+    printf("  [fc] -> %d\n", global_tree->list[id].family[NODE_CHILD]);
+    printf("  [nc] -> %d\n", global_tree->list[id].family[NODE_NEXT_SIBLING]);
+    printf("  [pa] -> %d\n", global_tree->list[id].family[NODE_PARENT]);
+
     global_tree->cleanup_func(global_tree->list[id].data);
     global_tree->list[id].data = NULL;
+
+    for (i = 0; i < NODE_FAMILY_MAX; i++)
+        global_tree->list[id].family[i] = NODE_INVALID;
+
+clean_exit:
     ret = 0;
 unlock:
     node_unlock(id);
@@ -303,7 +324,8 @@ exit:
  * pointer with the data_cleanup_func_t given in tree_init. 
  *
  * The tree attaches the pointer to a Node which is added as a child of
- * parent_id.  If parent_id <= NODE_INVALID then the Node won't have a parent.
+ * parent_id.  If parent_id <= NODE_INVALID then the Tree assumes that is
+ * supposed to be the root Node and saves it (the root node has no parent).
  *
  * Returns the id of the Node inside the tree. 
  *
@@ -316,7 +338,7 @@ exit:
 int
 tree_add_reference (void *data, int parent_id)
 {
-    int max_id, id = NODE_ERROR;
+    int max_id, set_root = 0, id = NODE_ERROR;
 
     if (parent_id > NODE_INVALID) {
         if (node_read(parent_id) != 0)
@@ -327,6 +349,8 @@ tree_add_reference (void *data, int parent_id)
             goto exit;
         }
         node_unlock(parent_id);
+    } else {
+        set_root = 1;
     }
 
 find_unused_node:
@@ -364,14 +388,50 @@ write:
     if (parent_id > NODE_INVALID)
         node_add_child(parent_id, id);
 
+    if (set_root) {
+        if (tree_write() != 0) {
+            id = NODE_ERROR;
+            goto exit;
+        }
+
+        global_tree->root = id;
+        tree_unlock();
+    }
+
 exit:
     return id;
 }
 
 /*
- * Unlink the reference Node (by id) inside the tree and all its children.
+ * Call the write capable function recursively over the tree given. Any node is
+ * potentially a sub-tree. Calling this on the root of the entire tree will call
+ * the function for each node of the tree.
+ */
+void
+node_write_map (int root, void (*write_capable_function) (int))
+{
+    int next, child;
+
+    if (node_write(root) != 0)
+        return;
+
+    child = global_tree->list[root].family[NODE_CHILD];
+    next = global_tree->list[root].family[NODE_NEXT_SIBLING];
+
+    write_capable_function(root);
+    node_unlock(root);
+
+    if (child > NODE_INVALID)
+        node_write_map(child, write_capable_function);
+
+    if (next > NODE_INVALID)
+        node_write_map(next, write_capable_function);
+}
+
+/*
+ * Unlink the reference Node (by id) and all of its descendents in the tree.
  *
- * This function doesn't cleanup the reference data (given in 
+ * This function doesn't cleanup the reference data (given in
  * tree_add_reference) for any of the nodes unlinked. 
  *
  * If `is_delete' is true, then the nodes will be marked for cleanup (which
@@ -389,7 +449,7 @@ int
 tree_unlink_reference (int id, int is_delete)
 {
     int ret = 1;
-    int prev, next, parent, child, family, is_first_child, next_sib, sibling;
+    int prev, next, parent, child, family, is_first_child;
     void (*unlink_func)(int);
 
     if (node_write(id) != 0)
@@ -408,17 +468,9 @@ tree_unlink_reference (int id, int is_delete)
 
     unlink_func(id);
 
-    if (child >= 0) {
-        sibling = global_tree->list[id].family[NODE_CHILD];
-        while (sibling >= 0) {
-            if (node_write(sibling) == 0) {
-                next_sib = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
-                unlink_func(sibling);
-                node_unlock(sibling);
-                sibling = next_sib;
-            }
-        }
-    }
+    /* map the unlink_func to the sub-`tree` of children */
+    if (child > NODE_INVALID)
+        node_write_map(child, unlink_func);
 
     /* 
      * So we can keep being DRY, The first child's prev `pointer' (which is -1)
@@ -495,6 +547,8 @@ tree_init (int length, int max_length, int scale_factor, data_cleanup_func_t f)
     global_tree->list_size = length;
     global_tree->list_max_size = max_length;
     global_tree->list_resize_factor = scale_factor;
+    global_tree->list_resize_factor = scale_factor;
+    global_tree->root = NODE_INVALID;
     pthread_rwlock_init(&global_tree->rw_lock, NULL);
 
     for (id = 0; id < length; id++)
@@ -506,53 +560,51 @@ exit:
 }
 
 /*
- * Acquire the write lock on the tree and then each of the nodes (one at a
- * time) and clean them up. Free the tree's memory.
+ * Mark all active Nodes as garbage and clean them up. Then free the memory for
+ * the Tree and the list of Nodes.
  */
 void
 tree_cleanup ()
 {
-    int id, max_id;
+    int id, max_id = tree_list_size();
 
-    if (tree_write() != 0)
-        goto free;
-    /* 
-     * get the last max range and all references (future and current) invalid
-     * because no can fit in range -1 < id < -1 
-     */
-    max_id = global_tree->list_size;
-    global_tree->list_size = NODE_INVALID;
-    tree_unlock();
+    /* The cleanup requires the Nodes to be garbage first */
+    tree_unlink_reference(tree_root(), 1);
 
     for (id = 0; id < max_id; id++)
         node_cleanup(id);
 
-free:
     free(global_tree->list);
     free(global_tree);
 }
 
-void
-cu (void *data)
-{
-    return;
+/*
+ * Make and Remove. Allocate some data and free it. Used to test we don't have
+ * memory leaks.
+ */
+
+void* mk () {
+    return malloc(sizeof(int));
+}
+
+void rm (void *data) {
+    free(data);
 }
 
 int 
 main (int argc, char **argv)
 {
-    int i, status = 1;
+    int status = 1;
 
-    if (tree_init(10, 20, 2, cu) != 0)
+    if (tree_init(10, 20, 2, rm) != 0)
         goto exit;
-
-    //for (i = 0; i < 21; i++)
-    //    printf("%d\n", tree_add_reference(NULL, NODE_INVALID));
     
-    printf("%d\n", tree_add_reference(NULL, NODE_INVALID));
-    printf("%d\n", tree_add_reference(NULL, 0));
-    printf("%d\n", tree_add_reference(NULL, 0));
-    printf("%d\n", tree_add_reference(NULL, 1));
+    tree_add_reference(mk(), NODE_INVALID); /* 0 */
+    tree_add_reference(mk(), 0); /* 1 */
+    tree_add_reference(mk(), 1); /* 2 */
+    tree_add_reference(mk(), 1); /* 3 */
+    tree_add_reference(mk(), 3); /* 4 */
+    tree_add_reference(mk(), 0); /* 5 */
 
     status = 0;
     tree_cleanup();
