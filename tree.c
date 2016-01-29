@@ -217,11 +217,14 @@ node_cleanup (int id)
     printf("  [nc] -> %d\n", global_tree->list[id].family[NODE_NEXT_SIBLING]);
     printf("  [pa] -> %d\n", global_tree->list[id].family[NODE_PARENT]);
 
-    global_tree->cleanup_func(global_tree->list[id].data);
-    global_tree->list[id].data = NULL;
+    /* even tho we checked it above, we can't rely on it because we unlocked */
+    if (global_tree->list[id].data) {
+        global_tree->cleanup_func(global_tree->list[id].data);
+        global_tree->list[id].data = NULL;
 
-    for (i = 0; i < NODE_FAMILY_MAX; i++)
-        global_tree->list[id].family[i] = NODE_INVALID;
+        for (i = 0; i < NODE_FAMILY_MAX; i++)
+            global_tree->list[id].family[i] = NODE_INVALID;
+    }
 
 clean_exit:
     ret = 0;
