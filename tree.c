@@ -258,15 +258,19 @@ node_add_child (int parent_id, int child_id)
 {
     int sibling, next = 0, ret = 1;
 
+    /*
+     * Lock parent for the duration of the function because we can't assume 
+     * that the parent won't get disabled if we free its lock.
+     */
     if (node_write(parent_id) != 0)
         goto exit;
-
-    sibling = global_tree->list[parent_id].family[NODE_CHILD];
 
     if (node_write(child_id) != 0)
         goto unlock;
     global_tree->list[child_id].family[NODE_PARENT] = parent_id;
     node_unlock(child_id);
+
+    sibling = global_tree->list[parent_id].family[NODE_CHILD];
 
     /* if the parent has no children (first child not set) */
     if (sibling == NODE_INVALID) {
@@ -429,11 +433,22 @@ tree_unlink_reference (int id, int is_delete)
     }
 
     /*
-     * Imagine three actors -- A, B, and C -- who are siblings of one another
-     * with A being the first sibling (or first child of parent P) and we are
-     * removing B.  If we don't lock A (the prev) while also locking B, we risk
-     * a read on A's next, which is B (which should be invalid). We have to do
-     * the same for C for going backwards (this is a doubly-linked list).
+     *      P
+     *      |
+     *      V
+     *   <- A <=> B <=> C ->
+     *
+     * Example: we need to remove B while some other part of the program is
+     * reading down the list of P's children.
+     *
+     * If we don't lock A and B at the same time, we risk a read on A getting
+     * B's id, then a read on B. Since we *must* have a write lock on B, that
+     * read on B blocks and waits on what will become an invalid Node. When B 
+     * is done blocking, it is invalid and it won't be able to point to C.  For
+     * a period of time, all of P's children past B are unreachable.
+     *
+     * Locking both A and B at the same time prevents this from happening. Same
+     * applies to C and B (for the reverse).
      */
 
     if (node_write(prev) == 0) {
