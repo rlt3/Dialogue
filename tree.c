@@ -248,55 +248,48 @@ unlock:
 }
 
 /*
- * Add the child to the parent. Returns 0 if successful, 1 if either parent_id
- * or child_id are invalid.
+ * Acquire the write lock on the parent. Add the child to that parent. If the
+ * parent already has children, append the child to the end of the sibling
+ * list.  Returns 0 if successful, 1 if either parent_id or child_id are
+ * invalid.
  */
 int
 node_add_child (int parent_id, int child_id)
 {
     int sibling, next = 0, ret = 1;
 
-    /*
-     * TODO: There is an issue with atomicity here like with unlinking a Node.
-     * Can we assume that the parent Node will stay the same (not be marked as
-     * garbage) between read locks and write locks? Do I need to lock the 
-     * parent under a write lock for the duration of this function?
-     */
-
-    if (node_read(parent_id) != 0)
+    if (node_write(parent_id) != 0)
         goto exit;
+
     sibling = global_tree->list[parent_id].family[NODE_CHILD];
-    node_unlock(parent_id);
 
     if (node_write(child_id) != 0)
-        goto exit;
+        goto unlock;
     global_tree->list[child_id].family[NODE_PARENT] = parent_id;
     node_unlock(child_id);
 
     /* if the parent has no children (first child not set) */
     if (sibling == NODE_INVALID) {
-        node_write(parent_id);
         global_tree->list[parent_id].family[NODE_CHILD] = child_id;
-        node_unlock(parent_id);
-    }
+    } else {
+    /* else there are children, so find the last sibling and append new child */
+        while (sibling >= 0) {
+            node_read(sibling);
+            next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
+            node_unlock(sibling);
+            if (next == NODE_INVALID)
+                break;
+            sibling = next;
+        }
 
-    /* loop until we find the end of the children list */
-    while (sibling >= 0) {
-        node_read(sibling);
-        next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
+        node_write(sibling);
+        global_tree->list[sibling].family[NODE_NEXT_SIBLING] = child_id;
         node_unlock(sibling);
-
-        if (next == NODE_INVALID)
-            break;
-
-        sibling = next;
     }
-
-    node_write(sibling);
-    global_tree->list[sibling].family[NODE_NEXT_SIBLING] = child_id;
-    node_unlock(sibling);
 
     ret = 0;
+unlock:
+    node_unlock(parent_id);
 exit:
     return ret;
 }
