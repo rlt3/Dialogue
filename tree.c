@@ -408,7 +408,7 @@ exit:
  * the function for each node of the tree.
  */
 void
-node_write_map (int root, void (*write_capable_function) (int))
+tree_write_map (int root, void (*write_capable_function) (int))
 {
     int next, child;
 
@@ -422,10 +422,10 @@ node_write_map (int root, void (*write_capable_function) (int))
     node_unlock(root);
 
     if (child > NODE_INVALID)
-        node_write_map(child, write_capable_function);
+        tree_write_map(child, write_capable_function);
 
     if (next > NODE_INVALID)
-        node_write_map(next, write_capable_function);
+        tree_write_map(next, write_capable_function);
 }
 
 /*
@@ -470,7 +470,7 @@ tree_unlink_reference (int id, int is_delete)
 
     /* map the unlink_func to the sub-`tree` of children */
     if (child > NODE_INVALID)
-        node_write_map(child, unlink_func);
+        tree_write_map(child, unlink_func);
 
     /* 
      * So we can keep being DRY, The first child's prev `pointer' (which is -1)
@@ -546,7 +546,6 @@ tree_init (int length, int max_length, int scale_factor, data_cleanup_func_t f)
     global_tree->cleanup_func = f;
     global_tree->list_size = length;
     global_tree->list_max_size = max_length;
-    global_tree->list_resize_factor = scale_factor;
     global_tree->list_resize_factor = scale_factor;
     global_tree->root = NODE_INVALID;
     pthread_rwlock_init(&global_tree->rw_lock, NULL);
