@@ -24,6 +24,8 @@ typedef struct Node {
     int benched;
     int family[NODE_FAMILY_MAX];
     pthread_rwlock_t rw_lock;
+    pthread_rwlock_t ref_lock;
+    int ref_count;
 } Node;
 
 typedef struct Tree {
@@ -33,6 +35,8 @@ typedef struct Tree {
     int list_resize_factor;
     int root;
     data_cleanup_func_t cleanup_func;
+    data_lookup_func_t lookup_func;
+    data_set_id_func_t set_id_func;
     Node *list;
 } Tree;
 
@@ -103,6 +107,21 @@ exit:
     return ret;
 }
 
+int
+node_ref_count (int id)
+{
+    int count = -1;
+
+    if (pthread_rwlock_rdlock(&global_tree->list[id].ref_lock) != 0)
+        goto exit;
+
+    count = global_tree->list[id].ref_count;
+    pthread_rwlock_unlock(&global_tree->list[id].ref_lock);;
+
+exit:
+    return count;
+}
+
 int 
 node_write (int id)
 {
@@ -137,7 +156,8 @@ node_is_used_rd (int id)
 
 /*
  * With a write lock:
- * Attach (and unbench) the node to the tree system and give it a reference to hold.
+ * Attach (and unbench) the node to the tree system and give it a reference to
+ * hold.
  */
 void
 node_mark_attached_wr (int id, void *data)
@@ -145,6 +165,7 @@ node_mark_attached_wr (int id, void *data)
     global_tree->list[id].attached = 1;
     global_tree->list[id].benched = 0;
     global_tree->list[id].data = data;
+    global_tree->set_id_func(data, id);
 }
 
 /*
@@ -172,27 +193,84 @@ node_mark_unused_wr (int id)
 
 /*
  * With a write lock:
- * Initialize the node at the id. Typically is only called when the tree is initially 
- * created and everytime a realloc occurs producing unitialized pointers.
+ * Initialize the node at the id. Typically is only called when the tree is
+ * initially created and everytime a realloc occurs producing unitialized
+ * pointers.
  */
 void
 node_init_wr (int id)
 {
     int i;
     node_mark_unused_wr(id);
+
+    pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
+    pthread_rwlock_init(&global_tree->list[id].ref_lock, NULL);
+
     global_tree->list[id].data = NULL;
+    global_tree->list[id].ref_count = 0;
+
     for (i = 0; i < NODE_FAMILY_MAX; i++)
         global_tree->list[id].family[i] = NODE_INVALID;
-    pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
+}
+
+/*
+ * With the write lock on id:
+ *
+ * Acquire the write lock on the parent. Add the child to that parent. If the
+ * parent already has children, append the child to the end of the sibling
+ * list.  
+ *
+ * Returns 0 if successful, 1 if parent_id is invalid.
+ */
+int
+node_add_parent_wr (int id, int parent_id)
+{
+    int sibling, next = 0, ret = 1;
+
+    /*
+     * Lock parent for the duration of the function because we can't assume 
+     * that the parent won't get disabled if we free its lock.
+     */
+    if (node_write(parent_id) != 0)
+        goto exit;
+
+    global_tree->list[id].family[NODE_PARENT] = parent_id;
+    sibling = global_tree->list[parent_id].family[NODE_CHILD];
+
+    /* if the parent has no children (first child not set) */
+    if (sibling == NODE_INVALID) {
+        global_tree->list[parent_id].family[NODE_CHILD] = id;
+    } else {
+    /* else there are children, so find the last sibling and append new child */
+        while (sibling >= 0) {
+            node_read(sibling);
+            next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
+            node_unlock(sibling);
+            if (next == NODE_INVALID)
+                break;
+            sibling = next;
+        }
+
+        node_write(sibling);
+        global_tree->list[sibling].family[NODE_NEXT_SIBLING] = id;
+        node_unlock(sibling);
+    }
+
+    ret = 0;
+    node_unlock(parent_id);
+exit:
+    return ret;
 }
 
 /*
  * Acquire the read lock first and make sure the node is marked for cleanup. If
- * the node is being used or has already been cleaned up, exit. Otherwise
- * acquire the write lock and cleanup the node according to the cleanup_func
- * which was given at tree_init.
+ * the node is being used, has any references, exit with 1 for "unable to
+ * cleanup".
  *
- * Returns 0 if the node is cleaned up and a free-to-use node, 1 otherwise.
+ * Otherwise acquire the write lock and cleanup the node according to the
+ * cleanup_func which was given at tree_init and return 0 for "cleaned up".
+ *
+ * If the node has already been cleaned up exit with 0.
  */
 int
 node_cleanup (int id)
@@ -203,6 +281,9 @@ node_cleanup (int id)
         goto exit;
     
     if (node_is_used_rd(id))
+        goto unlock;
+
+    if (node_ref_count(id) > 0)
         goto unlock;
 
     if (global_tree->list[id].data == NULL)
@@ -272,57 +353,6 @@ unlock:
 }
 
 /*
- * Acquire the write lock on the parent. Add the child to that parent. If the
- * parent already has children, append the child to the end of the sibling
- * list.  Returns 0 if successful, 1 if either parent_id or child_id are
- * invalid.
- */
-int
-node_add_child (int parent_id, int child_id)
-{
-    int sibling, next = 0, ret = 1;
-
-    /*
-     * Lock parent for the duration of the function because we can't assume 
-     * that the parent won't get disabled if we free its lock.
-     */
-    if (node_write(parent_id) != 0)
-        goto exit;
-
-    if (node_write(child_id) != 0)
-        goto unlock;
-    global_tree->list[child_id].family[NODE_PARENT] = parent_id;
-    node_unlock(child_id);
-
-    sibling = global_tree->list[parent_id].family[NODE_CHILD];
-
-    /* if the parent has no children (first child not set) */
-    if (sibling == NODE_INVALID) {
-        global_tree->list[parent_id].family[NODE_CHILD] = child_id;
-    } else {
-    /* else there are children, so find the last sibling and append new child */
-        while (sibling >= 0) {
-            node_read(sibling);
-            next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
-            node_unlock(sibling);
-            if (next == NODE_INVALID)
-                break;
-            sibling = next;
-        }
-
-        node_write(sibling);
-        global_tree->list[sibling].family[NODE_NEXT_SIBLING] = child_id;
-        node_unlock(sibling);
-    }
-
-    ret = 0;
-unlock:
-    node_unlock(parent_id);
-exit:
-    return ret;
-}
-
-/*
  * Have the tree take ownship of the pointer. The tree will cleanup that
  * pointer with the data_cleanup_func_t given in tree_init. 
  *
@@ -335,13 +365,19 @@ exit:
  * Returns NODE_INVALID if the tree was unable to allocate more memory for
  * Nodes to hold the reference.
  *
- * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use (a
- * valid, non-garbage reference).
+ * Returns NODE_ERROR 
+ *      * if data is NULL
+ *      * if parent_id > -1 *and* the parent_id isn't in use (a valid, 
+ *        non-garbage reference).
+ *      * write-lock fails while setting the root node
  */
 int
 tree_add_reference (void *data, int parent_id)
 {
     int max_id, set_root = 0, id = NODE_ERROR;
+
+    if (data == NULL)
+        goto exit;
 
     if (parent_id > NODE_INVALID) {
         if (node_read(parent_id) != 0)
@@ -385,21 +421,18 @@ write:
         goto find_unused_node;
     }
 
-    node_mark_attached_wr(id, data);
-    node_unlock(id);
-
-    if (parent_id > NODE_INVALID)
-        node_add_child(parent_id, id);
-
     if (set_root) {
         if (tree_write() != 0) {
             id = NODE_ERROR;
             goto exit;
         }
-
         global_tree->root = id;
         tree_unlock();
     }
+
+    node_mark_attached_wr(id, data);
+    node_add_parent_wr(id, parent_id);
+    node_unlock(id);
 
 exit:
     return id;
@@ -526,15 +559,31 @@ exit:
 }
 
 /*
- * Initialze the tree with the given length and the cleanup function for the
- * references (pointers it owns) it holds. The `initial_length' also serves as
+ * Initialze the tree.
+ *
+ * The tree's size will start as `length`. It will never exceed `max_length`.
+ * It will resize itself by `scale_factor` (e.g. 2 doubles, 3 triples, etc).
+ *
+ * `cu` is the cleanup function called on all data given for reference. `lu` is
+ * the lookup function on the data. 
+ *
+ * and the cleanup function for the
+ * references (pointers it owns) it holds. 
+ *
+ * The `initial_length' also serves as
  * the base for resizing by a factor. So, if the length is 10, it is resized by
  * factors of 10.
  *
  * Returns 0 if no errors.
  */
 int
-tree_init (int length, int max_length, int scale_factor, data_cleanup_func_t f)
+tree_init (
+        int length, 
+        int max_length, 
+        int scale_factor, 
+        data_set_id_func_t set_id,
+        data_cleanup_func_t cleanup,
+        data_lookup_func_t lookup)
 {
     int id, ret = 1;
 
@@ -546,7 +595,9 @@ tree_init (int length, int max_length, int scale_factor, data_cleanup_func_t f)
     if (!global_tree->list)
         goto exit;
 
-    global_tree->cleanup_func = f;
+    global_tree->cleanup_func = cleanup;
+    global_tree->lookup_func = lookup;
+    global_tree->set_id_func = set_id;
     global_tree->list_size = length;
     global_tree->list_max_size = max_length;
     global_tree->list_resize_factor = scale_factor;
@@ -581,12 +632,70 @@ tree_cleanup ()
 }
 
 /*
- * Make and Remove. Allocate some data and free it. Used to test we don't have
- * memory leaks.
+ * Get the pointer associated with the reference id. This function doesn't pass
+ * ownership. 
+ *
+ * Returns NULL if the given id is bad either by having an invalid index or by
+ * pointing to garbage data.
+ *
+ * Increments the ref_count for the Node at id. See node_cleanup.
+ */
+void *
+tree_dereference (int id)
+{
+    void *ptr = NULL;
+
+    if (node_read(id) != 0)
+        goto exit;
+
+    if (!node_is_used_rd(id))
+        goto unlock;
+    
+    ptr = global_tree->list[id].data;
+
+    pthread_rwlock_wrlock(&global_tree->list[id].ref_lock);
+    global_tree->list[id].ref_count++;
+    pthread_rwlock_unlock(&global_tree->list[id].ref_lock);
+
+unlock:
+    node_unlock(id);
+exit:
+    return ptr;
+}
+
+/*
+ * Using the lookup_func, get the id for the Node from the data. Errors should
+ * be handled through the lookup function.
+ *
+ * Decrements the ref_count for the Node at id. See node_cleanup.
+ */
+int
+tree_reference (void *data)
+{
+    int id = global_tree->lookup_func(data);
+
+    pthread_rwlock_wrlock(&global_tree->list[id].ref_lock);
+    global_tree->list[id].ref_count--;
+    pthread_rwlock_unlock(&global_tree->list[id].ref_lock);
+
+    return id;
+}
+
+/*
+ * Make, Lookup, Set Id, and Remove. Allocate some data and free it. Used to test we
+ * don't have memory leaks.
  */
 
-void* mk () {
+void* mk (int id) {
     return malloc(sizeof(int));
+}
+
+void set (void *data, int id) {
+    *((int*)data) = id;
+}
+
+int lk (void *data) {
+    return *((int*)data);
 }
 
 void rm (void *data) {
@@ -598,15 +707,15 @@ main (int argc, char **argv)
 {
     int status = 1;
 
-    if (tree_init(10, 20, 2, rm) != 0)
+    if (tree_init(10, 20, 2, set, rm, lk) != 0)
         goto exit;
     
-    tree_add_reference(mk(), NODE_INVALID); /* 0 */
-    tree_add_reference(mk(), 0); /* 1 */
-    tree_add_reference(mk(), 1); /* 2 */
-    tree_add_reference(mk(), 1); /* 3 */
-    tree_add_reference(mk(), 3); /* 4 */
-    tree_add_reference(mk(), 0); /* 5 */
+    tree_add_reference(mk(0), NODE_INVALID);
+    tree_add_reference(mk(1), 0);
+    tree_add_reference(mk(2), 1);
+    tree_add_reference(mk(3), 1);
+    tree_add_reference(mk(4), 3);
+    tree_add_reference(mk(5), 0);
 
     status = 0;
     tree_cleanup();
