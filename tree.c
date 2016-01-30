@@ -6,7 +6,8 @@
 
 #define NODE_FAMILY_MAX 4
 
-enum NodeType {
+enum ReturnType {
+    ERROR = -3,
     NODE_ERROR = -2,
     NODE_INVALID = -1
 };
@@ -365,32 +366,23 @@ unlock:
  * Returns NODE_INVALID if the tree was unable to allocate more memory for
  * Nodes to hold the reference.
  *
- * Returns NODE_ERROR 
- *      * if data is NULL
- *      * if parent_id > -1 *and* the parent_id isn't in use (a valid, 
- *        non-garbage reference).
- *      * write-lock fails while setting the root node
+ * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use (a
+ * valid. 
+ * 
+ * Returns ERROR
+ *      - if data is NULL
+ *      - write-lock fails while setting the root node
  */
 int
 tree_add_reference (void *data, int parent_id)
 {
-    int max_id, set_root = 0, id = NODE_ERROR;
+    int max_id, id, set_root = 0, ret = ERROR;
 
     if (data == NULL)
         goto exit;
 
-    if (parent_id > NODE_INVALID) {
-        if (node_read(parent_id) != 0)
-            goto exit;
-
-        if (!node_is_used_rd(parent_id)) {
-            node_unlock(parent_id);
-            goto exit;
-        }
-        node_unlock(parent_id);
-    } else {
+    if (parent_id <= NODE_INVALID)
         set_root = 1;
-    }
 
 find_unused_node:
     max_id = tree_list_size();
@@ -404,7 +396,7 @@ find_unused_node:
     if (tree_resize() == 0) {
         goto find_unused_node;
     } else {
-        id = NODE_INVALID;
+        ret = NODE_INVALID;
         goto exit;
     }
 
@@ -421,21 +413,32 @@ write:
         goto find_unused_node;
     }
 
+    node_mark_attached_wr(id, data);
+
+    /* 
+     * If we are setting the root of the Node, we obviously can't be adding
+     * it as a child of any particular node.
+     */
     if (set_root) {
         if (tree_write() != 0) {
-            id = NODE_ERROR;
-            goto exit;
+            ret = ERROR;
+            goto unlock;
         }
         global_tree->root = id;
         tree_unlock();
+    } else {
+        if (node_add_parent_wr(id, parent_id) != 0) {
+    	    node_mark_unused_wr(id);
+	    ret = ERROR;
+	    goto unlock;
+        }
     }
 
-    node_mark_attached_wr(id, data);
-    node_add_parent_wr(id, parent_id);
+    ret = id;
+unlock:
     node_unlock(id);
-
 exit:
-    return id;
+    return ret;
 }
 
 /*
