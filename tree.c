@@ -128,6 +128,7 @@ node_write (int id)
 {
     if (!tree_index_is_valid(id))
         return 1;
+    printf("\tWrite %d\n", id);
     return pthread_rwlock_wrlock(&global_tree->list[id].rw_lock);
 }
 
@@ -136,12 +137,14 @@ node_read (int id)
 {
     if (!tree_index_is_valid(id))
         return 1;
+    printf("Read %d\n", id);
     return pthread_rwlock_rdlock(&global_tree->list[id].rw_lock);
 }
 
 int 
 node_unlock (int id)
 {
+    printf("Unlock %d\n", id);
     return pthread_rwlock_unlock(&global_tree->list[id].rw_lock);
 }
 
@@ -207,6 +210,8 @@ node_init_wr (int id)
     pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
     pthread_rwlock_init(&global_tree->list[id].ref_lock, NULL);
 
+    printf("%d: %p\n", id, &global_tree->list[id].rw_lock);
+
     global_tree->list[id].data = NULL;
     global_tree->list[id].ref_count = 0;
 
@@ -235,6 +240,8 @@ node_add_parent_wr (int id, int parent_id)
     if (node_write(parent_id) != 0)
         goto exit;
 
+    printf("%d child of %d\n", id, parent_id);
+
     global_tree->list[id].family[NODE_PARENT] = parent_id;
     sibling = global_tree->list[parent_id].family[NODE_CHILD];
 
@@ -243,12 +250,14 @@ node_add_parent_wr (int id, int parent_id)
         global_tree->list[parent_id].family[NODE_CHILD] = id;
     } else {
     /* else there are children, so find the last sibling and append new child */
-        while (sibling >= 0) {
+        while (1) {
             node_read(sibling);
             next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
             node_unlock(sibling);
+
             if (next == NODE_INVALID)
                 break;
+
             sibling = next;
         }
 
@@ -428,6 +437,7 @@ write:
         tree_unlock();
     } else {
         if (node_add_parent_wr(id, parent_id) != 0) {
+	    printf("%d couldn't be added to %d\n", id, parent_id);
     	    node_mark_unused_wr(id);
 	    ret = ERROR;
 	    goto unlock;
