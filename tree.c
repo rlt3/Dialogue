@@ -12,18 +12,12 @@ enum ReturnType {
     NODE_INVALID = -1
 };
 
-enum NodeFamily { 
-    NODE_PARENT, 
-    NODE_NEXT_SIBLING, 
-    NODE_PREV_SIBLING, 
-    NODE_CHILD 
-};
-
 typedef struct Node {
     void *data;
     int attached;
     int benched;
-    int family[NODE_FAMILY_MAX];
+    int parent;
+    int children[5];
     pthread_rwlock_t rw_lock;
     pthread_rwlock_t ref_lock;
     int ref_count;
@@ -214,62 +208,20 @@ node_init_wr (int id)
 
     global_tree->list[id].data = NULL;
     global_tree->list[id].ref_count = 0;
+    global_tree->list[id].parent = NODE_INVALID;
 
-    for (i = 0; i < NODE_FAMILY_MAX; i++)
-        global_tree->list[id].family[i] = NODE_INVALID;
+    for (i = 0; i < 5; i++)
+        global_tree->list[id].children[i] = NODE_INVALID;
 }
 
 /*
  * With the write lock on id:
- *
- * Acquire the write lock on the parent. Add the child to that parent. If the
- * parent already has children, append the child to the end of the sibling
- * list.  
- *
  * Returns 0 if successful, 1 if parent_id is invalid.
  */
 int
 node_add_parent_wr (int id, int parent_id)
 {
-    int sibling, next = 0, ret = 1;
-
-    /*
-     * Lock parent for the duration of the function because we can't assume 
-     * that the parent won't get disabled if we free its lock.
-     */
-    if (node_write(parent_id) != 0)
-        goto exit;
-
-    printf("%d child of %d\n", id, parent_id);
-
-    global_tree->list[id].family[NODE_PARENT] = parent_id;
-    sibling = global_tree->list[parent_id].family[NODE_CHILD];
-
-    /* if the parent has no children (first child not set) */
-    if (sibling == NODE_INVALID) {
-        global_tree->list[parent_id].family[NODE_CHILD] = id;
-    } else {
-    /* else there are children, so find the last sibling and append new child */
-        while (1) {
-            node_read(sibling);
-            next = global_tree->list[sibling].family[NODE_NEXT_SIBLING];
-            node_unlock(sibling);
-
-            if (next == NODE_INVALID)
-                break;
-
-            sibling = next;
-        }
-
-        node_write(sibling);
-        global_tree->list[sibling].family[NODE_NEXT_SIBLING] = id;
-        node_unlock(sibling);
-    }
-
-    ret = 0;
-    node_unlock(parent_id);
-exit:
-    return ret;
+    return 0;
 }
 
 /*
@@ -285,11 +237,11 @@ exit:
 int
 node_cleanup (int id)
 {
-    int i, ret = 1;
+    int ret = 1;
 
     if (node_read(id) != 0)
         goto exit;
-    
+
     if (node_is_used_rd(id))
         goto unlock;
 
@@ -303,18 +255,11 @@ node_cleanup (int id)
     node_write(id);
 
     printf("Node %d\n", id);
-    printf("  data -> %p\n", global_tree->list[id].data);
-    printf("  [fc] -> %d\n", global_tree->list[id].family[NODE_CHILD]);
-    printf("  [nc] -> %d\n", global_tree->list[id].family[NODE_NEXT_SIBLING]);
-    printf("  [pa] -> %d\n", global_tree->list[id].family[NODE_PARENT]);
 
     /* even tho we checked it above, we can't rely on it because we unlocked */
     if (global_tree->list[id].data) {
         global_tree->cleanup_func(global_tree->list[id].data);
         global_tree->list[id].data = NULL;
-
-        for (i = 0; i < NODE_FAMILY_MAX; i++)
-            global_tree->list[id].family[i] = NODE_INVALID;
     }
 
 clean_exit:
@@ -459,22 +404,6 @@ exit:
 void
 tree_write_map (int root, void (*write_capable_function) (int))
 {
-    int next, child;
-
-    if (node_write(root) != 0)
-        return;
-
-    child = global_tree->list[root].family[NODE_CHILD];
-    next = global_tree->list[root].family[NODE_NEXT_SIBLING];
-
-    write_capable_function(root);
-    node_unlock(root);
-
-    if (child > NODE_INVALID)
-        tree_write_map(child, write_capable_function);
-
-    if (next > NODE_INVALID)
-        tree_write_map(next, write_capable_function);
 }
 
 /*
@@ -497,78 +426,7 @@ tree_write_map (int root, void (*write_capable_function) (int))
 int
 tree_unlink_reference (int id, int is_delete)
 {
-    int ret = 1;
-    int prev, next, parent, child, family, is_first_child;
-    void (*unlink_func)(int);
-
-    if (node_write(id) != 0)
-        goto exit;
-
-    if (is_delete)
-        unlink_func = node_mark_unused_wr;
-    else
-        unlink_func = node_mark_benched_wr;
-
-    parent = global_tree->list[id].family[NODE_PARENT];
-    prev = global_tree->list[id].family[NODE_PREV_SIBLING];
-    next = global_tree->list[id].family[NODE_NEXT_SIBLING];
-    child = global_tree->list[id].family[NODE_CHILD];
-    is_first_child = !(prev >= 0);
-
-    unlink_func(id);
-
-    /* map the unlink_func to the sub-`tree` of children */
-    if (child > NODE_INVALID)
-        tree_write_map(child, unlink_func);
-
-    /* 
-     * So we can keep being DRY, The first child's prev `pointer' (which is -1)
-     * ends up being the parent if you think of the parent as the head of a
-     * doubly linked list. 
-     */
-    if (is_first_child) {
-        prev = parent;
-        family = NODE_CHILD;
-    } else {
-        family = NODE_NEXT_SIBLING;
-    }
-
-    /*
-     *      P
-     *      |
-     *      V
-     *   <- A <=> B <=> C ->
-     *
-     * Example: we need to remove B while some other part of the program is
-     * reading down the list of P's children.
-     *
-     * If we don't lock A and B at the same time, we risk a read on A getting
-     * B's id, then a read on B. Since we *must* have a write lock on B, that
-     * read on B blocks and waits on what will become an invalid Node. When B 
-     * is done blocking, it is invalid and it won't be able to point to C.  For
-     * a period of time, all of P's children past B are unreachable.
-     *
-     * Locking both A and B at the same time prevents this from happening. Same
-     * applies to C and B (for the reverse).
-     */
-
-    if (node_write(prev) == 0) {
-        global_tree->list[prev].family[family] = next;
-        node_unlock(prev);
-    }
-
-    if (node_write(next) == 0) {
-        if (is_first_child)
-            global_tree->list[next].family[NODE_PREV_SIBLING] = NODE_INVALID;
-        else
-            global_tree->list[next].family[NODE_PREV_SIBLING] = prev;
-        node_unlock(prev);
-    }
-
-    ret = 0;
-    node_unlock(id);
-exit:
-    return ret;
+    return 0;
 }
 
 /*
@@ -635,10 +493,17 @@ tree_cleanup ()
     int id, max_id = tree_list_size();
 
     /* The cleanup requires the Nodes to be garbage first */
-    tree_unlink_reference(tree_root(), 1);
+    for (id = 0; id < max_id; id++) {
+        node_write(id);
+        node_mark_unused_wr(id);
+        node_unlock(id);
 
-    for (id = 0; id < max_id; id++)
+        pthread_rwlock_wrlock(&global_tree->list[id].ref_lock);
+        global_tree->list[id].ref_count = 0;
+        pthread_rwlock_unlock(&global_tree->list[id].ref_lock);
+
         node_cleanup(id);
+    }
 
     free(global_tree->list);
     free(global_tree);
