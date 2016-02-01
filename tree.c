@@ -19,14 +19,6 @@ typedef struct Node {
     int benched;
 
     int parent;
-
-    /*
-     * children array length is last_child and scales by last_child. For each
-     * starts at 0 and goes to last_child, which gets incremented as array
-     * elements are marked 'on' and decremented when marked 'off', An the 
-     * children that are identified as valid indices are 'on' and NODE_INVALID
-     * and below are considered 'off'.
-     */
     int *children;
     int last_child;
     int max_children;
@@ -240,25 +232,42 @@ exit:
 /*
  * Must be called with the write lock (structure) *and* the mutex lock (data)
  * acquire for the node.
- * Destroy the memory for the node's data and its children.
+ * Cleanup the node's data with the cleanup_func given at tree_init.
+ */
+void
+node_cleanup_fullwr (int id)
+{
+    if (global_tree->list[id].data) {
+        global_tree->cleanup_func(global_tree->list[id].data);
+        global_tree->list[id].data = NULL;
+    }
+
+}
+
+/*
+ * Must be called with the write lock (structure) *and* the mutex lock (data)
+ * acquire for the node.
+ * Destroy the memory for the node's data & children.
  */
 void
 node_destroy_fullwr (int id)
 {
     int i;
 
-    if (global_tree->list[id].data) {
-        global_tree->cleanup_func(global_tree->list[id].data);
-        global_tree->list[id].data = NULL;
-    }
+    node_cleanup_fullwr(id);
 
     if (global_tree->list[id].children) {
-        printf("Node %d\n\t", id);
-        for (i = 0; i < global_tree->list[id].last_child; i++) {
-            if (global_tree->list[id].children[i] > NODE_INVALID)
-                printf("%d ", global_tree->list[id].children[i]);
+
+        if (node_is_used_rd(id)) {
+            printf("Node %d\n", id);
+            printf("\tparent: \n\t\t%d\n", global_tree->list[id].parent);
+            printf("\tchildren: \n\t\t");
+            for (i = 0; i < global_tree->list[id].max_children; i++) {
+                if (global_tree->list[id].children[i] > NODE_INVALID)
+                    printf("%d ", global_tree->list[id].children[i]);
+            }
+            printf("\n");
         }
-        printf("\n");
 
         free(global_tree->list[id].children);
         global_tree->list[id].children = NULL;
@@ -277,15 +286,15 @@ node_add_child (int id, int child)
 
     if (node_write(id) != 0)
         goto exit;
-    
+
     max_id = global_tree->list[id].max_children;
 
     for (cid = 0; cid < max_id; cid++) {
-        if (global_tree->list[id].children[cid] > NODE_INVALID) {
+        if (global_tree->list[id].children[cid] == NODE_INVALID) {
             global_tree->list[id].children[cid] = child;
 
-            if (cid > global_tree->list[id].last_child)
-                global_tree->list[id].last_child = cid;
+            if (cid == global_tree->list[id].last_child)
+                global_tree->list[id].last_child++;
 
             ret = 0;
             break;
@@ -295,6 +304,8 @@ node_add_child (int id, int child)
     if (cid == max_id && ret == 1) {
         /* TODO: Reallocate node memory */
     }
+
+    node_unlock(id);
 
 exit:
     return ret;
@@ -326,6 +337,8 @@ node_remove_child (int id, int child)
             break;
         }
     }
+
+    node_unlock(id);
 
 exit:
     return ret;
@@ -363,7 +376,7 @@ node_cleanup (int id)
     if (node_is_used_rd(id))
         goto unlock;
 
-    node_destroy_fullwr(id);
+    node_cleanup_fullwr(id);
     ret = 0;
 
 unlock:
@@ -461,7 +474,7 @@ find_unused_node:
 
 data_lock_and_write:
     /* 
-     * We set the lock-order of the Node's data locked before the Node's
+     * We set the lock-order of the Node's data lock before the Node's
      * structure write lock. This is so we can trylock the data first so we
      * don't waste time acquiring the write lock if the mutex isn't ready.
      */
@@ -492,12 +505,45 @@ data_lock_and_write:
         }
         global_tree->root = id;
         tree_unlock();
-    } 
+    } else {
+        /* 
+         * keep the allocated data but still return with an error. it will be
+         * cleaned up automatically if we simply mark it as garbage.
+         */
+        if (node_add_child(parent_id, id) != 0) {
+            node_mark_unused_wr(id);
+            goto unlock;
+        }
+        global_tree->list[id].parent = parent_id;
+    }
 
     ret = id;
+
 unlock:
     node_unlock(id);
     node_data_unlock(id);
+exit:
+    return ret;
+}
+
+int
+tree_unlink_reference (int id, int is_delete)
+{
+    int parent, ret = 1;
+
+    if (node_write(id) != 0)
+        goto exit;
+
+    parent = global_tree->list[id].parent;
+
+    if (node_remove_child(parent, id) != 0)
+        goto unlock;
+
+    global_tree->list[id].parent = NODE_INVALID;
+
+    ret = 0;
+unlock:
+    node_unlock(id);
 exit:
     return ret;
 }
@@ -510,29 +556,6 @@ exit:
 void
 tree_write_map (int root, void (*write_capable_function) (int))
 {
-}
-
-/*
- * Unlink the reference Node (by id) and all of its descendents in the tree.
- *
- * This function doesn't cleanup the reference data (given in
- * tree_add_reference) for any of the nodes unlinked. 
- *
- * If `is_delete' is true, then the nodes will be marked for cleanup (which
- * happens in tree_add_reference) and the reference id will be invalid (should
- * be discarded).
- *
- * If `is_delete' is false, the nodes aren't marked for cleanup and the
- * reference id will still be valid meaning the node is unlinked from the tree
- * but still exists. This may be used for temporarily removing a reference from
- * the tree and then adding it back.
- *
- * Returns 0 if successful, 1 if the id is invalid.
- */
-int
-tree_unlink_reference (int id, int is_delete)
-{
-    return 0;
 }
 
 /*

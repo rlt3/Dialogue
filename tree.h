@@ -27,35 +27,24 @@ tree_init (
  * pointer with the data_cleanup_func_t given in tree_init. 
  *
  * The tree attaches the pointer to a Node which is added as a child of
- * parent_id.  If parent_id <= -1 then the Node won't have a parent.
+ * parent_id.  If parent_id <= NODE_INVALID then the Tree assumes that is
+ * supposed to be the root Node and saves it (the root node has no parent).
  *
  * Returns the id of the Node inside the tree. 
  *
- * Returns -1 if the tree was unable to allocate more memory for Nodes to hold
- * the reference.
+ * Returns NODE_INVALID if the tree was unable to allocate more memory for
+ * Nodes to hold the reference.
  *
- * Returns -2 if parent_id > -1 *and* the parent_id is invalid.
+ * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use (a
+ * valid. 
+ * 
+ * Returns ERROR
+ *      - if data is NULL
+ *      - write-lock fails while setting the root node
  */
 int
 tree_add_reference (void *data, int parent_id);
 
-/*
- * Unlink the reference Node (by id) inside the tree and all its children.
- *
- * This function doesn't cleanup the reference data (given in 
- * tree_add_reference) for any of the nodes unlinked. 
- *
- * If `is_delete' is true, then the nodes will be marked for cleanup (which
- * happens in tree_add_reference) and the reference id will be invalid (should
- * be discarded).
- *
- * If `is_delete' is false, the nodes aren't marked for cleanup and the
- * reference id will still be valid meaning the node is unlinked from the tree
- * but still exists. This may be used for temporarily removing a reference from
- * the tree and then adding it back.
- *
- * Returns 0 if successful, 1 if the id is invalid.
- */
 int
 tree_unlink_reference (int id, int is_delete);
 
