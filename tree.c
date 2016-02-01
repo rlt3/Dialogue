@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include "tree.h"
@@ -31,6 +32,7 @@ typedef struct Node {
     int max_children;
 
     pthread_rwlock_t rw_lock;
+    pthread_mutex_t data_lock;
 } Node;
 
 typedef struct Tree {
@@ -145,12 +147,33 @@ node_is_used_rd (int id)
 }
 
 /*
+ * The data of a node is only avaiable through the data lock.
+ */
+int
+node_data_lock (int id)
+{
+    return pthread_mutex_lock(&global_tree->list[id].data_lock);
+}
+
+int
+node_data_trylock (int id)
+{
+    return pthread_mutex_trylock(&global_tree->list[id].data_lock);
+}
+
+int
+node_data_unlock (int id)
+{
+    return pthread_mutex_unlock(&global_tree->list[id].data_lock);
+}
+
+/*
  * With a write lock:
  * Attach (and unbench) the node to the tree system and give it a reference to
  * hold.
  */
 void
-node_mark_attached_wr (int id, void *data)
+node_mark_attached_fullwr (int id, void *data)
 {
     global_tree->list[id].attached = 1;
     global_tree->list[id].benched = 0;
@@ -192,9 +215,9 @@ node_init_wr (int id)
 {
     int i, length = 5, ret = 1;
 
-
     node_mark_unused_wr(id);
     pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
+    pthread_mutex_init(&global_tree->list[id].data_lock, NULL);
 
     global_tree->list[id].children = malloc(length * sizeof(int));
     if (!global_tree->list[id].children)
@@ -214,20 +237,12 @@ exit:
 }
 
 /*
- * With the write lock on id:
- * Returns 0 if successful, 1 if parent_id is invalid.
- */
-int
-node_add_parent_wr (int id, int parent_id)
-{
-    return 0;
-}
-
-/*
- * Destroy a node's memory with the write lock.
+ * Must be called with the write lock (structure )*and* the mutex lock (data)
+ * acquire for the node.
+ * Destroy the memory for the node's data and its children.
  */
 void
-node_destroy_wr (int id)
+node_destroy_fullwr (int id)
 {
     int i;
 
@@ -316,37 +331,43 @@ exit:
 }
 
 /*
- * Acquire the read lock first and make sure the node is marked for cleanup. If
- * the node is being used, has any references, exit with 1 for "unable to
- * cleanup".
- *
- * Otherwise acquire the write lock and cleanup the node according to the
- * cleanup_func which was given at tree_init and return 0 for "cleaned up".
- *
- * If the node has already been cleaned up exit with 0.
+ * Verify id is valid. If it is valid, make sure it isn't being used. If it
+ * isn't being used, try to acquire the mutex. If the mutex is busy (or any 
+ * other asertions are incorrect), return 1 saying the node wasn't cleaned-up.
+ * If the mutex wasn't busy (and it was acquired), acquire the write lock and
+ * cleanup the node and return 0.
  */
 int
 node_cleanup (int id)
 {
-    int ret = 1;
+    int rc, is_used, ret = 1;
 
     if (node_read(id) != 0)
         goto exit;
 
+    is_used = node_is_used_rd(id);
+    node_unlock(id);
+
+    if (is_used)
+        goto exit;
+
+    rc = node_data_trylock(id);
+
+    if (rc == EBUSY || rc != 0)
+        goto exit;
+
+    node_write(id);
+
+    /* verify again after read-lock has been released */
     if (node_is_used_rd(id))
         goto unlock;
 
-    if (global_tree->list[id].data == NULL)
-        goto clean_exit;
-
-    node_unlock(id);
-    node_write(id);
-    node_destroy_wr(id);
-
-clean_exit:
+    node_destroy_fullwr(id);
     ret = 0;
+
 unlock:
     node_unlock(id);
+    node_data_unlock(id);
 exit:
     return ret;
 }
@@ -427,7 +448,7 @@ find_unused_node:
     /* find first unused node and clean it up if needed */
     for (id = 0; id < max_id; id++)
         if (node_cleanup(id) == 0)
-            goto write;
+            goto data_lock_and_write;
 
     /* if we're here, no unused node was found */
     if (tree_resize() == 0) {
@@ -437,7 +458,13 @@ find_unused_node:
         goto exit;
     }
 
-write:
+data_lock_and_write:
+    /* 
+     * We set the lock-order of the Node's data locked before the Node's
+     * structure write lock. This is so we can trylock the data first so we
+     * don't waste time acquiring the write lock if the mutex isn't ready.
+     */
+    node_data_lock(id);
     node_write(id);
 
     /*
@@ -447,10 +474,11 @@ write:
      */
     if (node_is_used_rd(id)) {
         node_unlock(id);
+        node_data_unlock(id);
         goto find_unused_node;
     }
 
-    node_mark_attached_wr(id, data);
+    node_mark_attached_fullwr(id, data);
 
     /* 
      * If we are setting the root of the Node, we obviously can't be adding
@@ -468,6 +496,7 @@ write:
     ret = id;
 unlock:
     node_unlock(id);
+    node_data_unlock(id);
 exit:
     return ret;
 }
@@ -576,31 +605,54 @@ tree_cleanup ()
     int id, max_id = tree_list_size();
 
     for (id = 0; id < max_id; id++) {
+        node_data_lock(id);
         node_write(id);
-        node_destroy_wr(id);
+        node_destroy_fullwr(id);
         node_unlock(id);
+        node_data_unlock(id);
     }
 
     free(global_tree->list);
     free(global_tree);
 }
 
-void *
-tree_ref (int id)
-{
+
     /*
      * What if this and tree_reference were the lock mechanisms for the Actors
      * instead of the Actors applying it themselves? This means it could be a
      * mutex like before. And that means cleaning up is simply a matter of 
      * acquiring the node mutex and its rw lock for its structure.
      */
-    return NULL;
+void *
+tree_ref (int id)
+{
+    int used;
+    void *data = NULL;
+
+    if (node_read(id) != 0)
+        goto exit;
+    used = node_is_used_rd(id);
+    node_unlock(id);
+
+    if (!used)
+        goto exit;
+
+    /*
+     * Policy: data can only be read/changed with the mutex lock acquired.
+     */
+    if (node_data_lock(id) != 0)
+        goto exit;
+
+    data = global_tree->list[id].data;
+
+exit:
+    return data;
 }
 
 int
 tree_deref (int id)
 {
-    return 0;
+    return node_data_unlock(id);
 }
 
 /*
