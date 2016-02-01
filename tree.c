@@ -147,7 +147,7 @@ node_is_used_rd (int id)
 }
 
 /*
- * The data of a node is only avaiable through the data lock.
+ * Policy: data can only be read/changed with the mutex lock acquired.
  */
 int
 node_data_lock (int id)
@@ -168,7 +168,8 @@ node_data_unlock (int id)
 }
 
 /*
- * With a write lock:
+ * Must be called with the write lock (structure) *and* the mutex lock (data)
+ * acquire for the node.
  * Attach (and unbench) the node to the tree system and give it a reference to
  * hold.
  */
@@ -237,7 +238,7 @@ exit:
 }
 
 /*
- * Must be called with the write lock (structure )*and* the mutex lock (data)
+ * Must be called with the write lock (structure) *and* the mutex lock (data)
  * acquire for the node.
  * Destroy the memory for the node's data and its children.
  */
@@ -616,13 +617,16 @@ tree_cleanup ()
     free(global_tree);
 }
 
-
-    /*
-     * What if this and tree_reference were the lock mechanisms for the Actors
-     * instead of the Actors applying it themselves? This means it could be a
-     * mutex like before. And that means cleaning up is simply a matter of 
-     * acquiring the node mutex and its rw lock for its structure.
-     */
+/*
+ * Get the data (pointer) referenced by the id. 
+ *
+ * Returns NULL if the id is invalid, the node of the id is garbage, or the
+ * data itself is NULL. Calling `tree_deref` isn't necessary (and is undefined)
+ * if this function returns NULL.
+ *
+ * Returns the pointer to the data if the node is valid and has data. Calling
+ * `tree_deref` is required if this function returns non-NULL data.
+ */
 void *
 tree_ref (int id)
 {
@@ -631,17 +635,20 @@ tree_ref (int id)
 
     if (node_read(id) != 0)
         goto exit;
+
     used = node_is_used_rd(id);
     node_unlock(id);
 
     if (!used)
         goto exit;
 
-    /*
-     * Policy: data can only be read/changed with the mutex lock acquired.
-     */
     if (node_data_lock(id) != 0)
         goto exit;
+
+    if (!global_tree->list[id].data) {
+        node_data_unlock(id);
+        goto exit;
+    }
 
     data = global_tree->list[id].data;
 
@@ -649,6 +656,10 @@ exit:
     return data;
 }
 
+/*
+ * Free up the data for some other process. If `tree_ref' returned NULL,
+ * calling this function produces undefined behavior.
+ */
 int
 tree_deref (int id)
 {

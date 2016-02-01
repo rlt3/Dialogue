@@ -60,24 +60,23 @@ int
 tree_unlink_reference (int id, int is_delete);
 
 /*
- * Get the pointer associated with the reference id. This function doesn't pass
- * ownership. 
+ * Get the data (pointer) referenced by the id. 
  *
- * Returns NULL if the given id is bad either by having an invalid index or by
- * pointing to garbage data.
+ * Returns NULL if the id is invalid, the node of the id is garbage, or the
+ * data itself is NULL. Calling `tree_deref` isn't necessary (and is undefined)
+ * if this function returns NULL.
  *
- * Increments the ref_count for the Node at id. See node_cleanup.
+ * Returns the pointer to the data if the node is valid and has data. Calling
+ * `tree_deref` is required if this function returns non-NULL data.
  */
 void *
-tree_dereference (int id);
+tree_ref (int id);
 
 /*
- * Using the lookup_func, get the id for the Node from the data. Errors should
- * be handled through the lookup function.
- *
- * Decrements the ref_count for the Node at id. See node_cleanup.
+ * Free up the data for some other process. If `tree_ref' returned NULL,
+ * calling this function produces undefined behavior.
  */
 int
-tree_reference (void *data);
+tree_deref (int id);
 
 #endif
