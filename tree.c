@@ -559,6 +559,11 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
     if (lock_func(root) != 0)
         return;
 
+    if (!node_is_used_rd(root)) {
+    	node_unlock(root);
+	return;
+    }
+
     memset(&children, -1, sizeof(int) * 10);
     max_id = global_tree->list[root].last_child;
     function(root);
@@ -577,7 +582,9 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
             tree_map_subtree(children[id], function, is_read, is_recurse);
 	} else {
             if (lock_func(children[id]) == 0) {
-	    	function(children[id]);
+		/* TODO: remove the reference to this if not being used */
+                if (node_is_used_rd(root))
+	    	    function(children[id]);
                 node_unlock(children[id]);
 	    }
 	}
