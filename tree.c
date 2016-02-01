@@ -237,11 +237,26 @@ exit:
 void
 node_cleanup_fullwr (int id)
 {
+    int i;
+
+    if (node_is_used_rd(id)) {
+        printf("Node %d\n", id);
+        printf("\tparent: \n\t\t%d\n", global_tree->list[id].parent);
+        printf("\tchildren: \n\t\t");
+        for (i = 0; i < global_tree->list[id].max_children; i++) {
+            if (global_tree->list[id].children[i] > NODE_INVALID)
+                printf("%d ", global_tree->list[id].children[i]);
+        }
+        printf("\n");
+    }
+
     if (global_tree->list[id].data) {
         global_tree->cleanup_func(global_tree->list[id].data);
         global_tree->list[id].data = NULL;
     }
 
+    for (i = 0; i < global_tree->list[id].max_children; i++)
+        global_tree->list[id].children[i] = NODE_INVALID;
 }
 
 /*
@@ -252,23 +267,9 @@ node_cleanup_fullwr (int id)
 void
 node_destroy_fullwr (int id)
 {
-    int i;
-
     node_cleanup_fullwr(id);
 
     if (global_tree->list[id].children) {
-
-        if (node_is_used_rd(id)) {
-            printf("Node %d\n", id);
-            printf("\tparent: \n\t\t%d\n", global_tree->list[id].parent);
-            printf("\tchildren: \n\t\t");
-            for (i = 0; i < global_tree->list[id].max_children; i++) {
-                if (global_tree->list[id].children[i] > NODE_INVALID)
-                    printf("%d ", global_tree->list[id].children[i]);
-            }
-            printf("\n");
-        }
-
         free(global_tree->list[id].children);
         global_tree->list[id].children = NULL;
     }
@@ -526,36 +527,54 @@ exit:
     return ret;
 }
 
-int
-tree_unlink_reference (int id, int is_delete)
-{
-    int parent, ret = 1;
-
-    if (node_write(id) != 0)
-        goto exit;
-
-    parent = global_tree->list[id].parent;
-
-    if (node_remove_child(parent, id) != 0)
-        goto unlock;
-
-    global_tree->list[id].parent = NODE_INVALID;
-
-    ret = 0;
-unlock:
-    node_unlock(id);
-exit:
-    return ret;
-}
-
 /*
  * Call the write capable function recursively over the tree given. Any node is
  * potentially a sub-tree. Calling this on the root of the entire tree will call
  * the function for each node of the tree.
  */
 void
-tree_write_map (int root, void (*write_capable_function) (int))
+tree_write_map_wr (int root, void (*write_capable_function) (int))
 {
+    //int cid, id, max_id;
+
+    write_capable_function(root);
+
+    //for (id = 0; id < max_id; id++) {
+    //    if (global_tree->list[root].children[id] > NODE_INVALID) {
+    //        cid = global_tree->list[root].children[id];
+    //        tree_write_map(cid, write_capable_function);
+    //    }
+    //}
+}
+
+int
+tree_unlink_reference (int id, int is_delete)
+{
+    int parent, ret = 1;
+    void (*unlink_func)(int);
+
+    if (node_write(id) != 0)
+        goto exit;
+
+    parent = global_tree->list[id].parent;
+
+    if (is_delete)
+        unlink_func = node_mark_unused_wr;
+    else
+        unlink_func = node_mark_benched_wr;
+
+    if (node_remove_child(parent, id) != 0)
+        goto unlock;
+
+    global_tree->list[id].parent = NODE_INVALID;
+
+    tree_write_map_wr(id, unlink_func);
+    ret = 0;
+
+unlock:
+    node_unlock(id);
+exit:
+    return ret;
 }
 
 /*
@@ -724,6 +743,11 @@ main (int argc, char **argv)
     tree_add_reference(mk(3), 1);
     tree_add_reference(mk(4), 3);
     tree_add_reference(mk(5), 0);
+
+    /* delete 1, which has 2, 3, 4 as its children */
+    tree_unlink_reference(1, 1);
+    /* create the 6th node total, but uses id 1 as it was the first unused */
+    tree_add_reference(mk(1), 5);
 
     status = 0;
     tree_cleanup();
