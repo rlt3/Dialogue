@@ -31,8 +31,6 @@ typedef struct Node {
     int max_children;
 
     pthread_rwlock_t rw_lock;
-    pthread_rwlock_t ref_lock;
-    int ref_count;
 } Node;
 
 typedef struct Tree {
@@ -114,27 +112,11 @@ exit:
     return ret;
 }
 
-int
-node_ref_count (int id)
-{
-    int count = -1;
-
-    if (pthread_rwlock_rdlock(&global_tree->list[id].ref_lock) != 0)
-        goto exit;
-
-    count = global_tree->list[id].ref_count;
-    pthread_rwlock_unlock(&global_tree->list[id].ref_lock);;
-
-exit:
-    return count;
-}
-
 int 
 node_write (int id)
 {
     if (!tree_index_is_valid(id))
         return 1;
-    printf("\tWrite %d\n", id);
     return pthread_rwlock_wrlock(&global_tree->list[id].rw_lock);
 }
 
@@ -143,14 +125,12 @@ node_read (int id)
 {
     if (!tree_index_is_valid(id))
         return 1;
-    printf("Read %d\n", id);
     return pthread_rwlock_rdlock(&global_tree->list[id].rw_lock);
 }
 
 int 
 node_unlock (int id)
 {
-    printf("Unlock %d\n", id);
     return pthread_rwlock_unlock(&global_tree->list[id].rw_lock);
 }
 
@@ -207,23 +187,30 @@ node_mark_unused_wr (int id)
  * initially created and everytime a realloc occurs producing unitialized
  * pointers.
  */
-void
+int
 node_init_wr (int id)
 {
-    int i;
+    int i, length = 5, ret = 1;
+
+
     node_mark_unused_wr(id);
-
     pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
-    pthread_rwlock_init(&global_tree->list[id].ref_lock, NULL);
 
-    printf("%d: %p\n", id, &global_tree->list[id].rw_lock);
+    global_tree->list[id].children = malloc(length * sizeof(int));
+    if (!global_tree->list[id].children)
+        goto exit;
 
     global_tree->list[id].data = NULL;
-    global_tree->list[id].ref_count = 0;
     global_tree->list[id].parent = NODE_INVALID;
+    global_tree->list[id].max_children = length;
+    global_tree->list[id].last_child = 0;
 
-    for (i = 0; i < 5; i++)
+    for (i = 0; i < length; i++)
         global_tree->list[id].children[i] = NODE_INVALID;
+
+    ret = 0;
+exit:
+    return ret;
 }
 
 /*
@@ -234,6 +221,32 @@ int
 node_add_parent_wr (int id, int parent_id)
 {
     return 0;
+}
+
+/*
+ * Destroy a node's memory with the write lock.
+ */
+void
+node_destroy_wr (int id)
+{
+    int i;
+
+    if (global_tree->list[id].data) {
+        global_tree->cleanup_func(global_tree->list[id].data);
+        global_tree->list[id].data = NULL;
+    }
+
+    if (global_tree->list[id].children) {
+        printf("Node %d\n\t", id);
+        for (i = 0; i < global_tree->list[id].last_child; i++) {
+            if (global_tree->list[id].children[i] > NODE_INVALID)
+                printf("%d ", global_tree->list[id].children[i]);
+        }
+        printf("\n");
+
+        free(global_tree->list[id].children);
+        global_tree->list[id].children = NULL;
+    }
 }
 
 /*
@@ -323,22 +336,12 @@ node_cleanup (int id)
     if (node_is_used_rd(id))
         goto unlock;
 
-    if (node_ref_count(id) > 0)
-        goto unlock;
-
     if (global_tree->list[id].data == NULL)
         goto clean_exit;
 
     node_unlock(id);
     node_write(id);
-
-    printf("Node %d\n", id);
-
-    /* even tho we checked it above, we can't rely on it because we unlocked */
-    if (global_tree->list[id].data) {
-        global_tree->cleanup_func(global_tree->list[id].data);
-        global_tree->list[id].data = NULL;
-    }
+    node_destroy_wr(id);
 
 clean_exit:
     ret = 0;
@@ -376,6 +379,8 @@ tree_resize ()
         ret = 0;
         global_tree->list = memory;
         global_tree->list_size = size;
+        
+        /* TODO: node_init fails here */
         for (; id < global_tree->list_size; id++)
             node_init_wr(id);
     }
@@ -458,14 +463,7 @@ write:
         }
         global_tree->root = id;
         tree_unlock();
-    } else {
-        if (node_add_parent_wr(id, parent_id) != 0) {
-	    printf("%d couldn't be added to %d\n", id, parent_id);
-    	    node_mark_unused_wr(id);
-	    ret = ERROR;
-	    goto unlock;
-        }
-    }
+    } 
 
     ret = id;
 unlock:
@@ -541,8 +539,10 @@ tree_init (
         goto exit;
 
     global_tree->list = malloc(sizeof(Node) * length);
-    if (!global_tree->list)
+    if (!global_tree->list) {
+        free(global_tree);
         goto exit;
+    }
 
     global_tree->cleanup_func = cleanup;
     global_tree->lookup_func = lookup;
@@ -553,8 +553,13 @@ tree_init (
     global_tree->root = NODE_INVALID;
     pthread_rwlock_init(&global_tree->rw_lock, NULL);
 
-    for (id = 0; id < length; id++)
-        node_init_wr(id);
+    for (id = 0; id < length; id++) {
+        if (node_init_wr(id) != 0) {
+            free(global_tree->list);
+            free(global_tree);
+            goto exit;
+        }
+    }
 
     ret = 0;
 exit:
@@ -570,34 +575,18 @@ tree_cleanup ()
 {
     int id, max_id = tree_list_size();
 
-    /* The cleanup requires the Nodes to be garbage first */
     for (id = 0; id < max_id; id++) {
         node_write(id);
-        node_mark_unused_wr(id);
+        node_destroy_wr(id);
         node_unlock(id);
-
-        pthread_rwlock_wrlock(&global_tree->list[id].ref_lock);
-        global_tree->list[id].ref_count = 0;
-        pthread_rwlock_unlock(&global_tree->list[id].ref_lock);
-
-        node_cleanup(id);
     }
 
     free(global_tree->list);
     free(global_tree);
 }
 
-/*
- * Get the pointer associated with the reference id. This function doesn't pass
- * ownership. 
- *
- * Returns NULL if the given id is bad either by having an invalid index or by
- * pointing to garbage data.
- *
- * Increments the ref_count for the Node at id. See node_cleanup.
- */
 void *
-tree_dereference (int id)
+tree_ref (int id)
 {
     /*
      * What if this and tree_reference were the lock mechanisms for the Actors
@@ -605,17 +594,13 @@ tree_dereference (int id)
      * mutex like before. And that means cleaning up is simply a matter of 
      * acquiring the node mutex and its rw lock for its structure.
      */
+    return NULL;
 }
 
-/*
- * Using the lookup_func, get the id for the Node from the data. Errors should
- * be handled through the lookup function.
- *
- * Decrements the ref_count for the Node at id. See node_cleanup.
- */
 int
-tree_reference (void *data)
+tree_deref (int id)
 {
+    return 0;
 }
 
 /*
