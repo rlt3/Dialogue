@@ -529,29 +529,39 @@ exit:
 }
 
 /*
- * From a given root node call the write_capable_function on that node and its
- * descendents.
+ * Map the function to the subtree starting at the given root node. If is_read
+ * is true, then read locks will be used. Otherwise write locks will be used.
  *
+ * If is_recurse is tree, will go down the list of children calling the 
+ * for all descendents of the initial root function. If is_recurse is false 
+ * then the function will only do the given root and its direct children.
+
  * Keeps a stack-allocated list of 10 potential children. It acquires the write
- * lock on the Node, calls the function, and gets the children. This is so we
+ * lock on the root, calls the function, and gets the children. This is so we
  * can keep the locking policy of: children are locked before their parents are
  * locked. This policy is implicity defined in tree_add_reference.
- *
+ * 
  * TODO: Juggle locking policies and figure out which one can better suit our
  * needs. This explicit stack overhead could pop.
  */
 void
-tree_write_map (int root, void (*write_capable_function) (int))
+tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
 {
+    int (*lock_func)(int);
     int children[10];
     int max_id, id, cid = 0;
 
-    if (node_write(root) != 0)
+    if (is_read)
+        lock_func = node_read;
+    else
+        lock_func = node_write;
+
+    if (lock_func(root) != 0)
         return;
 
     memset(&children, -1, sizeof(int) * 10);
     max_id = global_tree->list[root].last_child;
-    write_capable_function(root);
+    function(root);
 
     for (id = 0; id < max_id; id++) {
         if (global_tree->list[root].children[id] > NODE_INVALID) {
@@ -562,13 +572,23 @@ tree_write_map (int root, void (*write_capable_function) (int))
 
     node_unlock(root);
 
-    for (id = 0; id < cid; id++)
-        tree_write_map(children[id], write_capable_function);
+    for (id = 0; id < cid; id++) {
+        if (is_recurse) {
+            tree_map_subtree(children[id], function, is_read, is_recurse);
+	} else {
+            if (lock_func(children[id]) == 0) {
+	    	function(children[id]);
+                node_unlock(children[id]);
+	    }
+	}
+    }
 }
 
 int
 tree_unlink_reference (int id, int is_delete)
 {
+    const int write = 0;
+    const int recurse = 1;
     int parent, ret = 1;
     void (*unlink_func)(int);
 
@@ -592,7 +612,7 @@ unlock:
     node_unlock(id);
 
     if (ret == 0)
-        tree_write_map(id, unlink_func);
+        tree_map_subtree(id, unlink_func, write, recurse);
 exit:
     return ret;
 }
