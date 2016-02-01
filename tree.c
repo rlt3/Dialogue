@@ -16,8 +16,20 @@ typedef struct Node {
     void *data;
     int attached;
     int benched;
+
     int parent;
-    int children[5];
+
+    /*
+     * children array length is last_child and scales by last_child. For each
+     * starts at 0 and goes to last_child, which gets incremented as array
+     * elements are marked 'on' and decremented when marked 'off', An the 
+     * children that are identified as valid indices are 'on' and NODE_INVALID
+     * and below are considered 'off'.
+     */
+    int *children;
+    int last_child;
+    int max_children;
+
     pthread_rwlock_t rw_lock;
     pthread_rwlock_t ref_lock;
     int ref_count;
@@ -222,6 +234,72 @@ int
 node_add_parent_wr (int id, int parent_id)
 {
     return 0;
+}
+
+/*
+ * Acquire the write lock on the given Node to add the given child. Doesn't 
+ * check the child id. If it successfully adds the child, returns 0. Returns 1 
+ * otherwise.
+ */
+int
+node_add_child (int id, int child)
+{
+    int cid, max_id, ret = 1;
+
+    if (node_write(id) != 0)
+        goto exit;
+    
+    max_id = global_tree->list[id].max_children;
+
+    for (cid = 0; cid < max_id; cid++) {
+        if (global_tree->list[id].children[cid] > NODE_INVALID) {
+            global_tree->list[id].children[cid] = child;
+
+            if (cid > global_tree->list[id].last_child)
+                global_tree->list[id].last_child = cid;
+
+            ret = 0;
+            break;
+        }
+    }
+
+    if (cid == max_id && ret == 1) {
+        /* TODO: Reallocate node memory */
+    }
+
+exit:
+    return ret;
+}
+
+/*
+ * Acquire the write lock on the given Node to remove the given child. If the
+ * child is removed, returns 0. Otherwise (not found, incorrect id, etc) 
+ * returns 1.
+ */
+int
+node_remove_child (int id, int child)
+{
+    int cid, max_id, ret = 1;
+
+    if (node_write(id) != 0)
+        goto exit;
+    
+    max_id = global_tree->list[id].max_children;
+
+    for (cid = 0; cid < max_id; cid++) {
+        if (global_tree->list[id].children[cid] == child) {
+            global_tree->list[id].children[cid] = NODE_INVALID;
+
+            if (global_tree->list[id].last_child == cid)
+                global_tree->list[id].last_child--;
+
+            ret = 0;
+            break;
+        }
+    }
+
+exit:
+    return ret;
 }
 
 /*
@@ -521,24 +599,12 @@ tree_cleanup ()
 void *
 tree_dereference (int id)
 {
-    void *ptr = NULL;
-
-    if (node_read(id) != 0)
-        goto exit;
-
-    if (!node_is_used_rd(id))
-        goto unlock;
-    
-    ptr = global_tree->list[id].data;
-
-    pthread_rwlock_wrlock(&global_tree->list[id].ref_lock);
-    global_tree->list[id].ref_count++;
-    pthread_rwlock_unlock(&global_tree->list[id].ref_lock);
-
-unlock:
-    node_unlock(id);
-exit:
-    return ptr;
+    /*
+     * What if this and tree_reference were the lock mechanisms for the Actors
+     * instead of the Actors applying it themselves? This means it could be a
+     * mutex like before. And that means cleaning up is simply a matter of 
+     * acquiring the node mutex and its rw lock for its structure.
+     */
 }
 
 /*
@@ -550,13 +616,6 @@ exit:
 int
 tree_reference (void *data)
 {
-    int id = global_tree->lookup_func(data);
-
-    pthread_rwlock_wrlock(&global_tree->list[id].ref_lock);
-    global_tree->list[id].ref_count--;
-    pthread_rwlock_unlock(&global_tree->list[id].ref_lock);
-
-    return id;
 }
 
 /*
