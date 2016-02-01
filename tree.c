@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include "tree.h"
@@ -528,23 +529,41 @@ exit:
 }
 
 /*
- * Call the write capable function recursively over the tree given. Any node is
- * potentially a sub-tree. Calling this on the root of the entire tree will call
- * the function for each node of the tree.
+ * From a given root node call the write_capable_function on that node and its
+ * descendents.
+ *
+ * Keeps a stack-allocated list of 10 potential children. It acquires the write
+ * lock on the Node, calls the function, and gets the children. This is so we
+ * can keep the locking policy of: children are locked before their parents are
+ * locked. This policy is implicity defined in tree_add_reference.
+ *
+ * TODO: Juggle locking policies and figure out which one can better suit our
+ * needs. This explicit stack overhead could pop.
  */
 void
-tree_write_map_wr (int root, void (*write_capable_function) (int))
+tree_write_map (int root, void (*write_capable_function) (int))
 {
-    //int cid, id, max_id;
+    int children[10];
+    int max_id, id, cid = 0;
 
+    if (node_write(root) != 0)
+        return;
+
+    memset(&children, -1, sizeof(int) * 10);
+    max_id = global_tree->list[root].last_child;
     write_capable_function(root);
 
-    //for (id = 0; id < max_id; id++) {
-    //    if (global_tree->list[root].children[id] > NODE_INVALID) {
-    //        cid = global_tree->list[root].children[id];
-    //        tree_write_map(cid, write_capable_function);
-    //    }
-    //}
+    for (id = 0; id < max_id; id++) {
+        if (global_tree->list[root].children[id] > NODE_INVALID) {
+            children[cid] = id;
+            cid++;
+        }
+    }
+
+    node_unlock(root);
+
+    //for (id = 0; id < cid; id++)
+    //    tree_write_map(children[id], write_capable_function);
 }
 
 int
@@ -568,11 +587,12 @@ tree_unlink_reference (int id, int is_delete)
 
     global_tree->list[id].parent = NODE_INVALID;
 
-    tree_write_map_wr(id, unlink_func);
     ret = 0;
-
 unlock:
     node_unlock(id);
+
+    if (ret == 0)
+        tree_write_map(id, unlink_func);
 exit:
     return ret;
 }
