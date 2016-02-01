@@ -555,15 +555,15 @@ tree_write_map (int root, void (*write_capable_function) (int))
 
     for (id = 0; id < max_id; id++) {
         if (global_tree->list[root].children[id] > NODE_INVALID) {
-            children[cid] = id;
+            children[cid] = global_tree->list[root].children[id];
             cid++;
         }
     }
 
     node_unlock(root);
 
-    //for (id = 0; id < cid; id++)
-    //    tree_write_map(children[id], write_capable_function);
+    for (id = 0; id < cid; id++)
+        tree_write_map(children[id], write_capable_function);
 }
 
 int
