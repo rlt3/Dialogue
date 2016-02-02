@@ -45,6 +45,14 @@ tree_init (
 int
 tree_add_reference (void *data, int parent_id);
 
+/*
+ * Unlink a Node and all of its descendents from the tree. If is_delete is 1,
+ * this will mark all the nodes unlinked as garbage so they can be cleaned-up 
+ * and used by the system.
+ *
+ * If is_delete is 0 then the nodes are benched and aren't attached to the tree
+ * but are otherwise still around and are not marked as garbage.
+ */
 int
 tree_unlink_reference (int id, int is_delete);
 
@@ -67,5 +75,12 @@ tree_ref (int id);
  */
 int
 tree_deref (int id);
+
+/*
+ * Mark all active Nodes as garbage and clean them up. Then free the memory for
+ * the Tree and the list of Nodes.
+ */
+void
+tree_cleanup ();
 
 #endif

@@ -378,8 +378,6 @@ node_cleanup (int id)
     if (node_is_used_rd(id))
         goto unlock;
 
-    if (global_tree->list[id].data)
-        printf("Cleaning up %d\n", id);
     node_cleanup_fullwr(id);
     ret = 0;
 unlock:
@@ -591,6 +589,14 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
     }
 }
 
+/*
+ * Unlink a Node and all of its descendents from the tree. If is_delete is 1,
+ * this will mark all the nodes unlinked as garbage so they can be cleaned-up 
+ * and used by the system.
+ *
+ * If is_delete is 0 then the nodes are benched and aren't attached to the tree
+ * but are otherwise still around and are not marked as garbage.
+ */
 int
 tree_unlink_reference (int id, int is_delete)
 {
@@ -752,61 +758,4 @@ int
 tree_deref (int id)
 {
     return node_data_unlock(id);
-}
-
-/*
- * Make, Lookup, Set Id, and Remove. Allocate some data and free it. Used to test we
- * don't have memory leaks.
- */
-
-void* mk (int id) {
-    return malloc(sizeof(int));
-}
-
-void set (void *data, int id) {
-    *((int*)data) = id;
-}
-
-int lk (void *data) {
-    return *((int*)data);
-}
-
-void rm (void *data) {
-    free(data);
-}
-
-int 
-main (int argc, char **argv)
-{
-    int status = 1;
-
-    if (tree_init(10, 20, 2, set, rm, lk) != 0)
-        goto exit;
-    
-    tree_add_reference(mk(0), NODE_INVALID);
-    tree_add_reference(mk(1), 0);
-    tree_add_reference(mk(2), 1);
-    tree_add_reference(mk(3), 1);
-    tree_add_reference(mk(4), 3);
-    tree_add_reference(mk(5), 0);
-
-    if (tree_ref(2) == NULL)
-        goto cleanup;
-
-    /* delete 1, which has 2, 3, 4 as its children */
-    tree_unlink_reference(1, 1);
-    /* create the 6th node total, but uses id 1 as it was the first unused */
-    tree_add_reference(mk(1), 5);
-    /* 
-     * create 7th node, since next id (which would be 2) can't be cleaned up
-     * because there is a reference (from tree_ref) out there, our id will be 3
-     */
-    tree_add_reference(mk(3), 5);
-    tree_deref(2);
-
-    status = 0;
-cleanup:
-    tree_cleanup();
-exit:
-    return status;
 }
