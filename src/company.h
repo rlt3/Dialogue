@@ -12,6 +12,9 @@ company_create (int base_actors, int max_actors, int base_children);
 int 
 company_add (int parent);
 
+void
+company_set (lua_State *L);
+
 int
 company_remove (int id);
 

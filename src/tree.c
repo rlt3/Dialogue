@@ -8,12 +8,6 @@
 
 #define NODE_FAMILY_MAX 4
 
-enum ReturnType {
-    ERROR = -3,
-    NODE_ERROR = -2,
-    NODE_INVALID = -1
-};
-
 typedef struct Node {
     void *data;
     int attached;

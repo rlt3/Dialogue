@@ -5,6 +5,12 @@ typedef void (*data_set_id_func_t) (void *, int);
 typedef void (*data_cleanup_func_t) (void *);
 typedef int (*data_lookup_func_t) (void *);
 
+enum TreeReturn {
+    ERROR = -3,
+    NODE_ERROR = -2,
+    NODE_INVALID = -1
+};
+
 /*
  * Initialze the tree with the given length and the cleanup function for the
  * references (pointers it owns) it holds. The `initial_length' also serves as
