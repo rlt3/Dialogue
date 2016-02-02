@@ -87,6 +87,7 @@ int
 company_actor_id (lua_State *L, int index)
 {
     int id;
+    luaL_checktype(L, index, LUA_TTABLE);
     lua_rawgeti(L, index, 1);
     id = lua_tointeger(L, -1);
     lua_pop(L, 1);
@@ -180,6 +181,14 @@ lua_actor_deref (lua_State *L)
 }
 
 int
+lua_actor_id (lua_State *L)
+{
+    const int actor_arg = 1;
+    lua_pushinteger(L, company_actor_id(L, actor_arg));
+    return 1;
+}
+
+int
 lua_actor_probe (lua_State *L)
 {
     return 0;
@@ -192,6 +201,7 @@ static const luaL_Reg actor_metamethods[] = {
     {"delete",   lua_actor_delete},
     {"ref",      lua_actor_ref},
     {"deref",    lua_actor_deref},
+    {"id",       lua_actor_id},
     {"bench",    lua_actor_bench},
     {"probe",    lua_actor_probe},
     { NULL, NULL }
