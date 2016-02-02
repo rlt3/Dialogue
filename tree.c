@@ -240,17 +240,6 @@ node_cleanup_fullwr (int id)
 {
     int i;
 
-    if (node_is_used_rd(id)) {
-        printf("Node %d\n", id);
-        printf("\tparent: \n\t\t%d\n", global_tree->list[id].parent);
-        printf("\tchildren: \n\t\t");
-        for (i = 0; i < global_tree->list[id].max_children; i++) {
-            if (global_tree->list[id].children[i] > NODE_INVALID)
-                printf("%d ", global_tree->list[id].children[i]);
-        }
-        printf("\n");
-    }
-
     if (global_tree->list[id].data) {
         global_tree->cleanup_func(global_tree->list[id].data);
         global_tree->list[id].data = NULL;
@@ -268,6 +257,19 @@ node_cleanup_fullwr (int id)
 void
 node_destroy_fullwr (int id)
 {
+    int i;
+
+    if (node_is_used_rd(id)) {
+        printf("Node %d\n", id);
+        printf("\tparent: \n\t\t%d\n", global_tree->list[id].parent);
+        printf("\tchildren: \n\t\t");
+        for (i = 0; i < global_tree->list[id].max_children; i++) {
+            if (global_tree->list[id].children[i] > NODE_INVALID)
+                printf("%d ", global_tree->list[id].children[i]);
+        }
+        printf("\n");
+    }
+
     node_cleanup_fullwr(id);
 
     if (global_tree->list[id].children) {
@@ -356,7 +358,7 @@ exit:
 int
 node_cleanup (int id)
 {
-    int rc, is_used, ret = 1;
+    int is_used, ret = 1;
 
     if (node_read(id) != 0)
         goto exit;
@@ -367,9 +369,7 @@ node_cleanup (int id)
     if (is_used)
         goto exit;
 
-    rc = node_data_trylock(id);
-
-    if (rc == EBUSY || rc != 0)
+    if (node_data_trylock(id) != 0)
         goto exit;
 
     node_write(id);
@@ -378,9 +378,10 @@ node_cleanup (int id)
     if (node_is_used_rd(id))
         goto unlock;
 
+    if (global_tree->list[id].data)
+        printf("Cleaning up %d\n", id);
     node_cleanup_fullwr(id);
     ret = 0;
-
 unlock:
     node_unlock(id);
     node_data_unlock(id);
@@ -561,7 +562,7 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
 
     if (!node_is_used_rd(root)) {
     	node_unlock(root);
-	return;
+        return;
     }
 
     memset(&children, -1, sizeof(int) * 10);
@@ -580,14 +581,13 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
     for (id = 0; id < cid; id++) {
         if (is_recurse) {
             tree_map_subtree(children[id], function, is_read, is_recurse);
-	} else {
+        } else {
             if (lock_func(children[id]) == 0) {
-		/* TODO: remove the reference to this if not being used */
                 if (node_is_used_rd(root))
-	    	    function(children[id]);
+	    	        function(children[id]);
                 node_unlock(children[id]);
-	    }
-	}
+            }
+        }
     }
 }
 
@@ -740,7 +740,6 @@ tree_ref (int id)
     }
 
     data = global_tree->list[id].data;
-
 exit:
     return data;
 }
@@ -791,12 +790,22 @@ main (int argc, char **argv)
     tree_add_reference(mk(4), 3);
     tree_add_reference(mk(5), 0);
 
+    if (tree_ref(2) == NULL)
+        goto cleanup;
+
     /* delete 1, which has 2, 3, 4 as its children */
     tree_unlink_reference(1, 1);
     /* create the 6th node total, but uses id 1 as it was the first unused */
     tree_add_reference(mk(1), 5);
+    /* 
+     * create 7th node, since next id (which would be 2) can't be cleaned up
+     * because there is a reference (from tree_ref) out there, our id will be 3
+     */
+    tree_add_reference(mk(3), 5);
+    tree_deref(2);
 
     status = 0;
+cleanup:
     tree_cleanup();
 exit:
     return status;
