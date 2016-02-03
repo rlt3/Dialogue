@@ -2,8 +2,15 @@
 #include "actor.h"
 #include "utils.h"
 
+struct Actor {
+    lua_State *L;
+    int is_lead; /* restrict to a single thread */
+    int is_star; /* restrict to the main thread */
+    int id;      /* id inside the Company */
+};
+
 Actor *
-actor_create (lua_State *L, int id)
+actor_create (lua_State *L)
 {
     Actor *actor = NULL;
     lua_State *A = NULL;
@@ -18,6 +25,7 @@ actor_create (lua_State *L, int id)
     
     if (!A) {
         free(actor);
+        actor = NULL;
         goto exit;
     }
 
@@ -26,25 +34,31 @@ actor_create (lua_State *L, int id)
     actor->L = A;
     actor->is_lead = 0;
     actor->is_star = 0;
-    actor->id = id;
-    pthread_mutex_init(&actor->mutex, NULL);
+    actor->id = -1;
 
     utils_copy_top(A, L);
-
-    printf("Creating Actor %d\n", id);
-
 exit:
     return actor;
 }
 
-/*
- * Close the Actor's Lua state and free the memory the Actor is using.
- */
 void
-actor_destroy (Actor *actor)
+actor_assign_id (void *actor, int id)
 {
-    printf("Destroying Actor %d\n", actor->id);
-    pthread_mutex_destroy(&actor->mutex);
+    //printf("Actor %p assigned to id %d\n", actor, id);
+    ((Actor*)actor)->id = id;
+}
+
+int
+actor_get_id (void *actor)
+{
+    return ((Actor*)actor)->id;
+}
+
+void
+actor_destroy (void *a)
+{
+    Actor *actor = a;
+    //printf("Destroying Actor %p with id %d\n", a, actor->id);
     lua_close(actor->L);
     free(actor);
 }

@@ -1,30 +1,10 @@
 #include <stdlib.h>
 #include "tree.h"
+#include "actor.h"
 #include "company.h"
 
 #define COMPANY_META "Dialogue.Company"
 #define ACTOR_META "Dialogue.Company.Actor"
-
-/*
- * Make, Lookup, Set Id, and Remove. Allocate some data and free it. Used to
- * test we don't have memory leaks.
- */
-
-void* mk (int id) {
-        return malloc(sizeof(int));
-}
-
-void set (void *data, int id) {
-        *((int*)data) = id;
-}
-
-int lk (void *data) {
-        return *((int*)data);
-}
-
-void rm (void *data) {
-        free(data);
-}
 
 /*
  * Create the Company tree with the following options.
@@ -32,13 +12,14 @@ void rm (void *data) {
 int
 company_create (int base_actors, int max_actors, int base_children)
 {
-    return tree_init(base_actors, max_actors, 2, set, rm, lk);
+    return tree_init(base_actors, max_actors, 2, 
+            actor_assign_id, actor_destroy, actor_get_id);
 }
 
 int 
-company_add (int parent)
+company_add (lua_State *L, int parent)
 {
-    return tree_add_reference(mk(0), parent);
+    return tree_add_reference(actor_create(L), parent);
 }
 
 int
@@ -115,7 +96,7 @@ lua_actor_new (lua_State *L)
         parent = NODE_INVALID;
 
     luaL_checktype(L, definition_arg, LUA_TTABLE);
-    id = company_add(parent);
+    id = company_add(L, parent);
 
     switch (id) {
     case ERROR:

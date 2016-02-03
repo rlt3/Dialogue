@@ -2,25 +2,20 @@
 #define DIALOGUE_ACTOR
 
 #include "dialogue.h"
-#include "director.h"
-#include <pthread.h>
 
-typedef struct Actor {
-    lua_State *L;
-    pthread_mutex_t mutex;
-    int is_lead; /* restrict to a single thread */
-    int is_star; /* restrict to the main thread */
-    int id;      /* id inside the Company */
-} Actor;
+typedef struct Actor Actor;
 
 Actor *
-actor_create (lua_State *L, int id);
+actor_create (lua_State *L);
 
-/*
- * Close the Actor's Lua state and free the memory the Actor is using.
- */
 void
-actor_destroy (Actor *actor);
+actor_assign_id (void *actor, int id);
+
+int
+actor_get_id (void *actor);
+
+void
+actor_destroy (void *);
 
 
 #endif

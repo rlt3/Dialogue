@@ -1,6 +1,6 @@
 UNAME := $(shell uname)
 
-SOURCES=src/main.o src/tree.o src/company.o
+SOURCES=src/main.o src/tree.o src/company.o src/actor.o
 
 ifeq ($(DIALOGUE_HEADLESS), true)
   MODULE=Dialogue.so
