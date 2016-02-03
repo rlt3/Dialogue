@@ -100,15 +100,15 @@ lua_actor_new (lua_State *L)
 
     switch (id) {
     case ERROR:
-        luaL_error(L, "NULL data given to Company");
+        luaL_error(L, "Creating Actor failed!");
         break;
 
     case NODE_ERROR:
-        luaL_error(L, "Invalid parent for new Actor");
+        luaL_error(L, "Invalid parent `%d` for new actor!", parent);
         break;
 
     case NODE_INVALID:
-        luaL_error(L, "Unable to allocate memory for new Actor");
+        luaL_error(L, "Unable to allocate memory for new Actor!");
         break;
 
     default:
@@ -174,7 +174,7 @@ lua_actor_delete (lua_State *L)
     const int id = company_actor_id(L, actor_arg);
 
     if (company_remove(id) != 0)
-        luaL_error(L, "Deleting Actor %d failed", id);
+        luaL_error(L, "Cannot delete invalid reference `%d`!", id);
     
     return 0;
 }

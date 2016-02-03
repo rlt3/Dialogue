@@ -507,6 +507,7 @@ data_lock_and_write:
          */
         if (node_add_child(parent_id, id) != 0) {
             node_mark_unused_wr(id);
+            ret = NODE_ERROR;
             goto unlock;
         }
         global_tree->list[id].parent = parent_id;
