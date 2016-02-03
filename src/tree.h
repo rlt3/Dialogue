@@ -1,6 +1,50 @@
 #ifndef DIALOGUE_TREE
 #define DIALOGUE_TREE
 
+/*
+ * The Tree represents the structure of our Actors. This means it takes on the
+ * responsibility of the Actor's lifetime, the structure of Actors and the 
+ * functions associated (creating, moving, deleting...), and the mutual 
+ * exclusive properties needed for all of that to work in parallel.
+ *
+ * When starting the system, the tree is initialized with the garbage collection 
+ * function it needs for the particular data it is holding.  In our case the
+ * Tree holds Actor data.  The Tree garbage collects data when given new data
+ * to hold. So, if there is some garbage data that is unused, it is cleaned up
+ * just before it is used for the new data.
+ *
+ * The actual data itself is protected via a mutex lock and can only be 
+ * 'checked-out' by one thread at a time. The structure of the data (where it 
+ * sits in the tree -- it's parent and children) is protected under a read/write
+ * lock. 
+ *
+ * Since the data is separated from its structure, the data can be checked-out
+ * and used (even changed) while the structure is changing. Such changes may be
+ * deletion, benching (remove it from the tree without removing it from the 
+ * system), or even adding new children. 
+ *
+ * This type of structure allows for many parts of the system premium
+ * read-access over the tree will minimizing the number of mutually exclusive 
+ * operations.
+ *
+ * The Tree allows for all of the fancy operations to occur by giving each
+ * piece of data given to the Tree an id. The id may be invalid at any given
+ * moment, but because it is an integer and not an allocated data type, we 
+ * don't get a memory-leak. The ability to work on data that may be invalid at
+ * any moment without negative consequences gives us power.
+ *
+ * Because all references to the data just ids (ints), then we can arbitrarily
+ * remove nodes of the Tree, invalidating many ids. We can also reference any
+ * particular piece of data through system runs (if every time the system is
+ * ran it uses the same Tree structure).
+ *
+ * But most importantly, it allows us to send off an id saying, "I want the 
+ * piece of data this id represents to be put inside this function." And since
+ * ids aren't memory addresses, we don't have to worry about any segfaults or
+ * memory leaks occuring down the line -- if the id isn't valid anymore, skip
+ * it.
+ */
+
 typedef void (*data_set_id_func_t) (void *, int);
 typedef void (*data_cleanup_func_t) (void *);
 typedef int (*data_lookup_func_t) (void *);
