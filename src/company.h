@@ -10,7 +10,7 @@ int
 company_create (int base_actors, int max_actors, int base_children);
 
 int 
-company_add (lua_State *L, int parent);
+company_add (lua_State *L, int parent, int thread_id);
 
 void
 company_set (lua_State *L);

@@ -4,17 +4,41 @@
 
 struct Actor {
     lua_State *L;
-    int is_lead; /* restrict to a single thread */
-    int is_star; /* restrict to the main thread */
-    int id;      /* id inside the Company */
+    int thread_id;
+    int id;
 };
 
+/*
+ * Expects the given Lua stack to have the definition at the top of the stack.
+ *
+ * Definition:
+ * { "module name" [, data0 [, data1 [, ... [, dataN]]]] }
+ *
+ * Examples:
+ * { "window", 400, 600 }
+ * { "entity", "player.png", 40, 40 }
+ * { "entity", "monster.png", 100, 200 }
+ *
+ * When the thread_id given is greater than -1, the system will make sure the
+ * Actor is always ran on the thread that represents the id. 0 always represents
+ * the main thread.
+ *
+ * For syntax and formatting errors, this will call luaL_error. For system-level
+ * errors, this returns NULL (and cleans up any memory) in every case. This 
+ * function should be wrapped and an appropriate luaL_error should be called.
+ *
+ * If the return is not NULL, then it is successful.
+ */
 Actor *
-actor_create (lua_State *L)
+actor_create (lua_State *L, int thread_id)
 {
+    const int definition_index = lua_gettop(L);
     Actor *actor = NULL;
     lua_State *A = NULL;
-    //const int definition_index = lua_gettop(L);
+    int i, len;
+
+    luaL_checktype(L, definition_index, LUA_TTABLE);
+    len = luaL_len(L, definition_index);
 
     actor = malloc(sizeof(*actor));
 
@@ -32,11 +56,15 @@ actor_create (lua_State *L)
     luaL_openlibs(A);
 
     actor->L = A;
-    actor->is_lead = 0;
-    actor->is_star = 0;
+    actor->thread_id = thread_id;
     actor->id = -1;
 
-    utils_copy_top(A, L);
+    for (i = 1; i <= len; i++) {
+        lua_rawgeti(L, definition_index, i);
+        printf("%s ", lua_tostring(L, -1));
+        lua_pop(L, 1);
+    }
+
 exit:
     return actor;
 }

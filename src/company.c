@@ -17,9 +17,9 @@ company_create (int base_actors, int max_actors, int base_children)
 }
 
 int 
-company_add (lua_State *L, int parent)
+company_add (lua_State *L, int parent, int thread_id)
 {
-    return tree_add_reference(actor_create(L), parent);
+    return tree_add_reference(actor_create(L, thread_id), parent);
 }
 
 int
@@ -62,21 +62,60 @@ company_push_actor (lua_State *L, int actor_id)
 }
 
 /*
- * Get the Actor's id from the actor Lua reference at index.
+ * An actor can be represented in many ways. All of them boil down to an id.
+ * This function coerces many actor-types into getting the id it holds.
  */
 int
 company_actor_id (lua_State *L, int index)
 {
-    int id;
-    luaL_checktype(L, index, LUA_TTABLE);
-    lua_rawgeti(L, index, 1);
-    id = lua_tointeger(L, -1);
-    lua_pop(L, 1);
+    int id, type = lua_type(L, index);
+
+    switch(type) {
+    case LUA_TTABLE:
+        lua_rawgeti(L, index, 1);
+        id = lua_tointeger(L, -1);
+        lua_pop(L, 1);
+        break;
+
+    case LUA_TNUMBER:
+        id = lua_tointeger(L, index);
+        break;
+        
+    case LUA_TSTRING:
+        break;
+
+    default:
+        luaL_error(L, "Cannot get id from unexpected Actor type");
+        break;
+    }
+
     return id;
 }
 
 /*
- * Actor( definition_table [, parent] )
+ * -- find the actor that represents "dungeon" and return an actor object
+ * room = Actor("dungeon")
+ *
+ * -- create an actor. its parent is the dungeon room
+ * Actor({"entity", "player.png"}, room)
+ *
+ * -- create an actor with the name "graphics". lookup parent by name and
+ * -- limit the operations of this actor to the main thread (thread 0).
+ * Actor("graphics", {"window", 400, 600}, "dungeon", 0)
+ *
+ * So, an Actor can be represented in a multitude of ways:
+ *   - id: all ways boil down to this -- all actors are an id
+ *   - object: actor objects are just tables that hold an id
+ *   - string: string name that gets mapped to an id
+ */
+int
+lua_company_call (lua_State *L)
+{
+    return 0;
+}
+
+/*
+ * Actor( definition_table [, parent] [, thread] )
  *
  * Creates the actor from the given definition table (see actor.h for more
  * info). An optional Actor object that should be the parent of the created 
@@ -87,16 +126,28 @@ lua_actor_new (lua_State *L)
 {
     const int definition_arg = 2;
     const int parent_arg = 3;
-    const int args = lua_gettop(L);
-    int parent, id;
-
-    if (args == parent_arg)
-        parent = company_actor_id(L, parent_arg);
-    else
-        parent = NODE_INVALID;
-
+    const int thread_arg = 4;
+    int args = lua_gettop(L);
+    int parent = NODE_INVALID;
+    int thread = NODE_INVALID;
+    int id;
+    
     luaL_checktype(L, definition_arg, LUA_TTABLE);
-    id = company_add(L, parent);
+
+    /* get the thread id, then pop it and any extra args */
+    if (args >= thread_arg) {
+        thread = luaL_checkinteger(L, thread_arg);
+        lua_pop(L, args - thread_arg + 1);
+        args = parent_arg;
+    }
+
+    /* get the parent id, then pop it and extra args, leaving table on top */
+    if (args >= parent_arg) {
+        parent = company_actor_id(L, parent_arg);
+        lua_pop(L, args - parent_arg + 1);
+    }
+
+    id = company_add(L, parent, thread);
 
     switch (id) {
     case ERROR:
