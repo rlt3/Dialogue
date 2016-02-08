@@ -18,6 +18,8 @@ typedef struct Node {
     int last_child;
     int max_children;
 
+    int thread_id;
+
     pthread_rwlock_t rw_lock;
     pthread_mutex_t data_lock;
 } Node;
@@ -156,16 +158,16 @@ node_data_unlock (int id)
 
 /*
  * Must be called with the write lock (structure) *and* the mutex lock (data)
- * acquire for the node.
- * Attach (and unbench) the node to the tree system and give it a reference to
- * hold.
+ * acquired for the node.  Attach (and unbench) the node to the tree system and
+ * give it a reference to hold.
  */
 void
-node_mark_attached_fullwr (int id, void *data)
+node_mark_attached_fullwr (int id, void *data, int thread_id)
 {
     global_tree->list[id].attached = 1;
     global_tree->list[id].benched = 0;
     global_tree->list[id].data = data;
+    global_tree->list[id].thread_id = thread_id;
     global_tree->set_id_func(data, id);
 }
 
@@ -241,6 +243,8 @@ node_cleanup_fullwr (int id)
 
     for (i = 0; i < global_tree->list[id].max_children; i++)
         global_tree->list[id].children[i] = NODE_INVALID;
+
+    global_tree->list[id].thread_id = NODE_INVALID;
 }
 
 /*
@@ -441,7 +445,7 @@ unlock:
  *      - write-lock fails while setting the root node
  */
 int
-tree_add_reference (void *data, int parent_id)
+tree_add_reference (void *data, int parent_id, int thread_id)
 {
     int max_id, id, set_root = 0, ret = ERROR;
 
@@ -487,7 +491,7 @@ data_lock_and_write:
         goto find_unused_node;
     }
 
-    node_mark_attached_fullwr(id, data);
+    node_mark_attached_fullwr(id, data, thread_id);
 
     /* 
      * If we are setting the root of the Node, we obviously can't be adding
@@ -705,6 +709,22 @@ tree_cleanup ()
 
     free(global_tree->list);
     free(global_tree);
+}
+
+/*
+ * Returns the thread id for the node of the given id.
+ * Returns NODE_ERROR if an error occurs (bad node, etc)
+ */
+int
+tree_reference_thread (int id)
+{
+    int thread = NODE_ERROR;
+    if (node_read(id) != 0)
+        goto exit;
+    thread = global_tree->list[id].thread_id;
+    node_unlock(id);
+exit:
+    return thread;
 }
 
 /*

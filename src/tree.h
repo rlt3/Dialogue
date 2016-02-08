@@ -93,7 +93,7 @@ tree_init (
  *      - write-lock fails while setting the root node
  */
 int
-tree_add_reference (void *data, int parent_id);
+tree_add_reference (void *data, int parent_id, int thread_id);
 
 /*
  * Unlink a Node and all of its descendents from the tree. If is_delete is 1,
@@ -125,6 +125,13 @@ tree_ref (int id);
  */
 int
 tree_deref (int id);
+
+/*
+ * Returns the thread id for the node of the given id.
+ * Returns NODE_ERROR if an error occurs (bad node, etc)
+ */
+int
+tree_reference_thread (int id);
 
 /*
  * Mark all active Nodes as garbage and clean them up. Then free the memory for

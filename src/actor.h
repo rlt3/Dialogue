@@ -16,18 +16,10 @@ typedef struct Actor Actor;
  * { "entity", "player.png", 40, 40 }
  * { "entity", "monster.png", 100, 200 }
  *
- * When the thread_id given is greater than -1, the system will make sure the
- * Actor is always ran on the thread that represents the id. 0 always represents
- * the main thread.
- *
- * For syntax and formatting errors, this will call luaL_error. For system-level
- * errors, this returns NULL (and cleans up any memory) in every case. This 
- * function should be wrapped and an appropriate luaL_error should be called.
- *
  * If the return is not NULL, then it is successful.
  */
 Actor *
-actor_create (lua_State *L, int thread_id);
+actor_create (lua_State *L);
 
 void
 actor_assign_id (void *actor, int id);

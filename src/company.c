@@ -19,7 +19,7 @@ company_create (int base_actors, int max_actors, int base_children)
 int 
 company_add (lua_State *L, int parent, int thread_id)
 {
-    return tree_add_reference(actor_create(L, thread_id), parent);
+    return tree_add_reference(actor_create(L), parent, thread_id);
 }
 
 int
