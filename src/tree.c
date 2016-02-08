@@ -192,6 +192,7 @@ node_mark_unused_wr (int id)
 {
     global_tree->list[id].attached = 0;
     global_tree->list[id].benched = 0;
+    global_tree->list[id].parent = NODE_INVALID;
 }
 
 /*
@@ -289,6 +290,9 @@ node_add_child (int id, int child)
     if (node_write(id) != 0)
         goto exit;
 
+    if (!node_is_used_rd(id))
+        goto unlock;
+
     max_id = global_tree->list[id].max_children;
 
     for (cid = 0; cid < max_id; cid++) {
@@ -307,8 +311,8 @@ node_add_child (int id, int child)
         /* TODO: Reallocate node memory */
     }
 
+unlock:
     node_unlock(id);
-
 exit:
     return ret;
 }
@@ -546,6 +550,10 @@ void
 tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
 {
     int (*lock_func)(int);
+    /* 
+     * TODO: use max_stack which is a global var protected by mutex and the
+     * largest children length for any given node.
+     */
     int children[10];
     int max_id, id, cid = 0;
 
@@ -617,14 +625,47 @@ tree_unlink_reference (int id, int is_delete)
     if (node_remove_child(parent, id) != 0)
         goto unlock;
 
-    global_tree->list[id].parent = NODE_INVALID;
-
     ret = 0;
 unlock:
     node_unlock(id);
 
     if (ret == 0)
         tree_map_subtree(id, unlink_func, write, recurse);
+exit:
+    return ret;
+}
+
+/*
+ * Re-link a (benched) reference back into the tree. 
+ * Returns 0 if successful.
+ * Returns 1 if the there was an error re-linking back to its parent.
+ * Returns 2 if the node wasn't benched.
+ * Returns 3 if the node was invalid.
+ */
+int
+tree_link_reference (int id)
+{
+    int ret = 3;
+
+    if (node_write(id) != 0)
+        goto exit;
+
+    if (global_tree->list[id].attached) {
+        ret = 2;
+        goto unlock;
+    }
+
+    if (node_add_child(global_tree->list[id].parent, id) != 0) {
+        ret = 1;
+        goto unlock;
+    }
+
+    global_tree->list[id].attached = 1;
+    global_tree->list[id].benched = 0;
+
+    ret = 0;
+unlock:
+    node_unlock(id);
 exit:
     return ret;
 }

@@ -107,6 +107,16 @@ int
 tree_unlink_reference (int id, int is_delete);
 
 /*
+ * Re-link a (benched) reference back into the tree. 
+ * Returns 0 if successful.
+ * Returns 1 if the there was an error re-linking back to its parent.
+ * Returns 2 if the node wasn't benched.
+ * Returns 3 if the node was invalid.
+ */
+int
+tree_link_reference (int id);
+
+/*
  * Get the data (pointer) referenced by the id. 
  *
  * Returns NULL if the id is invalid, the node of the id is garbage, or the

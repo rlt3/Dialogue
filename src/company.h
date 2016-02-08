@@ -16,7 +16,7 @@ void
 company_set (lua_State *L);
 
 int
-company_remove (int id);
+company_remove (int id, int is_delete);
 
 void *
 company_ref (int id);

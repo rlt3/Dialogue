@@ -23,9 +23,15 @@ company_add (lua_State *L, int parent, int thread_id)
 }
 
 int
-company_remove (int id)
+company_remove (int id, int is_delete)
 {
-    return tree_unlink_reference(id, 1);
+    return tree_unlink_reference(id, is_delete);
+}
+
+int
+company_join (int id)
+{
+    return tree_link_reference(id);
 }
 
 void *
@@ -215,6 +221,40 @@ lua_actor_children (lua_State *L)
 int
 lua_actor_bench (lua_State *L)
 {
+    const int actor_arg = 1;
+    const int bench = 0;
+    const int id = company_actor_id(L, actor_arg);
+
+    if (company_remove(id, bench) != 0)
+        luaL_error(L, "Cannot bench invalid reference `%d`!", id);
+
+    return 0;
+}
+
+int
+lua_actor_join (lua_State *L)
+{
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
+    int rc = company_join(id);
+
+    switch (rc) {
+    case 1:
+        luaL_error(L, "Cannot join `%d` -- bad parent!", id);
+        break;
+
+    case 2:
+        luaL_error(L, "Cannot join `%d` -- not benched!", id);
+        break;
+
+    case 3:
+        luaL_error(L, "Cannot join `%d` -- id invalid!", id);
+        break;
+
+    default:
+        break;
+    }
+
     return 0;
 }
 
@@ -222,9 +262,10 @@ int
 lua_actor_delete (lua_State *L)
 {
     const int actor_arg = 1;
+    const int delete = 1;
     const int id = company_actor_id(L, actor_arg);
 
-    if (company_remove(id) != 0)
+    if (company_remove(id, delete) != 0)
         luaL_error(L, "Cannot delete invalid reference `%d`!", id);
     
     return 0;
@@ -286,6 +327,7 @@ static const luaL_Reg actor_metamethods[] = {
     {"unlock",   lua_actor_unlock},
     {"id",       lua_actor_id},
     {"bench",    lua_actor_bench},
+    {"join",     lua_actor_join},
     {"probe",    lua_actor_probe},
     { NULL, NULL }
 };

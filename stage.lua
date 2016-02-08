@@ -9,7 +9,7 @@ describe("The Company of Actors", function()
     local a4
     local bad_actor
 
-    it("creates Actors and returns actor objects which holds an id", function()
+    it("creates Actors and returns actor objects which hold an id", function()
         a0 = Actor({})
         a1 = a0:child{}
         a2 = a1:child{}
@@ -81,5 +81,48 @@ describe("The Company of Actors", function()
         -- unlocking the reference to 2 frees it to be garbage collected
         assert.is_true(a2:unlock())
         assert.is_equal(a0:child{}:id(), 2)
+    end)
+
+    it("allows benching of actors which may be erroring often", function()
+        a4:bench()
+    end)
+
+    it("doesn't allow benching of bad ids", function()
+        assert.has_error(function() 
+            bad_actor:bench()
+        end, "Cannot bench invalid reference `20`!")
+    end)
+
+    it("doesn't cleanup benched ids", function()
+        assert.is_equal(a0:child{}:id(), 7)
+    end)
+
+    it("allows benched actors to be new parents", function()
+        assert.is_equal(a4:child{}:id(), 8)
+    end)
+
+    it("lets benched actors rejoin the tree", function()
+        a4:join()
+    end)
+
+    it("doesn't allow joining of bad actors", function()
+        assert.has_error(function() 
+            bad_actor:join()
+        end, "Cannot join `20` -- id invalid!")
+    end)
+
+    it("doesn't allow joining of non-benched actors", function()
+        assert.has_error(function() 
+            a0:join()
+        end, "Cannot join `0` -- not benched!")
+    end)
+
+    it("doesn't allow joining of benched actors with bad parents", function()
+        local a8 = setmetatable( { 8 }, getmetatable(a0))
+        a8:bench()
+        a4:delete()
+        assert.has_error(function() 
+            a8:join()
+        end, "Cannot join `8` -- bad parent!")
     end)
 end)
