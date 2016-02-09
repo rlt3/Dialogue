@@ -1,17 +1,12 @@
 UNAME := $(shell uname)
-CC=clang
+
+SOURCES=src/main.o src/tree.o src/company.o src/actor.o
 
 ifeq ($(DIALOGUE_HEADLESS), true)
   MODULE=Dialogue.so
-  SOURCES=src/dialogue.o src/actor.o src/actor_thread.o \
-		  src/script.o src/mailbox.o src/utils.o \
-		  src/envelope.o src/tone.o src/post.o
 else
   MODULE=dialogue
-  SOURCES=src/dialogue.o src/actor.o src/actor_thread.o \
-		  src/script.o src/mailbox.o src/utils.o \
-		  src/envelope.o src/tone.o src/post.o \
-		  src/main.o src/interpreter.o
+  SOURCES+=src/main.o 
 endif
 
 ifeq ($(UNAME), Linux)
@@ -34,11 +29,17 @@ all: clean build
 check: clean build test
 
 build: $(SOURCES)
-	$(CC) -g $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
 test:
-	cp $(MODULE) spec/
-	cd spec/ && busted spec.lua
+	./$(MODULE) spec/company.lua
+	./$(MODULE) spec/actor.lua
+
+mem:
+	valgrind --leak-check=full -v ./$(MODULE) stage.lua
+
+hel:
+	valgrind --tool=helgrind -v ./$(MODULE) stage.lua
 
 clean:
 	rm -f $(MODULE) src/*o

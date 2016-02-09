@@ -31,7 +31,7 @@ typedef struct Script {
 
     int table_ref;  /* the definition of the script for reloading */
     int object_ref; /* the object that resides in the Actor's stack */
-    int ref;        /* a place for the actor to hold the ref so its not gc'd */
+    int ref;        /* a place for the actor to hold the ref so it's not gc'd */
 } Script;
 
 /*
@@ -59,8 +59,8 @@ void
 script_unload (Script *script);
 
 /*
- * Assumes the state mutex has been acquired and there is a message at the top
- * of the stack.
+ * Assumes the state has been acquired and a message table at -1 in the form of
+ *  { 'message' [, arg1 [, ... [, argn]]], author}
  *
  * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
  *
@@ -68,7 +68,7 @@ script_unload (Script *script);
  * Additionally, details of the error are set if SEND_FAIL is returned.
  */
 int
-script_send (Script *script, struct Actor *author);
+script_send (Script *script);
 
 /*
  * Check for a Script at index. Errors if it isn't a Script.

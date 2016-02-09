@@ -1,140 +1,90 @@
-#include "dialogue.h"
+#include <stdlib.h>
+#include <pthread.h>
+#include <errno.h>
 #include "mailbox.h"
-#include "envelope.h"
-#include "script.h"
 #include "utils.h"
 
 /*
- * Check for a Mailbox at index. Errors if it isn't a Mailbox.
+ * The Mailbox holds its own Lua stack just for the stack itself. It holds the
+ * messages for a Worker and it just pops them off when done with them.
  */
+struct Mailbox {
+    lua_State *L;
+    pthread_mutex_t mutex;
+};
+
 Mailbox *
-lua_check_mailbox (lua_State *L, int index)
+mailbox_create ()
 {
-    return (Mailbox *) luaL_checkudata(L, index, MAILBOX_LIB);
-}
-
-int
-lua_mailbox_new (lua_State *L)
-{
-    lua_State *B;
-    pthread_mutexattr_t mutex_attr;
-    Mailbox *mailbox;
-    Actor *actor = lua_check_actor(L, -1);
-
-    mailbox = lua_newuserdata(L, sizeof(*mailbox));
-    luaL_getmetatable(L, MAILBOX_LIB);
-    lua_setmetatable(L, -2);
-
-    mailbox->envelope_count = 0;
-    mailbox->actor = actor;
+    Mailbox *mailbox = malloc(sizeof(*mailbox));
+    /* TODO check mailbox NULL */
     mailbox->L = luaL_newstate();
-
-    B = mailbox->L;
-    luaL_openlibs(B);
-
-    /* load this module (the one you're reading) into the Actor's state */
-    luaL_requiref(B, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(B, 1);
-
-    lua_newtable(B);
-    lua_setglobal(B, "__envelopes");
-
-    pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&mailbox->mutex, &mutex_attr);
-
-    return 1;
+    /* TODO check state NULL */
+    pthread_mutex_init(&mailbox->mutex, NULL);
+    return mailbox;
 }
 
 /*
- * Block for the Mailbox. Expects a message on top of given stack. Copy message
- * from top of stack to the Mailbox's queue.
+ * Attempt to pop & push the top element of `L' to the Mailbox's stack. If the
+ * Mailbox is busy, returns 0. If the Mailbox cannot handle anymore messages,
+ * returns 0. Returns 1 if the top element was popped and pushed.
  */
-void
-mailbox_send_lua_top (lua_State *L, Mailbox *mailbox, Actor *author)
+int
+mailbox_push_top (lua_State *L, Mailbox *mailbox)
 {
+    int rc, ret = 0;
     lua_State *B = mailbox->L;
 
-    pthread_mutex_lock(&mailbox->mutex);
+    rc = pthread_mutex_trylock(&mailbox->mutex);
 
-    lua_getglobal(B, "Dialogue");
-    lua_getfield(B, -1, "Actor");
-    lua_getfield(B, -1, "Mailbox");
-    lua_getfield(B, -1, "Envelope");
+    if (rc == EBUSY)
+        return 0;
 
-    lua_getglobal(B, "__envelopes");
-    lua_getfield(B, -2, "new");
-    utils_push_object(B, author, ACTOR_LIB);
-    utils_copy_top(B, L);
-
-    if (lua_pcall(B, 2, 1, 0)) {
-        lua_pop(B, 4);
+    if (!lua_checkstack(B, 1))
         goto cleanup;
-    }
 
-    lua_rawseti(B, -2, mailbox->envelope_count + 1);
-    lua_pop(B, 5);
-    mailbox->envelope_count++;
+    utils_transfer(B, L, 1);
+    ret = 1;
 
 cleanup:
     pthread_mutex_unlock(&mailbox->mutex);
-
-    actor_alert_action(mailbox->actor, RECEIVE);
+    return ret;
 }
 
 /*
- * Assumes Mailbox mutex is acquired. Removes the next Envelope from its queue
- * of Envelopes. It gets the Author information and pushes the message and
- * leaves it on top of the stack. Returns author pointer.
+ * Pop all of the Mailbox's elements onto `L'. Returns the number of elements
+ * pushed.
  */
-Actor *
-mailbox_push_next_envelope (Mailbox *mailbox)
+int
+mailbox_pop_all (lua_State *L, Mailbox *mailbox)
 {
-    Actor *author;
-    Envelope *envelope;
-    int message_ref;
+    int count;
     lua_State *B = mailbox->L;
 
-    lua_getglobal(B, "__envelopes");
-    utils_pop_table_head(B, lua_gettop(B));
-
-    /* get all the relevant info before popping and gcing envelope */
-    envelope = lua_check_envelope(B, -1);
-    message_ref = envelope->message_ref;
-    author = envelope->author;
-    lua_pop(B, 2); /* envelope & envelope table */
-
-    /* finally push table and unref it */
-    lua_rawgeti(B, LUA_REGISTRYINDEX, message_ref);
-    luaL_unref(B, LUA_REGISTRYINDEX, message_ref);
-
-    mailbox->envelope_count--;
-
-    return envelope->author;
-}
-
-int
-lua_mailbox_gc (lua_State *L)
-{
-    Mailbox *mailbox = lua_check_mailbox(L, 1);
     pthread_mutex_lock(&mailbox->mutex);
-    lua_close(mailbox->L);
+    count = lua_gettop(B);
+
+    if (count > 0) {
+        if (!lua_checkstack(L, count)) {
+            count = 0;
+            goto cleanup;
+        }
+        utils_transfer(L, B, count);
+    }
+
+cleanup:
     pthread_mutex_unlock(&mailbox->mutex);
-    return 0;
+    return count;
 }
 
-static const luaL_Reg mailbox_methods[] = {
-    {"__gc", lua_mailbox_gc},
-    { NULL, NULL }
-};
-
-int 
-luaopen_Dialogue_Actor_Mailbox (lua_State *L)
+void
+mailbox_destroy (Mailbox *mailbox)
 {
-    utils_lua_meta_open(L, MAILBOX_LIB, mailbox_methods, lua_mailbox_new);
-
-    luaL_requiref(L, ENVELOPE_LIB, luaopen_Dialogue_Actor_Mailbox_Envelope, 1);
-    lua_setfield(L, -2, "Envelope");
-
-    return 1;
+    pthread_mutex_lock(&mailbox->mutex);
+    if (lua_gettop(mailbox->L) > 0)
+        printf("%p quit with %d left\n", mailbox, lua_gettop(mailbox->L));
+    pthread_mutex_unlock(&mailbox->mutex);
+    pthread_mutex_destroy(&mailbox->mutex);
+    lua_close(mailbox->L);
+    free(mailbox);
 }

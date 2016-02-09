@@ -79,6 +79,9 @@ lua_script_new (lua_State *L)
     script->is_loaded = 0;
     script->be_loaded = 1;
     script->error = NULL;
+    actor_add_script(actor, script);
+    script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, script->ref);
     actor_return_state(actor);
 
     return 1;
@@ -100,12 +103,13 @@ script_load (Script *script)
     int args;
     int ret = LOAD_OK;
     lua_State *A;
-    pthread_t calling_thread = pthread_self();
+    Actor *actor = script->actor;
 
-    A = actor_request_state(script->actor);
+    A = actor_request_state(actor);
 
-    if (!script->actor->is_lead) {
-        if (!pthread_equal(calling_thread, script->actor->thread)) {
+    /* if an actor has a thread requirement */
+    if (actor->is_lead || actor->is_star) {
+        if (!actor_is_calling_thread(pthread_self())) {
             script->error = ERR_NOT_CALLING_THREAD;
             ret = LOAD_BAD_THREAD;
             goto exit;
@@ -164,7 +168,8 @@ exit:
 }
 
 /*
- * Assumes the state has been acquired and a message table at index -1.
+ * Assumes the state has been acquired and a message table at -1 in the form of
+ *  { 'message' [, arg1 [, ... [, argn]]], author}
  *
  * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
  *
@@ -172,16 +177,16 @@ exit:
  * Additionally, details of the error are set if SEND_FAIL is returned.
  */
 int
-script_send (Script *script, Actor *author)
+script_send (Script *script)
 {
     int message_index;
     int args;
     int ret = SEND_OK;
     lua_State *A = script->actor->L;
-    pthread_t calling_thread = pthread_self();
 
-    if (!script->actor->is_lead) {
-        if (!pthread_equal(calling_thread, script->actor->thread)) {
+    /* if an actor has a thread requirement */
+    if (script->actor->is_lead || script->actor->is_star) {
+        if (!actor_is_calling_thread(pthread_self())) {
             ret = SEND_BAD_THREAD;
             goto exit;
         }
@@ -201,12 +206,11 @@ script_send (Script *script, Actor *author)
         goto exit;
     }
 
-    /* push `self' reference, args, and the author reference */
+    /* push `self' reference and tail of message which includes the author. */
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
     args = utils_push_table_data(A, message_index);
-    utils_push_object(A, author, ACTOR_LIB);
 
-    if (lua_pcall(A, args + 2, 0, 0)) {
+    if (lua_pcall(A, args + 1, 0, 0)) {
         ret = SEND_FAIL;
         script->error = lua_tostring(A, -1);
         printf("%s\n", script->error);
@@ -226,30 +230,28 @@ exit:
 static int
 lua_script_load (lua_State *L)
 {
-    lua_State *A;
-    int new_definition = 0;
-    int args = lua_gettop(L);
+    //lua_State *A;
+    //int new_definition = 0;
+    //int args = lua_gettop(L);
     Script *script = lua_check_script(L, 1);
 
-    if (args == 2) {
-        lua_check_script_table(L, 2);
-        new_definition = 1;
-    }
+    script_load(script);
 
-    A = actor_request_state(script->actor);
+    //if (args == 2) {
+    //    lua_check_script_table(L, 2);
+    //    new_definition = 1;
+    //}
 
-    if (new_definition) {
-        luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
-        utils_copy_top(A, L);
-        script->table_ref = luaL_ref(A, LUA_REGISTRYINDEX);
-    }
+    //A = actor_request_state(script->actor);
+    //if (new_definition) {
+    //    luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
+    //    utils_copy_top(A, L);
+    //    script->table_ref = luaL_ref(A, LUA_REGISTRYINDEX);
+    //}
+    //script->be_loaded = 1;
+    //actor_return_state(script->actor);
 
-    script->be_loaded = 1;
-
-    actor_return_state(script->actor);
-    actor_alert_action(script->actor, LOAD);
-
-    return 0;
+    return luaf(L, "Dialogue.Post.send(%1:actor, 'load')");
 }
 
 /*

@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "actor.h"
-#include "tone.h"
+#include "audience.h"
 #include "utils.h"
 
 /*
@@ -52,11 +52,14 @@ audience_dialogue (lua_State *L, Actor *parent, int acc)
 }
 
 /*
- * Filter an Actor's audience by the tone -- a string.
+ * Filter an Actor's audience by the tone -- a string and leave it as a table 
+ * on top of the stack. Returns if the tone was a whisper or not.
  */
-void
+int
 audience_filter_tone (lua_State *L, struct Actor *actor, const char *tone)
 {
+    int is_whisper = 0;
+
     if (tone == NULL)
         luaL_error(L, "Tone cannot be empty!");
 
@@ -76,6 +79,7 @@ audience_filter_tone (lua_State *L, struct Actor *actor, const char *tone)
 
     case 'w':
         tone_whisper(L, actor);
+        is_whisper = 1;
         break;
 
     case 't':
@@ -86,6 +90,8 @@ audience_filter_tone (lua_State *L, struct Actor *actor, const char *tone)
         luaL_error(L, "%s is not a valid tone", tone);
         break;
     }
+
+    return is_whisper;
 }
 
 /*

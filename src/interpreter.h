@@ -8,43 +8,30 @@
 typedef struct Interpreter Interpreter;
 
 /*
- * Interpret the input in the given lua_State*.
+ * Poll for any input and, if there is, interpret it.
  */
 void
-lua_interpret (lua_State *L, const char *input);
+lua_interpret (lua_State *L);
 
 /*
- * Create an interpreter for the given lua_State. Pass in a pointer to a 
- * boolean so the interpreter can be directly tied to the main thread and quit
- * the system.
- */
-Interpreter *
-interpreter_create (lua_State *L, short int *done_ptr);
-
-/*
- * Free any resources of the interpreter outside of its loop.
+ * Exit the interpreter.
  */
 void
-interpreter_free (Interpreter *interpreter);
-
-/*
- * Set the exit() functions in the Lua state for the Interpreter.
- */
-void
-interpreter_set_lua_exit (lua_State *L, Interpreter *interpreter);
+interpreter_exit ();
 
 /*
  * Polls the interpreter to see if it has any input. If there's no input 
- * available it returns 0. If there is, returns 1.
+ * available it returns NULL. Returns the string if there is.
  */
-int
-interpreter_poll (Interpreter *interpreter);
+const char *
+interpreter_poll_input ();
 
 /*
- * When the interpreter has input, this function uses that available input and
- * parses and executes the input for the given lua_State.
+ * Register a given Lua state with the interpreter. This sets an exit function
+ * to that Lua state using the is_running_ptr, which is a pointer to a boolean
+ * integer.
  */
-void
-interpreter_lua_interpret (Interpreter *interpreter, lua_State *L);
+int
+interpreter_register (lua_State *L, short int *is_running_ptr);
 
 #endif

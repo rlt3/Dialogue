@@ -1,17 +1,6 @@
 #include <stdlib.h>
-#include <signal.h>
-#include "dialogue.h"
-#include "actor.h"
-#include "interpreter.h"
-#include "utils.h"
-
-static short int is_running = 1;
-
-void 
-handle_sig_int (int arg)
-{
-    is_running = 0;
-}
+#include <stdio.h>
+#include "company.h"
 
 void
 usage (const char *program)
@@ -20,94 +9,36 @@ usage (const char *program)
     exit(1);
 }
 
-/*
- * Set the exit() funciton for the Lead Actors.
- */
-void
-lead_actors_set_exit (lua_State *L, Interpreter *interpreter)
-{
-    lua_State *A;
-    Actor *actor;
-    int table_index = actor_lead_table(L);
-
-    lua_pushnil(L);
-    while (lua_next(L, table_index)) {
-        actor = lua_check_actor(L, -1);
-
-        A = actor_request_state(actor);
-        interpreter_set_lua_exit(A, interpreter);
-        actor_return_state(actor);
-
-        lua_pop(L, 1);
-    }
-    lua_pop(L, 1);
-}
-
-/*
- * Have the Lead Actors process their mail and then send each Lead Actor the
- * message {"main"}.
- */
-void
-lead_actors_receive_update (lua_State *L)
-{
-    Actor *actor;
-    int table_index = actor_lead_table(L);
-
-    lua_pushnil(L);
-    while (lua_next(L, table_index)) {
-        actor = lua_check_actor(L, -1);
-        actor_call_action(actor, RECEIVE);
-
-        utils_push_objref_method(L, actor->ref, "send");
-        lua_newtable(L);
-        lua_pushstring(L, "main");
-        lua_rawseti(L, -2, 1);
-        lua_call(L, 2, 0);
-
-        lua_pop(L, 2);
-    }
-    lua_pop(L, 1);
-}
-
 int
 main (int argc, char **argv)
 {
-    const char *script;
-    Interpreter *interp;
+    int ret = 1;
     lua_State *L;
-
-    signal(SIGINT, handle_sig_int);
 
     if (argc == 1)
         usage(argv[0]);
 
-    script = argv[1];
+    if (company_create(10, 20, 10) != 0)
+        goto quit;
+
     L = luaL_newstate();
+
+    if (!L)
+        goto quit;
+
     luaL_openlibs(L);
-    
-    lua_pushboolean(L, 1);
-    lua_setglobal(L, "__main_thread");
+    company_set(L);
 
-    /* load this module (the one you're reading) into the Actor's state */
-    luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(L, 1);
-
-    if (luaL_loadfile(L, script) || lua_pcall(L, 0, 0, 0)) {
-        fprintf(stderr, "File: %s could not load: %s\n", script,
+    if (luaL_loadfile(L, argv[1]) || lua_pcall(L, 0, 0, 0)) {
+        fprintf(stderr, "File: %s could not load: %s\n", argv[1],
                 lua_tostring(L, -1));
-        goto exit;
+        goto cleanup;
     }
-    
-    interp = interpreter_create(L, &is_running);
-    lead_actors_set_exit(L, interp);
-    while (is_running) {
-        lead_actors_receive_update(L);
-        if (interpreter_poll(interp))
-            interpreter_lua_interpret(interp, L);
-    }
-    interpreter_free(interp);
 
-exit:
+    ret = 0;
+cleanup:
     lua_close(L);
-    return 0;
+    company_close();
+quit:
+    return ret;
 }

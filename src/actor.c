@@ -1,529 +1,82 @@
-#include <stdio.h>
-#include <string.h>
-#include "dialogue.h"
+#include <stdlib.h>
 #include "actor.h"
-#include "mailbox.h"
-#include "post.h"
-#include "script.h"
-#include "tone.h"
 #include "utils.h"
 
-/*
- * Check for an Actor at index. Errors if it isn't an Actor.
- */
-Actor *
-lua_check_actor (lua_State *L, int index)
-{
-    return (Actor *) luaL_checkudata(L, index, ACTOR_LIB);
-}
-
-/*
- * Returns 1 if an Actor is part of Dialogue and 0 if not.
- */
-int
-actor_is_dialogue (Actor *actor)
-{
-    return (actor->dialogue != NULL);
-}
-
-/*
- * Add a child to the end of the Actor's linked-list of children.
- */
-void
-actor_add_child (Actor *actor, Actor *child)
-{
-    Actor *sibling;
-
-    if (actor->child == NULL) {
-        actor->child = child;
-        goto set_actor_child;
-    }
-
-    for (sibling = actor->child; child != NULL; sibling = sibling->next) {
-        if (sibling->next == NULL) {
-            sibling->next = child;
-            goto set_actor_child;
-        }
-    }
-
-set_actor_child:
-    child->parent = actor;
-    child->dialogue = actor->dialogue;
-}
-
-/*
- * Add the Script to the end of the Actor's linked-list of Scripts.
- */
-void
-actor_add_script (Actor *actor, Script *script)
-{
-    if (actor->script_head == NULL) {
-        actor->script_head = script;
-        actor->script_tail = script;
-    } else {
-        actor->script_tail->next = script;
-        script->prev = actor->script_tail;
-        actor->script_tail = script;
-    }
-}
-
-/*
- * Remove the Script from the Actor's linked-list.
- */
-void
-actor_remove_script (Actor *actor, Script *script)
-{
-    if (script->prev == NULL && script->next) {
-        /* it is the head */
-        actor->script_head = script->next;
-        actor->script_head->prev = NULL;
-    } else if (script->next == NULL && script->prev) {
-        /* it is the tail */
-        actor->script_tail = script->prev;
-        actor->script_tail->next = NULL;
-    } else {
-        /* a normal node */
-        script->prev->next = script->next;
-        script->next->prev = script->prev;
-    }
-}
-
-/*
- * Leave the Lead Actor table on top of the stack. Creates it if it doesn't
- * exist. Will throw an error if not called on Main thread. Returns its
- * position on the stack.
- */
-int
-actor_lead_table (lua_State *L)
-{
-    static short int defined = 0;
-
-    lua_getglobal(L, "__main_thread");
-
-    if (lua_isnil(L, -1)) {
-        lua_pop(L, 1);
-        luaL_error(L, "Lead Actor table only exists in Main thread!");
-    } else {
-        lua_pop(L, 1);
-    }
-
-    if (!defined) {
-        lua_newtable(L);
-        lua_setglobal(L, "__lead_actor");
-        defined = 1;
-    }
-
-    lua_getglobal(L, "__lead_actor");
-    return lua_gettop(L);
-}
-
-/*
- * Put the Actor inside the Lead actor table.
- */
-void
-actor_assign_lead (Actor *actor, lua_State *L)
-{
-    const int top = actor_lead_table(L);
-    const int len = luaL_len(L, top);
-
-    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
-    lua_rawseti(L, top, len + 1);
-
-    lua_pop(L, 1);
-}
-
-/*
- * Create an Actor which has its own thread. It initializes all Scripts and 
- * handles all messages (send/receive) in its own thread because many Lua 
- * modules and objects aren't thread-safe.
- *
- * Create the Actor by sending a table of tables of the Lua module to load and
- * any variables needed to initialize it.
- *
- * Actor{ {"draw", 400, 200}, {"weapon", "longsword"} }
- *
- * Optionally, one can call like Actor{ "Lead", {"draw", 0, 0} }, which creates
- * the Actor as a Lead Actor and loads all of its Scripts here.
- */
-static int
-lua_actor_new (lua_State *L)
-{
-    const int table_arg = 1;
-    const int actor_arg = 2;
-    int table_index;
-    int script_index;
-    lua_State *A;
-    Actor *actor;
-    Script *script;
-    pthread_mutexattr_t mutex_attr;
-
-    luaL_checktype(L, table_arg, LUA_TTABLE);
-
-    actor = lua_newuserdata(L, sizeof(*actor));
-    luaL_getmetatable(L, ACTOR_LIB);
-    lua_setmetatable(L, -2);
-
-    /* push first element of table to see if we're doing Actor */
-    lua_rawgeti(L, table_arg, 1);
-    if (lua_isstring(L, -1)) {
-        lua_pop(L, 1);
-        utils_pop_table_head(L, table_arg);
-        actor->is_lead = 1;
-    } else {
-        actor->is_lead = 0;
-    }
-    lua_pop(L, 1); /* either pop table or string from utils_pop_table_head */
-
-    /* Create a reference so it doesn't GC */
-    actor->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, actor->ref);
-
-    actor->parent = NULL;
-    actor->next = NULL;
-    actor->child = NULL;
-    actor->script_head = NULL;
-    actor->script_tail = NULL;
-    actor->mailbox = NULL;
-    actor->dialogue = NULL;
-    actor->post = NULL;
-
-    /* 
-     * init mutexes to recursive because its own thread might call a method
-     * which expects to be called from an outside thread sometimes and askes
-     * for a mutex.
-     */
-    pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&actor->state_mutex, &mutex_attr);
-    pthread_mutex_init(&actor->action_mutex, &mutex_attr);
-
-    actor->new_action = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
-    actor->action = LOAD;
-    actor->on = 1;
-
-    actor->L = luaL_newstate();
-    A = actor->L;
-    luaL_openlibs(A);
-
-    /* load this module (the one you're reading) into the Actor's state */
-    luaL_requiref(A, "Dialogue", luaopen_Dialogue, 1);
-    lua_pop(A, 1);
-
-    /* push Actor so Scripts can reference the Actor it belongs to. */
-    utils_push_object(A, actor, ACTOR_LIB);
-    lua_setglobal(A, "actor");
-
-    lua_getglobal(L, "Dialogue");
-    lua_getfield(L, -1, "Actor");
-
-    lua_getfield(L, -1, "Mailbox");
-    lua_getfield(L, -1, "new");
-    lua_pushvalue(L, actor_arg);
-    if (lua_pcall(L, 1, 1, 0))
-        luaL_error(L, "Creating Mailbox failed: %s", lua_tostring(L, -1));
-
-    actor->mailbox = lua_check_mailbox(L, -1);
-    actor->mailbox->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_pop(L, 1);
-
-    lua_getfield(L, -1, "Script");
-    script_index = lua_gettop(L);
-
-    /* Create all the Scripts in this Lua state */
-    lua_pushnil(L);
-    while (lua_next(L, table_arg)) {
-        luaL_checktype(L, -1, LUA_TTABLE);
-        table_index = lua_gettop(L);
-
-        lua_getfield(L, script_index, "new");
-        lua_pushvalue(L, actor_arg);
-        lua_pushvalue(L, table_index);
-
-        if (lua_pcall(L, 2, 1, 0))
-            luaL_error(L, "Creating Script failed: %s", lua_tostring(L, -1));
-
-        script = lua_check_script(L, -1);
-        script->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        actor_add_script(actor, script);
-
-        lua_pop(L, 1); /* Key */
-    }
-    lua_pop(L, 3); /* Dialogue, Actor, Script */
-
-    /* Then load Scripts in its own thread or here in the Main thread */
-    if (!actor->is_lead) {
-        pthread_create(&actor->thread, NULL, actor_thread, actor);
-        pthread_detach(actor->thread);
-    } else {
-        actor_assign_lead(actor, L);
-        actor_call_action(actor, LOAD);
-    }
-
-    return 1;
-}
-
-/*
- * This is a blocking method. Returns an array of Script references of an actor.
- */
-static int
-lua_actor_scripts (lua_State *L)
-{
-    int i = 0;
-    Script *script;
-    Actor *actor = lua_check_actor(L, 1);
-
-    actor_request_state(actor);
-    lua_newtable(L);
-    for (script = actor->script_head; script != NULL; script = script->next) {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script->ref);
-        lua_rawseti(L, -2, ++i);
-    }
-    actor_return_state(actor);
-
-    return 1;
-}
-
-/*
- * Reload all Scripts. If the Actor is a Lead Actor the load happens on this
- * call. Otherwise is it an asynchronous operation.
- */
-int
-lua_actor_load (lua_State *L)
-{
-    int is_lead;
-    Script *script;
-    Actor *actor = lua_check_actor(L, 1);
-
-    actor_request_state(actor);
-
-    for (script = actor->script_head; script != NULL; script = script->next) {
-        utils_push_objref_method (L, script->ref, "load");
-        lua_call(L, 1, 0);
-    }
-
-    is_lead = actor->is_lead;
-    actor_return_state(actor);
-
-    /* 
-     * If this was a manual call, we make the LOAD action happen here, now.
-     * Otherwise, all the scripts have told the Actor to load them.
-     */
-    if (is_lead)
-        actor_call_action(actor, LOAD);
-
-    return 0;
-}
-
-/*
- * Allows a Lead Actor to process all the messages it its Mailbox.
- */
-int
-lua_actor_receive (lua_State *L)
-{
-    Actor *actor = lua_check_actor(L, 1);
-    
-    actor_request_state(actor);
-    if (!actor->is_lead) {
-        actor_return_state(actor);
-        luaL_error(L, "%s %p is not a lead actor!", ACTOR_LIB, actor);
-    }
-    actor_return_state(actor);
-
-    actor_call_action(actor, RECEIVE);
-
-    return 0;
-}
-
-/*
- * Make an Actor a Lead actor. This closes its thread and adds the 'receive' 
- * method. With no thread, this Actor calls 'receive' to process its Mailbox.
- *
- * By shutting down the thread gracefully and making some of these concessions,
- * we now have an Actor which can be called from the Main thread synchronously.
- */
-int
-lua_actor_lead (lua_State *L)
-{
-    Script *script;
-    Actor *actor = lua_check_actor(L, 1);
-
-    actor_alert_action(actor, STOP);
-    usleep(1000);
-
-    actor_request_state(actor);
-    actor->is_lead = 1;
-
-    for (script = actor->script_head; script != NULL; script = script->next)
-        script->be_loaded = 1;
-    actor_return_state(actor);
-
-    utils_add_method(L, 1, lua_actor_receive, "receive");
-    actor_assign_lead(actor, L);
-
-    return 0;
-}
-
-/*
- * Return a list of Actors which are the audience filtered by the tone given as
- * a string.
- * actor:audience("say") => { actor, actor, ... }
- * actor:audience("command") => { child, child, ... }
- */
-static int
-lua_actor_audience (lua_State *L)
-{
-    Actor *actor = lua_check_actor(L, 1);
-    const char *tone = luaL_checkstring(L, 2);
-
-    if (!actor_is_dialogue(actor))
-        luaL_error(L, "Actor must be part of a Dialogue!");
-
-    audience_filter_tone(L, actor, tone);
-
-    return 1;
-}
-
-/*
- * Return an array of children an Actor owns.
- */
-static int
-lua_actor_children (lua_State *L)
-{
-    int i = 0;
-    Actor *child, *actor = lua_check_actor(L, 1);
-
-    actor_request_state(actor);
-    lua_newtable(L);
-    for (child = actor->child; child != NULL; child = child->next) {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, child->ref);
-        lua_rawseti(L, -2, ++i);
-    }
-    actor_return_state(actor);
-
-    return 1;
-}
-
-/*
- * Set the thread's condition to false and close the Lua stack.
- */
-static int
-lua_actor_gc (lua_State *L)
-{
-    lua_State *A;
-    Script *script;
-    Actor *actor = lua_check_actor(L, 1);
-
-    if (!actor->is_lead) {
-        actor_alert_action(actor, STOP);
-        usleep(1000);
-    }
-
-    A = actor_request_state(actor);
-    for (script = actor->script_head; script != NULL; script = script->next)
-        script_unload(script);
-    lua_close(A);
-    actor_return_state(actor);
-
-    return 0;
-}
-
-/*
- * From the calling thread, have the Actor send to itself.
- */
-static int
-lua_actor_send (lua_State *L)
-{
-    Actor *actor = lua_check_actor(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
-    mailbox_send_lua_top(L, actor->mailbox, actor);
-    return 0;
-}
-
-/*
- * A template to send messages to the Post which handles sending the mesages
- * to the Actors' mailboxes.
- */
-void
-actor_lua_send (lua_State *L, const char *tone)
-{
-    Actor *actor = lua_check_actor(L, 1);
-    luaL_checktype(L, 2, LUA_TTABLE);
-    post_deliver_lua_top(L, actor->post, actor, tone);
-}
-
-static int
-lua_actor_think (lua_State *L)
-{
-    actor_lua_send(L, "think");
-    return 0;
-}
-
-static int
-lua_actor_say (lua_State *L)
-{
-    actor_lua_send(L, "say");
-    return 0;
-}
-
-static int
-lua_actor_command (lua_State *L)
-{
-    actor_lua_send(L, "command");
-    return 0;
-}
-
-static int
-lua_actor_yell (lua_State *L)
-{
-    actor_lua_send(L, "yell");
-    return 0;
-}
-
-static int
-lua_actor_whisper (lua_State *L)
-{
-    Actor *actor = lua_check_actor(L, 1);
-    lua_check_actor(L, 2);
-    luaL_checktype(L, 3, LUA_TTABLE);
-    post_deliver_lua_top(L, actor->post, actor, "whisper");
-    return 0;
-}
-
-static int
-lua_actor_tostring (lua_State *L)
-{
-    Actor* actor = lua_check_actor(L, 1);
-    lua_pushfstring(L, "%s %p", ACTOR_LIB, actor);
-    return 1;
-}
-
-static const luaL_Reg actor_methods[] = {
-    {"audience",   lua_actor_audience},
-    {"children",   lua_actor_children},
-    {"lead",       lua_actor_lead},
-    {"scripts",    lua_actor_scripts},
-    {"load",       lua_actor_load},
-    {"send",       lua_actor_send},
-    {"think",      lua_actor_think},
-    {"say",        lua_actor_say},
-    {"command",    lua_actor_command},
-    {"yell",       lua_actor_yell},
-    {"whisper",    lua_actor_whisper},
-    {"__gc",       lua_actor_gc},
-    {"__tostring", lua_actor_tostring},
-    { NULL, NULL }
+struct Actor {
+    lua_State *L;
+    int id;
 };
 
-int 
-luaopen_Dialogue_Actor (lua_State *L)
+/*
+ * Expects the given Lua stack to have the definition at the top of the stack.
+ *
+ * Definition:
+ * { "module name" [, data0 [, data1 [, ... [, dataN]]]] }
+ *
+ * Examples:
+ * { "window", 400, 600 }
+ * { "entity", "player.png", 40, 40 }
+ * { "entity", "monster.png", 100, 200 }
+ *
+ * If the return is not NULL, then it is successful.
+ */
+Actor *
+actor_create (lua_State *L)
 {
-    utils_lua_meta_open(L, ACTOR_LIB, actor_methods, lua_actor_new);
+    const int definition_index = lua_gettop(L);
+    Actor *actor = NULL;
+    lua_State *A = NULL;
+    int i, len;
+
+    luaL_checktype(L, definition_index, LUA_TTABLE);
+    len = luaL_len(L, definition_index);
+
+    actor = malloc(sizeof(*actor));
+
+    if (!actor)
+        goto exit;
+
+    A = luaL_newstate();
     
-    luaL_requiref(L, SCRIPT_LIB, luaopen_Dialogue_Actor_Script, 1);
-    lua_setfield(L, -2, "Script");
+    if (!A) {
+        free(actor);
+        actor = NULL;
+        goto exit;
+    }
 
-    luaL_requiref(L, MAILBOX_LIB, luaopen_Dialogue_Actor_Mailbox, 1);
-    lua_setfield(L, -2, "Mailbox");
+    luaL_openlibs(A);
 
-    return 1;
+    actor->L = A;
+    actor->id = -1;
+
+    for (i = 1; i <= len; i++) {
+        lua_rawgeti(L, definition_index, i);
+        printf("%s ", lua_tostring(L, -1));
+        lua_pop(L, 1);
+    }
+
+exit:
+    return actor;
+}
+
+void
+actor_assign_id (void *actor, int id)
+{
+    //printf("Actor %p assigned to id %d\n", actor, id);
+    ((Actor*)actor)->id = id;
+}
+
+int
+actor_get_id (void *actor)
+{
+    return ((Actor*)actor)->id;
+}
+
+void
+actor_destroy (void *a)
+{
+    Actor *actor = a;
+    //printf("Destroying Actor %p with id %d\n", a, actor->id);
+    lua_close(actor->L);
+    free(actor);
 }
