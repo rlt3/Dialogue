@@ -32,8 +32,8 @@ build: $(SOURCES)
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
 test:
-	cp $(MODULE) spec/
-	cd spec/ && busted test.lua
+	./$(MODULE) spec/company.lua
+	./$(MODULE) spec/actor.lua
 
 mem:
 	valgrind --leak-check=full -v ./$(MODULE) stage.lua
