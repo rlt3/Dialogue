@@ -74,7 +74,8 @@ company_push_actor (lua_State *L, int actor_id)
 int
 company_actor_id (lua_State *L, int index)
 {
-    int id, type = lua_type(L, index);
+    int id = -1;
+    int type = lua_type(L, index);
 
     switch(type) {
     case LUA_TTABLE:
@@ -271,6 +272,17 @@ lua_actor_delete (lua_State *L)
     return 0;
 }
 
+int
+lua_actor_cleanup (lua_State *L)
+{
+    /*
+     * Because deleted Nodes only have their memory freed when the Tree needs
+     * the Node again, we need to be able to free a deleted Node's memory on
+     * command. This should error-out on *used* nodes.
+     */
+    return 0;
+}
+
 /*
  * actor:lock()
  *
@@ -323,6 +335,7 @@ static const luaL_Reg actor_metamethods[] = {
     {"child",    lua_actor_child},
     {"children", lua_actor_children},
     {"delete",   lua_actor_delete},
+    {"cleanup",  lua_actor_cleanup},
     {"lock",     lua_actor_lock},
     {"unlock",   lua_actor_unlock},
     {"id",       lua_actor_id},

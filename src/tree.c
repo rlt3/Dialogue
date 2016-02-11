@@ -95,7 +95,6 @@ tree_index_is_valid (int id)
 
     if (tree_read() != 0)
         goto exit;
-
     ret = !(id > global_tree->list_size);
     tree_unlock();
 
@@ -345,17 +344,14 @@ node_remove_child (int id, int child)
     }
 
     node_unlock(id);
-
 exit:
     return ret;
 }
 
 /*
- * Verify id is valid. If it is valid, make sure it isn't being used. If it
- * isn't being used, try to acquire the mutex. If the mutex is busy (or any 
- * other asertions are incorrect), return 1 saying the node wasn't cleaned-up.
- * If the mutex wasn't busy (and it was acquired), acquire the write lock and
- * cleanup the node and return 0.
+ * Cleanup the Node from the given id.
+ * Returns 1 if it wasn't able to cleanup the Node.
+ * Returns 0 if successful.
  */
 int
 node_cleanup (int id)
@@ -364,7 +360,6 @@ node_cleanup (int id)
 
     if (node_read(id) != 0)
         goto exit;
-
     is_used = node_is_used_rd(id);
     node_unlock(id);
 
@@ -374,16 +369,18 @@ node_cleanup (int id)
     if (node_data_trylock(id) != 0)
         goto exit;
 
-    node_write(id);
+    if (node_write(id) != 0)
+        goto unlock_data;
 
-    /* verify again after read-lock has been released */
+    /* node can get changed after unlocking before, verify it's used */
     if (node_is_used_rd(id))
-        goto unlock;
+        goto unlock_node;
 
     node_cleanup_fullwr(id);
     ret = 0;
-unlock:
+unlock_node:
     node_unlock(id);
+unlock_data:
     node_data_unlock(id);
 exit:
     return ret;
@@ -391,7 +388,7 @@ exit:
 
 /*
  * Acquires the write-lock for the tree. Resizes the list by the factor given
- * at tree_init-- 2 doubles its size, 3 triples, etc. Returns 0 if successful.
+ * at tree_init -- 2 doubles its size, 3 triples, etc. Returns 0 if successful.
  */
 int
 tree_resize ()
@@ -418,7 +415,7 @@ tree_resize ()
         global_tree->list = memory;
         global_tree->list_size = size;
         
-        /* TODO: node_init fails here */
+        /* TODO: what if node_init fails here */
         for (; id < global_tree->list_size; id++)
             node_init_wr(id);
     }
@@ -478,8 +475,9 @@ find_unused_node:
 data_lock_and_write:
     /* 
      * We set the lock-order of the Node's data lock before the Node's
-     * structure write lock. This is so we can trylock the data first so we
-     * don't waste time acquiring the write lock if the mutex isn't ready.
+     * structure write lock. This is so later (in node_cleanup) we can safely
+     * do a trylock on the data without wasting time acquiring the write lock 
+     * on the Node to then do a trylock.
      */
     node_data_lock(id);
     node_write(id);
@@ -589,7 +587,7 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
         } else {
             if (lock_func(children[id]) == 0) {
                 if (node_is_used_rd(root))
-	    	        function(children[id]);
+                    function(children[id]);
                 node_unlock(children[id]);
             }
         }
