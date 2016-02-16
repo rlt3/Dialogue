@@ -90,10 +90,8 @@ company_actor_id (lua_State *L, int index)
         break;
         
     case LUA_TSTRING:
-        break;
-
     default:
-        luaL_error(L, "Cannot get id from unexpected Actor type");
+        luaL_error(L, "Cannot coerce Actor id from type!");
         break;
     }
 
@@ -182,8 +180,8 @@ lua_company_call (lua_State *L)
         goto exit;
     }
 
-    if (args == bottom && lua_type(L, bottom) == LUA_TNUMBER) {
-        company_push_actor(L, lua_tointeger(L, bottom));
+    if (args == bottom) {
+        company_push_actor(L, company_actor_id(L, bottom));
         goto exit;
     }
 

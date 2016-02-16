@@ -26,7 +26,7 @@ describe("An Actor reference object", function()
         assert.is_equal(a0:id(), 0)
     end)
 
-    it("won't error on creation if it is provided with a bad id", function()
+    it("won't error on creation if provided with a bad integer id", function()
         a1 = Actor(20)
     end)
 
