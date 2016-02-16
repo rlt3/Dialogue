@@ -59,8 +59,8 @@ actor_create (lua_State *L)
 
     for (i = 1; i <= len; i++) {
         lua_rawgeti(L, definition_index, i);
-
         utils_copy_top(A, L);
+
         script = script_new(A);
 
         /* 

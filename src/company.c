@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <assert.h>
 #include "tree.h"
 #include "actor.h"
 #include "company.h"
@@ -100,28 +101,6 @@ company_actor_id (lua_State *L, int index)
 }
 
 /*
- * -- find the actor that represents "dungeon" and return an actor object
- * room = Actor("dungeon")
- *
- * -- create an actor. its parent is the dungeon room
- * Actor({"entity", "player.png"}, room)
- *
- * -- create an actor with the name "graphics". lookup parent by name and
- * -- limit the operations of this actor to the main thread (thread 0).
- * Actor("graphics", {"window", 400, 600}, "dungeon", 0)
- *
- * So, an Actor can be represented in a multitude of ways:
- *   - id: all ways boil down to this -- all actors are an id
- *   - object: actor objects are just tables that hold an id
- *   - string: string name that gets mapped to an id
- */
-int
-lua_company_call (lua_State *L)
-{
-    return 0;
-}
-
-/*
  * Actor( definition_table [, parent] [, thread] )
  *
  * Creates the actor from the given definition table (see actor.h for more
@@ -154,19 +133,22 @@ lua_actor_new (lua_State *L)
         lua_pop(L, args - parent_arg + 1);
     }
 
+    assert(lua_gettop(L) == definition_arg);
     id = company_add(L, parent, thread);
 
     switch (id) {
     case ERROR:
-        luaL_error(L, "Creating Actor failed!");
+        luaL_error(L, "Failed to create actor!");
         break;
 
     case NODE_ERROR:
-        luaL_error(L, "Invalid parent `%d` for new actor!", parent);
+        luaL_error(L, 
+                "Failed to create actor: invalid parent id `%d`!", 
+                parent);
         break;
 
     case NODE_INVALID:
-        luaL_error(L, "Unable to allocate memory for new Actor!");
+        luaL_error(L, "Failed to create actor: no memory!");
         break;
 
     default:
@@ -174,6 +156,41 @@ lua_actor_new (lua_State *L)
         break;
     }
 
+    return 1;
+}
+
+/*
+ * The top-level dispatch function of the Company. This function can be called
+ * two ways right now: one can create an Actor and push Lua object to reference
+ * that Actor, or it can just push a Lua object to reference an id.
+ *
+ * When creating an actor, it will error through Lua with a descriptive error
+ * message. If not creating an actor (and just pushing a reference), it does no
+ * checks on the id given.
+ *
+ * Actor{ {"draw", 200, 400} } => actor
+ * Actor(20) => actor
+ */
+int
+lua_company_call (lua_State *L)
+{
+    const int bottom = 2;
+    const int args = lua_gettop(L);
+
+    if (args >= bottom && lua_type(L, bottom) == LUA_TTABLE) {
+        lua_actor_new(L);
+        goto exit;
+    }
+
+    if (args == bottom && lua_type(L, bottom) == LUA_TNUMBER) {
+        company_push_actor(L, lua_tointeger(L, bottom));
+        goto exit;
+    }
+
+    luaL_error(L, "Invalid # of arguments to Actor. Expected >= %d got %d",
+            bottom, args);
+
+exit:
     return 1;
 }
 
@@ -241,15 +258,15 @@ lua_actor_join (lua_State *L)
 
     switch (rc) {
     case 1:
-        luaL_error(L, "Cannot join `%d` -- bad parent!", id);
+        luaL_error(L, "Cannot join `%d`: bad parent!", id);
         break;
 
     case 2:
-        luaL_error(L, "Cannot join `%d` -- not benched!", id);
+        luaL_error(L, "Cannot join `%d`: not benched!", id);
         break;
 
     case 3:
-        luaL_error(L, "Cannot join `%d` -- id invalid!", id);
+        luaL_error(L, "Cannot join `%d`: id invalid!", id);
         break;
 
     default:
@@ -346,7 +363,7 @@ static const luaL_Reg actor_metamethods[] = {
 };
 
 static const luaL_Reg company_metamethods[] = {
-    {"__call",   lua_actor_new},
+    {"__call",   lua_company_call},
     { NULL, NULL }
 };
 

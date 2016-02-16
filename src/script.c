@@ -12,7 +12,7 @@
 int
 script_table_status (lua_State *A, int index)
 {
-    if (!lua_type(A, index) != LUA_TTABLE)
+    if (lua_type(A, index) != LUA_TTABLE)
         return 2;
     return !(luaL_len(A, index) > 0);
 }
@@ -27,30 +27,29 @@ script_table_status (lua_State *A, int index)
 Script *
 script_new (lua_State *A)
 {
-    const char *error_format = "Failed to create script: %s!";
-    const int top = lua_gettop(A);
+    const int top = -1;
     Script *script = NULL;
 
     switch (script_table_status(A, top)) {
     case 1:
-        lua_pushfstring(A, error_format, "invalid module definition");
+        /* TODO: serialize table to show mistake that caused error */
+        lua_pushfstring(A, "Failed to create script: invalid definition!");
         goto exit;
-        break;
 
     case 2:
-        lua_pushfstring(A, error_format, "no module definition given");
+        lua_pushfstring(A, 
+                "Failed to create script: `%s` isn't a table!", 
+                lua_tostring(A, top));
         goto exit;
-        break;
 
     default:
-    case 0:
         break;
     }
 
     script = malloc(sizeof(*script));
 
     if (!script) {
-        lua_pushfstring(A, error_format, "no memory");
+        lua_pushstring(A, "Failed to create script: no memory!");
         goto exit;
     }
 
