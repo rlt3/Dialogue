@@ -135,14 +135,16 @@ actor_get_id (void *actor)
 void
 actor_destroy (void *a)
 {
-    Script *script = NULL;
     Actor *actor = a;
+    Script *script, *next;
 
-    //printf("Destroying Actor %p with id %d\n", a, actor->id);
+    for (script = actor->script_head; script != NULL; script = next) {
+	next = script->next;
+	script_destroy(script, actor->L);
+    }
 
-    for (script = actor->script_head; script != NULL; script = script->next)
-        script_destroy(script, actor->L);
-
+    actor->script_head = NULL;
+    actor->script_tail = NULL;
     lua_close(actor->L);
     free(actor);
 }
