@@ -21,6 +21,13 @@ typedef struct Actor Actor;
 Actor *
 actor_create (lua_State *L);
 
+/*
+ * Load any Scripts which are marked to be loaded (or reloaded). This function
+ * will error out through the main Lua state L.
+ */
+void
+actor_load (Actor *actor, lua_State *L);
+
 void
 actor_assign_id (void *actor, int id);
 

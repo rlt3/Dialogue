@@ -5,6 +5,11 @@ describe("An Actor reference object", function()
     local a0 = nil
     local a1 = nil
 
+    --
+    -- TODO: In the future these Actor tests are going to need to happen to an
+    -- actor restricted to the main thread.
+    --
+
     it("will error on creation if not given correct Script definitions", function()
         assert.has_error(function() 
             Actor{ {"good"}, "bad" }
@@ -28,6 +33,16 @@ describe("An Actor reference object", function()
 
     it("won't error on creation if provided with a bad integer id", function()
         a1 = Actor(20)
+    end)
+
+    it("will error if the actor fails to load", function()
+        assert.has_error(function() 
+            a1:load()
+        end, "Id `20` is an invalid reference!")
+
+        assert.has_error(function() 
+            a0:load()
+        end, "Id `20` is an invalid reference!")
     end)
 
     pending("can be given a name (string) to reference the Actor just like an id")

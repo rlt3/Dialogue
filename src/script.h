@@ -25,9 +25,9 @@ Script *
 script_new (lua_State *A);
 
 /*
- * Loads the Script created in the given Lua stack. 
- * Returns 0 if successful, 1 if an error occurs. If an error occurs, an error
- * string is pushed onto A.
+ * Loads (or reloads) the Script created in the given Lua stack.  Returns 0 if
+ * successful, 1 if an error occurs. If an error occurs, an error string is
+ * pushed onto A.
  */
 int
 script_load (Script *script, lua_State *A);

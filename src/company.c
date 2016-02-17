@@ -136,13 +136,19 @@ lua_actor_new (lua_State *L)
 
     switch (id) {
     case ERROR:
-        luaL_error(L, "Failed to create actor!");
+        /* 
+         * ERROR also catches if the actor data is NULL in
+         * `tree_add_reference`.  We throw a Lua error where ever we would
+         * return NULL in `actor_new` so techincally that error should never
+         * happen.
+         */
+        luaL_error(L, 
+                "Failed to create actor: write-lock for `%d` failed!", id);
         break;
 
     case NODE_ERROR:
         luaL_error(L, 
-                "Failed to create actor: invalid parent id `%d`!", 
-                parent);
+                "Failed to create actor: invalid parent id `%d`!", parent);
         break;
 
     case NODE_INVALID:
@@ -153,6 +159,10 @@ lua_actor_new (lua_State *L)
         company_push_actor(L, id);
         break;
     }
+
+    /*
+     * TODO: Send a `load' message for the actor at id.
+     */
 
     return 1;
 }
@@ -195,6 +205,15 @@ exit:
 int
 lua_actor_load (lua_State *L)
 {
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
+    Actor *actor = tree_ref(id);
+
+    if (!actor)
+        luaL_error(L, "Id `%d` is an invalid reference!", id);
+
+    actor_load(actor, L);
+    tree_deref(id);
     return 0;
 }
 

@@ -18,6 +18,19 @@ script_table_status (lua_State *A, int index)
 }
 
 /*
+ * To avoid longjmps from the Actors' Lua stacks, we pop any error message off 
+ * them and onto the global (or calling) Lua state and error from there.
+ */
+void
+script_error (lua_State *L, lua_State *A)
+{
+    utils_copy_top(L, A);
+    lua_pop(A, 1);
+    luaL_checktype(L, -1, LUA_TSTRING);
+    lua_error(L);
+}
+
+/*
  * Expects a Script definition on top of the Lua stack A.  Returns a pointer to
  * the Script.
  *
@@ -75,84 +88,61 @@ script_destroy (Script *script, lua_State *A)
 }
 
 /*
- * Assumes the state mutex has been acquired.  Attempt to load the given
- * Script. *Must* be called from the Actor's thread.
- *
- * Returns: LOAD_OK, LOAD_BAD_THREAD, LOAD_FAIL
- *
- * If LOAD_FAIL is returned, the Script is unloaded and turned off.
- * Additionally, details of the error are set if LOAD_FAIL is returned.
+ * Loads (or reloads) the Script created in the given Lua stack.  Returns 0 if
+ * successful, 1 if an error occurs. If an error occurs, an error string is
+ * pushed onto A.
  */
 int
 script_load (Script *script, lua_State *A)
 {
-//    int table_index;
-//    int args;
-//    int ret = LOAD_OK;
-//    lua_State *A;
-//    Actor *actor = script->actor;
-//
-//    A = actor_request_state(actor);
-//
-//    /* if an actor has a thread requirement */
-//    if (actor->is_lead || actor->is_star) {
-//        if (!actor_is_calling_thread(pthread_self())) {
-//            script->error = ERR_NOT_CALLING_THREAD;
-//            ret = LOAD_BAD_THREAD;
-//            goto exit;
-//        }
-//    }
-//
-//    if (script->is_loaded) {
-//        luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
-//        script->is_loaded = 0;
-//    }
-//
-//    lua_rawgeti(A, LUA_REGISTRYINDEX, script->table_ref);
-//    table_index = lua_gettop(A);
-//
-//    /* module = require 'module_name' */
-//    lua_getglobal(A, "require");
-//    utils_push_table_head(A, table_index);
-//
-//    if (lua_pcall(A, 1, 1, 0)) {
-//        script->error = lua_tostring(A, -1);
-//        ret = LOAD_FAIL;
-//        goto cleanup;
-//    }
-//
-//    /* object = module.new(...) */
-//    lua_getfield(A, -1, "new");
-//
-//    if (!lua_isfunction(A, -1)) {
-//        lua_pop(A, 1); /* whatever 'new' is */
-//        script->error = ERR_NO_MODULE_NEW;
-//        ret = LOAD_FAIL;
-//        goto cleanup;
-//    }
-//
-//    args = utils_push_table_data(A, table_index);
-//
-//    if (lua_pcall(A, args, 1, 0)) {
-//        script->error = lua_tostring(A, -1);
-//        ret = LOAD_FAIL;
-//        goto cleanup;
-//    }
-//
-//    script->object_ref = luaL_ref(A, LUA_REGISTRYINDEX);
-//    script->is_loaded = 1;
-//
-//cleanup:
-//    lua_pop(A, 2); /* require & table */
-//    script->be_loaded = 0;
-//    actor_return_state(script->actor);
-//
-//    if (ret > 0)
-//        printf("Script %p: %s\n", script, script->error);
-//
-//exit:
-//    return ret;
-    return 0;
+    const char *module_name;
+    const int table_index = lua_gettop(A) + 1;
+    int args, ret = 1;
+
+    if (script->is_loaded) {
+        luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
+        script->is_loaded = 0;
+    }
+
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->table_ref);
+
+    /* module = require 'module_name' */
+    lua_getglobal(A, "require");
+    utils_push_table_head(A, table_index);
+    module_name = lua_tostring(A, -1);
+
+    if (lua_pcall(A, 1, 1, 0))
+        goto pcall_error;
+
+    /* object = module.new(...) */
+    lua_getfield(A, -1, "new");
+
+    if (!lua_isfunction(A, -1)) {
+        lua_pop(A, 3); /* whatever 'new' is, require, and table head */
+        lua_pushfstring(A, "Cannot load module `%s': `new' is not a function!", 
+                module_name);
+        goto exit;
+    }
+
+    args = utils_push_table_data(A, table_index);
+
+    if (lua_pcall(A, args, 1, 0)) {
+pcall_error: 
+        /* pcall leaves error message on top of stack */
+        lua_pushfstring(A, "Cannot load module `%s': %s", module_name, 
+                lua_tostring(A, -1));
+        lua_insert(A, lua_gettop(A) - 3);
+        lua_pop(A, 3); /* pcall error, require, and table head */
+        goto exit;
+    }
+
+    script->object_ref = luaL_ref(A, LUA_REGISTRYINDEX);
+    script->is_loaded = 1;
+    ret = 0;
+
+exit:
+    script->be_loaded = 0;
+    return ret;
 }
 
 /*

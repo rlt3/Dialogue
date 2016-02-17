@@ -69,7 +69,9 @@ actor_create (lua_State *L)
          * scripts are loaded because this is the foundation for loading.
          */
         if (!script) {
-            for (script = actor->script_head; script != NULL; script = script->next)
+            for (script = actor->script_head; 
+                 script != NULL; 
+                 script = script->next)
                 script_destroy(script, A);
 
             utils_copy_top(L, A);
@@ -90,16 +92,18 @@ exit:
 }
 
 /*
- * To avoid longjmps from the Actors' Lua stacks, we pop any error message off 
- * them and onto the global (or calling) Lua state and error from there.
+ * Load any Scripts which are marked to be loaded (or reloaded). This function
+ * will error out through the main Lua state L.
  */
 void
-script_error (lua_State *L, lua_State *A)
+actor_load (Actor *actor, lua_State *L)
 {
-    utils_copy_top(L, A);
-    lua_pop(A, 1);
-    luaL_checktype(L, -1, LUA_TSTRING);
-    lua_error(L);
+    lua_State *A = actor->L;
+    Script *script;
+    for (script = actor->script_head; script != NULL; script = script->next)
+        if (script->be_loaded)
+            if (script_load(script, A) != 0)
+                script_error(L, A);
 }
 
 void
