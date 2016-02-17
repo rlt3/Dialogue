@@ -111,8 +111,12 @@ script_load (Script *script, lua_State *A)
     utils_push_table_head(A, table_index);
     module_name = lua_tostring(A, -1);
 
-    if (lua_pcall(A, 1, 1, 0))
-        goto pcall_error;
+    if (lua_pcall(A, 1, 1, 0)) {
+        lua_pop(A, 3); /* pcall error, require, and table head */
+        lua_pushfstring(A, "Cannot load module `%s': require failed", 
+                module_name);
+        goto exit;
+    }
 
     /* object = module.new(...) */
     lua_getfield(A, -1, "new");
@@ -127,12 +131,10 @@ script_load (Script *script, lua_State *A)
     args = utils_push_table_data(A, table_index);
 
     if (lua_pcall(A, args, 1, 0)) {
-pcall_error: 
-        /* pcall leaves error message on top of stack */
-        lua_pushfstring(A, "Cannot load module `%s': %s", module_name, 
-                lua_tostring(A, -1));
-        lua_insert(A, lua_gettop(A) - 3);
         lua_pop(A, 3); /* pcall error, require, and table head */
+        lua_pushfstring(A, 
+                "Cannot load module `%s': call to `new` failed with args", 
+                module_name);
         goto exit;
     }
 

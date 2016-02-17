@@ -32,14 +32,17 @@ build: $(SOURCES)
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
 test:
-	./$(MODULE) spec/company.lua
-	./$(MODULE) spec/actor.lua
+	cd spec/ && ../$(MODULE) company.lua
+	cd spec/ && ../$(MODULE) actor.lua
 
 mem:
 	valgrind --leak-check=full -v ./$(MODULE) stage.lua
 
 hel:
 	valgrind --tool=helgrind -v ./$(MODULE) stage.lua
+
+tags:
+	ctags -R -f tags .
 
 clean:
 	rm -f $(MODULE) src/*o

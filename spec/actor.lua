@@ -35,14 +35,36 @@ describe("An Actor reference object", function()
         a1 = Actor(20)
     end)
 
-    it("will error if the actor fails to load", function()
+    it("will error on load if the actor id is invalid", function()
         assert.has_error(function() 
             a1:load()
         end, "Id `20` is an invalid reference!")
+    end)
+
+    it("will error on load if the any Script has an invalid module", function()
+        a1 = nil
+        a1 = Actor{ {"invalid-module"} }
 
         assert.has_error(function() 
-            a0:load()
-        end, "Id `20` is an invalid reference!")
+            a1:load()
+        end, "Cannot load module `invalid-module': require failed")
+
+        a1:delete()
+    end)
+
+    it("will error on load if the any Script has a module with no new function", function()
+        a1 = nil
+        a1 = Actor{ {"module-no-new"} }
+
+        assert.has_error(function() 
+            a1:load()
+        end, "Cannot load module `module-no-new': `new' is not a function!")
+
+        a1:delete()
+    end)
+
+    it("can load (or reload) any Scripts an Actor might have", function()
+        a0:load()
     end)
 
     pending("can be given a name (string) to reference the Actor just like an id")
