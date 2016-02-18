@@ -68,6 +68,12 @@ describe("An Actor reference object", function()
     end)
 
     it("can be sent messages which affects the real Actor's state", function()
+        assert.has_error(function() 
+            a0:send{"move"}
+        end, "Cannot send message `move': ./draw.lua:13: attempt to perform arithmetic on local 'x' (a nil value)")
+    end)
+
+    it("can be sent messages which affects the real Actor's state", function()
         a0:send{"move", 2, 2}
     end)
 

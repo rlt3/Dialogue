@@ -123,7 +123,7 @@ actor_load (Actor *actor)
                 goto exit;
     ret = 0;
 exit:
-    assert(lua_gettop(A) == 0);
+    assert(lua_gettop(A) == ret);
     return ret;
 }
 
@@ -150,14 +150,20 @@ actor_send (Actor *actor, lua_State *L)
     luaL_checktype(L, -1, LUA_TTABLE);
     utils_copy_top(A, L);
 
-    for (script = actor->script_head; script != NULL; script = script->next)
-        if (script->is_loaded)
-            if (script_send(script, A) != 0)
+    for (script = actor->script_head; script != NULL; script = script->next) {
+        if (script->is_loaded) {
+            if (script_send(script, A) != 0) {
+                /* push error string to bottom so message table is popped */
+                lua_insert(A, 1);
                 goto exit;
+            }
+        }
+    }
+
     ret = 0;
 exit:
     lua_pop(A, 1);
-    assert(lua_gettop(A) == 0);
+    assert(lua_gettop(A) == ret);
     return ret;
 }
 

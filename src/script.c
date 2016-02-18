@@ -2,6 +2,7 @@
 #include "script.h"
 #include "actor.h"
 #include "utils.h"
+#include <assert.h>
 
 /*
  * Check the table at index for the requirements of a Script.
@@ -116,7 +117,7 @@ script_load (Script *script, lua_State *A)
     module_name = lua_tostring(A, -1);
 
     if (lua_pcall(A, 1, 1, 0)) {
-        lua_pop(A, 1);
+        lua_pop(A, 2); /* pcall error and table */
         lua_pushfstring(A, "Cannot load module `%s': require failed", 
                 module_name);
         goto exit;
@@ -126,7 +127,7 @@ script_load (Script *script, lua_State *A)
     lua_getfield(A, -1, "new");
 
     if (!lua_isfunction(A, -1)) {
-        lua_pop(A, 2); /* 'new' and item returned by `require` */
+        lua_pop(A, 3); /* 'new', item returned by `require`, and table */
         lua_pushfstring(A, "Cannot load module `%s': `new' is not a function!", 
                 module_name);
         goto exit;
@@ -135,7 +136,7 @@ script_load (Script *script, lua_State *A)
     args = utils_push_table_data(A, table_index);
 
     if (lua_pcall(A, args, 1, 0)) {
-        lua_pop(A, 2); /* pcall error and item returned by `require` */
+        lua_pop(A, 2); /* pcall error, item returned by `require`, and table */
         lua_pushfstring(A, 
                 "Cannot load module `%s': call to `new` failed with args", 
                 module_name);
@@ -145,11 +146,10 @@ script_load (Script *script, lua_State *A)
     script->object_ref = luaL_ref(A, LUA_REGISTRYINDEX);
     script->is_loaded = 1;
     ret = 0;
-    lua_pop(A, 1); /* table returned from require */
+    lua_pop(A, 2); /* table returned from require and definition table */
 
 exit:
     script->be_loaded = 0;
-    lua_pop(A, 1); /* table */
     return ret;
 }
 
@@ -184,8 +184,7 @@ script_send (Script *script, lua_State *A)
 
     /* it's not an error if the function doesn't exist */
     if (!lua_isfunction(A, -1)) {
-        printf("%s wasn't a function!\n", message);
-        lua_pop(A, 2);
+        lua_pop(A, 2); /* whatever isn't a function and the object_ref */
         goto success;
     }
 
@@ -194,17 +193,19 @@ script_send (Script *script, lua_State *A)
     args = utils_push_table_data(A, message_index);
 
     if (lua_pcall(A, args + 1, 0, 0)) {
-        lua_pushfstring(A, 
-                "Cannot send message `%s': %s", message, lua_tostring(A, -1));
-        lua_insert(A, lua_gettop(A) - 1);
-        lua_pop(A, 1);
         script_unload(script);
+        lua_pushfstring(A, "Cannot send message `%s': %s", message, lua_tostring(A, -1));
+        /* push error message beneath pcall error and object_ref */
+        lua_insert(A, lua_gettop(A) - 2);
+        lua_pop(A, 2); /* pcall error and object_ref */
+        goto exit;
     }
     
-    lua_pop(A, 1);
+    lua_pop(A, 1); /* object_ref */
 
 success:
     ret = 0;
+exit:
     return ret;
 }
 
