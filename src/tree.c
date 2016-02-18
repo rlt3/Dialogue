@@ -510,6 +510,12 @@ data_lock_and_write:
             ret = ERROR;
             goto unlock;
         }
+        
+        /*
+         * TODO:
+         * A similar bug which caused the branch below arises when you try to
+         * delete the root node. You can't delete the root right now.
+         */
 
         if (global_tree->root > NODE_INVALID) {
             parent_id = global_tree->root;
