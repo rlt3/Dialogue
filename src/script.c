@@ -86,7 +86,7 @@ script_destroy (Script *script, lua_State *A)
 /*
  * Loads (or reloads) the Script created in the given Lua stack.  
  *
- * Assume a Script definition table at -1 in the form of
+ * Assume a Script definition table (table_ref) has the form of
  *  { 'module' [, arg1 [, ... [, argn]]] }
  *
  * The module is `required' and then the function `new` is called on the table
@@ -100,7 +100,7 @@ int
 script_load (Script *script, lua_State *A)
 {
     const char *module_name;
-    const int table_index = lua_gettop(A) + 1;
+    const int table_index = lua_gettop(A) + 1; /* we push it onto the stack */
     int args, ret = 1;
 
     if (script->is_loaded) {
@@ -116,7 +116,7 @@ script_load (Script *script, lua_State *A)
     module_name = lua_tostring(A, -1);
 
     if (lua_pcall(A, 1, 1, 0)) {
-        lua_pop(A, 3); /* pcall error, require, and table head */
+        lua_pop(A, 1);
         lua_pushfstring(A, "Cannot load module `%s': require failed", 
                 module_name);
         goto exit;
@@ -126,7 +126,7 @@ script_load (Script *script, lua_State *A)
     lua_getfield(A, -1, "new");
 
     if (!lua_isfunction(A, -1)) {
-        lua_pop(A, 3); /* whatever 'new' is, require, and table head */
+        lua_pop(A, 2); /* 'new' and item returned by `require` */
         lua_pushfstring(A, "Cannot load module `%s': `new' is not a function!", 
                 module_name);
         goto exit;
@@ -135,7 +135,7 @@ script_load (Script *script, lua_State *A)
     args = utils_push_table_data(A, table_index);
 
     if (lua_pcall(A, args, 1, 0)) {
-        lua_pop(A, 3); /* pcall error, require, and table head */
+        lua_pop(A, 2); /* pcall error and item returned by `require` */
         lua_pushfstring(A, 
                 "Cannot load module `%s': call to `new` failed with args", 
                 module_name);
@@ -145,9 +145,11 @@ script_load (Script *script, lua_State *A)
     script->object_ref = luaL_ref(A, LUA_REGISTRYINDEX);
     script->is_loaded = 1;
     ret = 0;
+    lua_pop(A, 1); /* table returned from require */
 
 exit:
     script->be_loaded = 0;
+    lua_pop(A, 1); /* table */
     return ret;
 }
 

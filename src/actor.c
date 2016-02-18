@@ -2,6 +2,7 @@
 #include "actor.h"
 #include "script.h"
 #include "utils.h"
+#include <assert.h>
 
 struct Actor {
     lua_State *L;
@@ -97,15 +98,18 @@ actor_create (lua_State *L)
         lua_pop(L, 1);
     }
 
+    assert(lua_gettop(A) == 0);
+
 exit:
     return actor;
 }
 
 /*
- * Load any Scripts which are marked to be loaded (or reloaded). Errors from
- * Scripts are caught in sequential order. Meaning an error for the first
- * Script will mask errors for any remaining. Errors are left on top of the
- * Actor's stack and 1 is returned. Otherwise, success, and returns 0.
+ * The Actor loads (or reloads) all of its Scripts marked to be loaded.
+ *
+ * Errors from Scripts are caught in sequential order. Meaning an error for the
+ * first Script will mask errors for any remaining. Errors are left on top of
+ * the Actor's stack and 1 is returned. Otherwise, success, and returns 0.
  */
 int
 actor_load (Actor *actor)
@@ -119,14 +123,22 @@ actor_load (Actor *actor)
                 goto exit;
     ret = 0;
 exit:
+    assert(lua_gettop(A) == 0);
     return ret;
 }
 
 /*
- * The Actor sends the message to all of its Scripts which are loaded. Errors
- * from Scripts are caught in sequential order. Meaning an error for the first
- * Script will mask errors for any remaining. Errors are left on top of the
- * Actor's stack and 1 is returned. Otherwise, success, and returns 0.
+ * The Actor sends the message to all of its Scripts which are loaded.
+ *
+ * Assumes a message table on top of the given Lua stack in the form of:
+ *      { 'message' [, arg1 [, ... [, argn]]], author}
+ *
+ * The function copies the table from the given Lua stack (L) onto the Actor's
+ * Lua stack for all Scripts to access.
+ *
+ * Errors from Scripts are caught in sequential order. Meaning an error for the
+ * first Script will mask errors for any remaining. Errors are left on top of
+ * the Actor's stack and 1 is returned. Otherwise, success, and returns 0.
  */
 int
 actor_send (Actor *actor, lua_State *L)
@@ -135,8 +147,6 @@ actor_send (Actor *actor, lua_State *L)
     Script *script;
     int ret = 1;
 
-    printf("Top - Bgn: %d\n", lua_gettop(A));
-
     luaL_checktype(L, -1, LUA_TTABLE);
     utils_copy_top(A, L);
 
@@ -144,12 +154,10 @@ actor_send (Actor *actor, lua_State *L)
         if (script->is_loaded)
             if (script_send(script, A) != 0)
                 goto exit;
-
-
     ret = 0;
 exit:
-    printf("Top - End: %d\n", lua_gettop(A));
     lua_pop(A, 1);
+    assert(lua_gettop(A) == 0);
     return ret;
 }
 

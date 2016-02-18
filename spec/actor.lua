@@ -67,6 +67,10 @@ describe("An Actor reference object", function()
         a0:load()
     end)
 
+    it("can be sent messages which affects the real Actor's state", function()
+        a0:send{"move", 2, 2}
+    end)
+
     pending("can be given a name (string) to reference the Actor just like an id")
     pending("can be created by providing the name of an existing Actor")
 end)
