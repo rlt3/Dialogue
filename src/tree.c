@@ -430,8 +430,12 @@ unlock:
  * pointer with the data_cleanup_func_t given in tree_init. 
  *
  * The tree attaches the pointer to a Node which is added as a child of
- * parent_id.  If parent_id <= NODE_INVALID then the Tree assumes that is
- * supposed to be the root Node and saves it (the root node has no parent).
+ * parent_id.  
+ *
+ * If parent_id <= NODE_INVALID then the Tree -- the firs time -- assumes that
+ * is supposed to be the root Node and saves it (the root node has no parent).
+ * Every time after that if the parent_id <= NODE_INVALID then the Node created
+ * as a child of the root node.
  *
  * Returns the id of the Node inside the tree. 
  *
@@ -448,13 +452,13 @@ unlock:
 int
 tree_add_reference (void *data, int parent_id, int thread_id)
 {
-    int max_id, id, set_root = 0, ret = ERROR;
+    int max_id, id, invalid_parent = 0, ret = ERROR;
 
     if (data == NULL)
         goto exit;
 
     if (parent_id <= NODE_INVALID)
-        set_root = 1;
+        invalid_parent = 1;
 
 find_unused_node:
     max_id = tree_list_size();
@@ -496,34 +500,45 @@ data_lock_and_write:
     node_mark_attached_fullwr(id, data, thread_id);
 
     /* 
-     * If we are setting the root of the Node, we obviously can't be adding
-     * it as a child of any particular node.
+     * The first time invalid_parent is true, the id found becomes the root
+     * node for the tree. Everytime after that, the node which has an invalid
+     * parent becomes the child of the root node. Only the root node has a
+     * parent of NODE_INVALID. All other parents will be valid indices.
      */
-    if (set_root) {
+    if (invalid_parent) {
         if (tree_write() != 0) {
             ret = ERROR;
             goto unlock;
         }
-        global_tree->root = id;
-        tree_unlock();
-    } else {
+
+        if (global_tree->root > NODE_INVALID) {
+            parent_id = global_tree->root;
+            tree_unlock();
+        } else {
+            global_tree->root = id;
+            tree_unlock();
+            goto success;
+        }
+    }
+
+    if (node_add_child(parent_id, id) != 0) {
         /* 
          * keep the allocated data but still return with an error. it will be
          * cleaned up automatically if we simply mark it as garbage.
          */
-        if (node_add_child(parent_id, id) != 0) {
-            node_mark_unused_wr(id);
-            ret = NODE_ERROR;
-            goto unlock;
-        }
-        global_tree->list[id].parent = parent_id;
+        node_mark_unused_wr(id);
+        ret = NODE_ERROR;
+        goto unlock;
     }
 
+success:
+    global_tree->list[id].parent = parent_id;
     ret = id;
 
 unlock:
     node_unlock(id);
     node_data_unlock(id);
+
 exit:
     return ret;
 }

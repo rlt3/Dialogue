@@ -25,47 +25,47 @@ describe("An Actor reference object", function()
         assert.is_equal(a0:id(), 0)
     end)
 
-    --it("can be created by providing the id of an existing Actor", function()
-    --    a0 = nil
-    --    a0 = Actor(0)
-    --    assert.is_equal(a0:id(), 0)
-    --end)
+    it("can be created by providing the id of an existing Actor", function()
+        a0 = nil
+        a0 = Actor(0)
+        assert.is_equal(a0:id(), 0)
+    end)
 
-    --it("won't error on creation if provided with a bad integer id", function()
-    --    a1 = Actor(20)
-    --end)
+    it("won't error on creation if provided with a bad integer id", function()
+        a1 = Actor(20)
+    end)
 
-    --it("will error on load if the actor id is invalid", function()
-    --    assert.has_error(function() 
-    --        a1:load()
-    --    end, "Id `20` is an invalid reference!")
-    --end)
+    it("will error on load if the actor id is invalid", function()
+        assert.has_error(function() 
+            a1:load()
+        end, "Id `20` is an invalid reference!")
+    end)
 
-    --it("will error on load if the any Script has an invalid module", function()
-    --    a1 = nil
-    --    a1 = Actor{ {"invalid-module"} }
+    it("will error on load if the any Script has an invalid module", function()
+        a1 = nil
+        a1 = Actor{ {"invalid-module"} }
 
-    --    assert.has_error(function() 
-    --        a1:load()
-    --    end, "Cannot load module `invalid-module': require failed")
+        assert.has_error(function() 
+            a1:load()
+        end, "Cannot load module `invalid-module': require failed")
 
-    --    a1:delete()
-    --end)
+        a1:delete()
+    end)
 
-    --it("will error on load if the any Script has a module with no new function", function()
-    --    a1 = nil
-    --    a1 = Actor{ {"module-no-new"} }
+    it("will error on load if the any Script has a module with no new function", function()
+        a1 = nil
+        a1 = Actor{ {"module-no-new"} }
 
-    --    assert.has_error(function() 
-    --        a1:load()
-    --    end, "Cannot load module `module-no-new': `new' is not a function!")
+        assert.has_error(function() 
+            a1:load()
+        end, "Cannot load module `module-no-new': `new' is not a function!")
 
-    --    a1:delete()
-    --end)
+        a1:delete()
+    end)
 
-    --it("can load (or reload) any Scripts an Actor might have", function()
-    --    a0:load()
-    --end)
+    it("can load (or reload) any Scripts an Actor might have", function()
+        a0:load()
+    end)
 
     pending("can be given a name (string) to reference the Actor just like an id")
     pending("can be created by providing the name of an existing Actor")
