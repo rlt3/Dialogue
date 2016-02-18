@@ -255,19 +255,6 @@ node_cleanup_fullwr (int id)
 void
 node_destroy_fullwr (int id)
 {
-    int i;
-
-    if (node_is_used_rd(id)) {
-        printf("Node %d\n", id);
-        printf("\tparent: \n\t\t%d\n", global_tree->list[id].parent);
-        printf("\tchildren: \n\t\t");
-        for (i = 0; i < global_tree->list[id].max_children; i++) {
-            if (global_tree->list[id].children[i] > NODE_INVALID)
-                printf("%d ", global_tree->list[id].children[i]);
-        }
-        printf("\n");
-    }
-
     node_cleanup_fullwr(id);
 
     if (global_tree->list[id].children) {

@@ -13,6 +13,16 @@ struct Actor {
 void actor_add_script (Actor *actor, Script *script);
 
 /*
+ * Pop the error from the Actor onto the given Lua stack.
+ */
+void
+actor_pop_error (Actor *actor, lua_State *L)
+{
+    utils_copy_top(L, actor->L);
+    lua_pop(actor->L, 1);
+}
+
+/*
  * Expects the given Lua stack to have the definition at the top of the stack.
  *
  * Definition:
@@ -92,18 +102,55 @@ exit:
 }
 
 /*
- * Load any Scripts which are marked to be loaded (or reloaded). This function
- * will error out through the main Lua state L.
+ * Load any Scripts which are marked to be loaded (or reloaded). Errors from
+ * Scripts are caught in sequential order. Meaning an error for the first
+ * Script will mask errors for any remaining. Errors are left on top of the
+ * Actor's stack and 1 is returned. Otherwise, success, and returns 0.
  */
-void
-actor_load (Actor *actor, lua_State *L)
+int
+actor_load (Actor *actor)
 {
     lua_State *A = actor->L;
+    int ret = 1;
     Script *script;
     for (script = actor->script_head; script != NULL; script = script->next)
         if (script->be_loaded)
             if (script_load(script, A) != 0)
-                script_error(L, A);
+                goto exit;
+    ret = 0;
+exit:
+    return ret;
+}
+
+/*
+ * The Actor sends the message to all of its Scripts which are loaded. Errors
+ * from Scripts are caught in sequential order. Meaning an error for the first
+ * Script will mask errors for any remaining. Errors are left on top of the
+ * Actor's stack and 1 is returned. Otherwise, success, and returns 0.
+ */
+int
+actor_send (Actor *actor, lua_State *L)
+{
+    lua_State *A = actor->L;
+    Script *script;
+    int ret = 1;
+
+    printf("Top - Bgn: %d\n", lua_gettop(A));
+
+    luaL_checktype(L, -1, LUA_TTABLE);
+    utils_copy_top(A, L);
+
+    for (script = actor->script_head; script != NULL; script = script->next)
+        if (script->is_loaded)
+            if (script_send(script, A) != 0)
+                goto exit;
+
+
+    ret = 0;
+exit:
+    printf("Top - End: %d\n", lua_gettop(A));
+    lua_pop(A, 1);
+    return ret;
 }
 
 void

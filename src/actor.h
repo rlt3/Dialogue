@@ -22,11 +22,28 @@ Actor *
 actor_create (lua_State *L);
 
 /*
- * Load any Scripts which are marked to be loaded (or reloaded). This function
- * will error out through the main Lua state L.
+ * Pop the error from the Actor onto the given Lua stack.
  */
 void
-actor_load (Actor *actor, lua_State *L);
+actor_pop_error (Actor *actor, lua_State *L);
+
+/*
+ * Load any Scripts which are marked to be loaded (or reloaded). Errors from
+ * Scripts are caught in sequential order. Meaning an error for the first
+ * Script will mask errors for any remaining. Errors are left on top of the
+ * Actor's stack and 1 is returned. Otherwise, success, and returns 0.
+ */
+int
+actor_load (Actor *actor);
+
+/*
+ * The Actor sends the message to all of its Scripts which are loaded. Errors
+ * from Scripts are caught in sequential order. Meaning an error for the first
+ * Script will mask errors for any remaining. Errors are left on top of the
+ * Actor's stack and 1 is returned. Otherwise, success, and returns 0.
+ */
+int
+actor_send (Actor *actor, lua_State *L);
 
 void
 actor_assign_id (void *actor, int id);

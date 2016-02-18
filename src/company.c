@@ -3,6 +3,7 @@
 #include "tree.h"
 #include "actor.h"
 #include "company.h"
+#include "utils.h"
 
 #define COMPANY_META "Dialogue.Company"
 #define ACTOR_META "Dialogue.Company.Actor"
@@ -212,7 +213,14 @@ lua_actor_load (lua_State *L)
     if (!actor)
         luaL_error(L, "Id `%d` is an invalid reference!", id);
 
-    actor_load(actor, L);
+
+    /* if actor_load doesn't return 0, it puts an error string on top of A */
+    if (actor_load(actor) != 0) {
+        actor_pop_error(actor, L);
+        tree_deref(id);
+        lua_error(L);
+    }
+
     tree_deref(id);
     return 0;
 }
@@ -358,6 +366,35 @@ lua_actor_id (lua_State *L)
     return 1;
 }
 
+/*
+ * Send a messsage to the actor in the form of:
+ * { 'message' [, arg1 [, ... [, argn]]], author}
+ *
+ * a0 = Actor{ {"graphics", 200, 400} }
+ * a0:send{"draw", 20, 20, a0}
+ */
+int
+lua_actor_send (lua_State *L)
+{
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
+    Actor *actor = tree_ref(id);
+
+    if (!actor)
+        luaL_error(L, "Id `%d` is an invalid reference!", id);
+
+    /* if actor_send doesn't return 0, it puts an error string on top of A */
+    if (actor_send(actor, L) != 0) {
+        printf("Error!\n");
+        actor_pop_error(actor, L);
+        tree_deref(id);
+        lua_error(L);
+    }
+
+    tree_deref(id);
+    return 0;
+}
+
 int
 lua_actor_probe (lua_State *L)
 {
@@ -375,6 +412,7 @@ static const luaL_Reg actor_metamethods[] = {
     {"id",       lua_actor_id},
     {"bench",    lua_actor_bench},
     {"join",     lua_actor_join},
+    {"send",     lua_actor_send},
     {"probe",    lua_actor_probe},
     { NULL, NULL }
 };

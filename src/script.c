@@ -17,17 +17,11 @@ script_table_status (lua_State *A, int index)
     return !(luaL_len(A, index) > 0);
 }
 
-/*
- * To avoid longjmps from the Actors' Lua stacks, we pop any error message off 
- * them and onto the global (or calling) Lua state and error from there.
- */
 void
-script_error (lua_State *L, lua_State *A)
+script_unload (Script *script)
 {
-    utils_copy_top(L, A);
-    lua_pop(A, 1);
-    luaL_checktype(L, -1, LUA_TSTRING);
-    lua_error(L);
+    script->is_loaded = 0;
+    script->be_loaded = 0;
 }
 
 /*
@@ -90,9 +84,17 @@ script_destroy (Script *script, lua_State *A)
 }
 
 /*
- * Loads (or reloads) the Script created in the given Lua stack.  Returns 0 if
- * successful, 1 if an error occurs. If an error occurs, an error string is
- * pushed onto A.
+ * Loads (or reloads) the Script created in the given Lua stack.  
+ *
+ * Assume a Script definition table at -1 in the form of
+ *  { 'module' [, arg1 [, ... [, argn]]] }
+ *
+ * The module is `required' and then the function `new` is called on the table
+ * that is returned from `require`. The args supplied in the script definition
+ * are passed into the `new` function.
+ *
+ * Returns 0 if successful, 1 if an error occurs. If an error occurs, an error
+ * string is pushed onto A.
  */
 int
 script_load (Script *script, lua_State *A)
@@ -150,60 +152,58 @@ exit:
 }
 
 /*
- * Assumes the state has been acquired and a message table at -1 in the form of
+ * Sends a Message to the object created from script_load.
+ *
+ * Assumes a message definition table at -1 in the form of
  *  { 'message' [, arg1 [, ... [, argn]]], author}
  *
- * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
+ * The 'message' is some method of the instantiated object which was created in
+ * script_load. If it doesn't exist it actually isn't an error. This is one of
+ * those "it's a feature, not a bug" things -- by willing to say this isn't an
+ * error we gain the ability to very easily add new message primitives (the
+ * methods themselves) to the system.
  *
- * If SEND_FAIL is returned, the Script is unloaded and turned off.
- * Additionally, details of the error are set if SEND_FAIL is returned.
+ * Returns 0 if successful, 1 if an error occurs. If an error occurs, an error
+ * string is pushed onto A.
  */
 int
 script_send (Script *script, lua_State *A)
 {
-//    int message_index;
-//    int args;
-//    int ret = SEND_OK;
-//    lua_State *A = script->actor->L;
-//
-//    /* if an actor has a thread requirement */
-//    if (script->actor->is_lead || script->actor->is_star) {
-//        if (!actor_is_calling_thread(pthread_self())) {
-//            ret = SEND_BAD_THREAD;
-//            goto exit;
-//        }
-//    }
-//
-//    message_index = lua_gettop(A);
-//
-//    /* function = object.message_title */
-//    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
-//    utils_push_table_head(A, message_index);
-//    lua_gettable(A, -2);
-//
-//    /* it's not an error if the function doesn't exist */
-//    if (!lua_isfunction(A, -1)) {
-//        ret = SEND_SKIP;
-//        lua_pop(A, 2);
-//        goto exit;
-//    }
-//
-//    /* push `self' reference and tail of message which includes the author. */
-//    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
-//    args = utils_push_table_data(A, message_index);
-//
-//    if (lua_pcall(A, args + 1, 0, 0)) {
-//        ret = SEND_FAIL;
-//        script->error = lua_tostring(A, -1);
-//        printf("%s\n", script->error);
-//        script_unload(script);
-//    }
-//    
-//    lua_pop(A, 1);
-//
-//exit:
-//    return ret;
-    return 0;
+    const int message_index = lua_gettop(A);
+    const char *message = NULL;
+    int args = 0;
+    int ret = 1;
+
+    /* function = object.message_title */
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    utils_push_table_head(A, message_index);
+    message = lua_tostring(A, -1);
+    lua_gettable(A, -2);
+
+    /* it's not an error if the function doesn't exist */
+    if (!lua_isfunction(A, -1)) {
+        printf("%s wasn't a function!\n", message);
+        lua_pop(A, 2);
+        goto success;
+    }
+
+    /* push `self' reference and tail of message which includes the author. */
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    args = utils_push_table_data(A, message_index);
+
+    if (lua_pcall(A, args + 1, 0, 0)) {
+        lua_pushfstring(A, 
+                "Cannot send message `%s': %s", message, lua_tostring(A, -1));
+        lua_insert(A, lua_gettop(A) - 1);
+        lua_pop(A, 1);
+        script_unload(script);
+    }
+    
+    lua_pop(A, 1);
+
+success:
+    ret = 0;
+    return ret;
 }
 
 /*
