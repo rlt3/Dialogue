@@ -393,9 +393,20 @@ lua_actor_send (lua_State *L)
     return 0;
 }
 
+/*
+ * Probe a specific Script's object for the given field.
+ *
+ * actor:probe(script_id, field_name)
+ *
+ * a0 = Actor{ {"graphics", 200, 400} }
+ * a0:probe(1, "width") => 200
+ * a0:probe(1, "height") => 400
+ */
 int
 lua_actor_probe (lua_State *L)
 {
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
     return 0;
 }
 

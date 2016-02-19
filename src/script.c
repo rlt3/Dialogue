@@ -194,6 +194,7 @@ script_send (Script *script, lua_State *A)
 
     if (lua_pcall(A, args + 1, 0, 0)) {
         script_unload(script);
+        /* TODO: Figure out why the 'Cannot send message' isn't appearing */
         lua_pushfstring(A, "Cannot send message `%s': %s", message, lua_tostring(A, -1));
         /* push error message beneath pcall error and object_ref */
         lua_insert(A, lua_gettop(A) - 2);
@@ -210,66 +211,30 @@ exit:
 }
 
 /*
- * Sets the Script to be reloaded. If an optional table is passed it, this
- * method uses that table as the definition table from which it is loaded.
- */
-static int
-lua_script_load (lua_State *L)
-{
-//    //lua_State *A;
-//    //int new_definition = 0;
-//    //int args = lua_gettop(L);
-//    Script *script = lua_check_script(L, 1);
-//
-//    script_load(script);
-//
-//    //if (args == 2) {
-//    //    lua_check_script_table(L, 2);
-//    //    new_definition = 1;
-//    //}
-//
-//    //A = actor_request_state(script->actor);
-//    //if (new_definition) {
-//    //    luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
-//    //    utils_copy_top(A, L);
-//    //    script->table_ref = luaL_ref(A, LUA_REGISTRYINDEX);
-//    //}
-//    //script->be_loaded = 1;
-//    //actor_return_state(script->actor);
-//
-//    return luaf(L, "Dialogue.Post.send(%1:actor, 'load')");
-    return 0;
-}
-
-/*
  * Access a field and get the results from the object inside the Script.
  *
- * script:probe("coordinates") => {100, 50}
- * script:probe("weapon") => "axe"
- * script:probe("following") => Dialogue.Actor 0x003f9bc39
+ * If there is an error this function returns 1 and leaves an error string on
+ * top of the Actor's stack. Returns 0 if successful and leaves the probed
+ * value on top of the Actor's stack.
  */
-static int
-lua_script_probe (lua_State *L)
+int
+script_probe (Script *script, lua_State *A, const char *field)
 {
-//    lua_State *A;
-//    Script *script = lua_check_script(L, 1);
-//    const char *field = luaL_checkstring(L, 2);
-//
-//    A = actor_request_state(script->actor);
-//
-//    if (!script->is_loaded) {
-//        actor_return_state(script->actor);
-//        lua_script_print_error(L, script, "Cannot Probe");
-//    }
-//
-//    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
-//    lua_getfield(A, -1, field);
-//    utils_copy_top(L, A);
-//    lua_pop(A, 2);
-//
-//    actor_return_state(script->actor);
-//
-    return 1;
+    int ret = 1;
+
+    if (!script->is_loaded) {
+        lua_pushstring(A, "Cannot probe %s: not loaded!", field);
+        goto exit;
+    }
+
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    lua_getfield(A, -1, field);
+    lua_insert(A, 1);
+    lua_pop(A, 1);
+
+    ret = 0;
+exit:
+    return ret;
 }
 
 /*
@@ -278,13 +243,5 @@ lua_script_probe (lua_State *L)
 static int
 lua_script_remove (lua_State *L)
 {
-//    lua_State *A;
-//    Script *script = lua_check_script(L, 1);
-//
-//    A = actor_request_state(script->actor);
-//    actor_remove_script(script->actor, script);
-//    script_unload(script);
-//    actor_return_state(script->actor);
-//
     return 0;
 }
