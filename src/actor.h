@@ -36,6 +36,9 @@ actor_pop_error (Actor *actor, lua_State *L);
 int
 actor_load (Actor *actor);
 
+int
+actor_probe (Actor *actor, lua_State *L);
+
 /*
  * The Actor sends the message to all of its Scripts which are loaded. Errors
  * from Scripts are caught in sequential order. Meaning an error for the first

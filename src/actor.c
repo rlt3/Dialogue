@@ -144,7 +144,7 @@ int
 actor_send (Actor *actor, lua_State *L)
 {
     lua_State *A = actor->L;
-    Script *script;
+    Script *script = NULL;
     int ret = 1;
 
     luaL_checktype(L, -1, LUA_TTABLE);
@@ -163,6 +163,50 @@ actor_send (Actor *actor, lua_State *L)
     ret = 0;
 exit:
     lua_pop(A, 1);
+    assert(lua_gettop(A) == ret);
+    return ret;
+}
+
+/*
+ * Expects two items on top of L: an integer which is the nth Script of the 
+ * Actor and the field of that Script to probe.
+ *
+ * If the Script could not be found, it returns 1 and leaves an error message
+ * on top of the Actor's stack.
+ */
+int
+actor_probe (Actor *actor, lua_State *L)
+{
+    Script *script = actor->script_head;
+    int script_index, i = 1, ret = 1;
+    const int script_arg = -2;
+    const int field_arg = -1;
+    lua_State *A = actor->L;
+    const char *field;
+
+    script_index = luaL_checkinteger(L, script_arg);
+    field = luaL_checkstring(L, field_arg);
+   
+    while (script != NULL && i < script_index) {
+        script = script->next;
+        i++;
+    }
+
+    if (script == NULL || i > script_index) {
+        lua_pushfstring(A, "Couldn't find Script @ %d inside Actor %d", 
+                script_index, actor->id);
+        goto exit;
+    }
+
+    /* script_probe leaves an error on A so we ain't gotta do nuthin'!! */
+    if (script_probe(script, A, field) != 0)
+        goto exit;
+
+    utils_copy_top(L, A);
+    lua_pop(A, 1);
+
+    ret = 0;
+exit:
     assert(lua_gettop(A) == ret);
     return ret;
 }

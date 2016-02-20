@@ -407,7 +407,19 @@ lua_actor_probe (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    return 0;
+    Actor *actor = tree_ref(id);
+
+    if (!actor)
+        luaL_error(L, "Id `%d` is an invalid reference!", id);
+
+    if (actor_probe(actor, L) != 0) {
+        actor_pop_error(actor, L);
+        tree_deref(id);
+        lua_error(L);
+    }
+
+    tree_deref(id);
+    return 1;
 }
 
 static const luaL_Reg actor_metamethods[] = {

@@ -145,6 +145,7 @@ script_load (Script *script, lua_State *A)
 
     script->object_ref = luaL_ref(A, LUA_REGISTRYINDEX);
     script->is_loaded = 1;
+    printf("loading %p\n", script);
     ret = 0;
     lua_pop(A, 2); /* table returned from require and definition table */
 
@@ -175,6 +176,15 @@ script_send (Script *script, lua_State *A)
     const char *message = NULL;
     int args = 0;
     int ret = 1;
+
+    if (!script->is_loaded) {
+        /* TODO: read message before checking this so we can have some
+         * identifying information on this error. Imagine 3 actors throwing
+         * this same error -- which ones are erroring?
+         */
+        lua_pushstring(A, "Cannot send: not loaded!");
+        goto exit;
+    }
 
     /* function = object.message_title */
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
@@ -222,10 +232,12 @@ script_probe (Script *script, lua_State *A, const char *field)
 {
     int ret = 1;
 
-    if (!script->is_loaded) {
-        lua_pushstring(A, "Cannot probe %s: not loaded!", field);
-        goto exit;
-    }
+    printf("probing %p\n", script);
+
+    //if (!script->is_loaded) {
+    //    lua_pushfstring(A, "Cannot probe `%s': not loaded!", field);
+    //    goto exit;
+    //}
 
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
     lua_getfield(A, -1, field);
@@ -240,7 +252,7 @@ exit:
 /*
  * Remove a script from the Actor's state.
  */
-static int
+int
 lua_script_remove (lua_State *L)
 {
     return 0;

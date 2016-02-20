@@ -58,6 +58,16 @@ script_load (Script *script, lua_State *A);
 int
 script_send (Script *script, lua_State *A);
 
+/*
+ * Access a field and get the results from the object inside the Script.
+ *
+ * If there is an error this function returns 1 and leaves an error string on
+ * top of the Actor's stack. Returns 0 if successful and leaves the probed
+ * value on top of the Actor's stack.
+ */
+int
+script_probe (Script *script, lua_State *A, const char *field);
+
 void
 script_destroy (Script *script, lua_State *A);
 

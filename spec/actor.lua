@@ -63,6 +63,16 @@ describe("An Actor reference object", function()
         a1:delete()
     end)
 
+    it("cannot be sent a message or probed if not loaded", function()
+        --assert.has_error(function() 
+        --    a0:probe(1, "coordinates")
+        --end, "Cannot probe `coordinates': not loaded!")
+
+        -- Each Script has its own state and can be 'turned off' individually,
+        -- much like each Actor in Dialogue. It doesn't make sense to error.
+        a0:send{"move", 2, 2}
+    end)
+
     it("can load (or reload) any Scripts an Actor might have", function()
         a0:load()
     end)
@@ -74,7 +84,9 @@ describe("An Actor reference object", function()
     end)
 
     it("can be sent messages which affects the real Actor's state", function()
+        -- a0 is set at 200, 400 when it is created
         a0:send{"move", 2, 2}
+        assert.are_same({202, 402}, a0:probe(1, "coordinates"))
     end)
 
     pending("can be given a name (string) to reference the Actor just like an id")
