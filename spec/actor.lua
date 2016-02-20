@@ -77,7 +77,7 @@ describe("An Actor reference object", function()
         a0:load()
     end)
 
-    it("can be sent messages which affects the real Actor's state", function()
+    it("will error on any function with a bad message format", function()
         assert.has_error(function() 
             a0:send{"move"}
         end, "attempt to perform arithmetic on local 'x' (a nil value)")

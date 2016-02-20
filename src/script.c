@@ -173,33 +173,30 @@ int
 script_send (Script *script, lua_State *A)
 {
     const int message_index = lua_gettop(A);
+    const int object_index = message_index + 1;
     const char *message = NULL;
     int args = 0;
     int ret = 1;
 
-    if (!script->is_loaded) {
-        /* TODO: read message before checking this so we can have some
-         * identifying information on this error. Imagine 3 actors throwing
-         * this same error -- which ones are erroring?
-         */
-        lua_pushstring(A, "Cannot send: not loaded!");
-        goto exit;
-    }
-
-    /* function = object.message_title */
+    /* 
+     * local object;
+     * object[message_title]:(arg1, arg2, ..., argN)
+     */
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+
     utils_push_table_head(A, message_index);
     message = lua_tostring(A, -1);
     lua_gettable(A, -2);
 
     /* it's not an error if the function doesn't exist */
     if (!lua_isfunction(A, -1)) {
+        printf("ain't a function: %s\n", message);
         lua_pop(A, 2); /* whatever isn't a function and the object_ref */
         goto success;
     }
 
     /* push `self' reference and tail of message which includes the author. */
-    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    lua_pushvalue(A, object_index);
     args = utils_push_table_data(A, message_index);
 
     if (lua_pcall(A, args + 1, 0, 0)) {
