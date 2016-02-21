@@ -64,13 +64,15 @@ describe("An Actor reference object", function()
     end)
 
     it("cannot be sent a message or probed if not loaded", function()
-        --assert.has_error(function() 
-        --    a0:probe(1, "coordinates")
-        --end, "Cannot probe `coordinates': not loaded!")
+        assert.has_error(function() 
+            a0:probe(1, "coordinates")
+        end, "Cannot probe `coordinates': not loaded!")
 
-        -- Each Script has its own state and can be 'turned off' individually,
-        -- much like each Actor in Dialogue. It doesn't make sense to error.
-        a0:send{"move", 2, 2}
+        -- Will only throw this error if there are no loaded Scripts -- as in
+        -- if there's 1 out of 50 loaded Scripts, it won't throw an error.
+        assert.has_error(function() 
+            a0:send{"move", 2, 2}
+        end, "Actor `0' has no loaded Scripts!")
     end)
 
     it("can load (or reload) any Scripts an Actor might have", function()
@@ -81,6 +83,16 @@ describe("An Actor reference object", function()
         assert.has_error(function() 
             a0:send{"move"}
         end, "attempt to perform arithmetic on local 'x' (a nil value)")
+    end)
+    
+    it("will unload any Scripts that have errored", function()
+        assert.has_error(function() 
+            a0:send{"move", 2, 2}
+        end, "Actor `0' has no loaded Scripts!")
+
+        -- call load to reload all unloaded scripts
+        a0:load(1)
+        a0:load("all")
     end)
 
     it("can be sent messages which affects the real Actor's state", function()

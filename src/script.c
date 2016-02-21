@@ -145,7 +145,7 @@ script_load (Script *script, lua_State *A)
 
     script->object_ref = luaL_ref(A, LUA_REGISTRYINDEX);
     script->is_loaded = 1;
-    printf("loading %p\n", script);
+    //printf("loading %p\n", script);
     ret = 0;
     lua_pop(A, 2); /* table returned from require and definition table */
 
@@ -190,7 +190,6 @@ script_send (Script *script, lua_State *A)
 
     /* it's not an error if the function doesn't exist */
     if (!lua_isfunction(A, -1)) {
-        printf("ain't a function: %s\n", message);
         lua_pop(A, 2); /* whatever isn't a function and the object_ref */
         goto success;
     }
@@ -229,12 +228,10 @@ script_probe (Script *script, lua_State *A, const char *field)
 {
     int ret = 1;
 
-    printf("probing %p\n", script);
-
-    //if (!script->is_loaded) {
-    //    lua_pushfstring(A, "Cannot probe `%s': not loaded!", field);
-    //    goto exit;
-    //}
+    if (!script->is_loaded) {
+        lua_pushfstring(A, "Cannot probe `%s': not loaded!", field);
+        goto exit;
+    }
 
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
     lua_getfield(A, -1, field);

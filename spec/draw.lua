@@ -12,7 +12,6 @@ end
 function Draw:move (x, y, author)
     self.coordinates[1] = self.coordinates[1] + x
     self.coordinates[2] = self.coordinates[2] + y
-    io.write("Drawing at " .. self.coordinates[1] .. ", " .. self.coordinates[2] .. "\n");
 end
 
 function Draw:bump (author)

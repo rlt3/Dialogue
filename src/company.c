@@ -214,7 +214,7 @@ lua_actor_load (lua_State *L)
         luaL_error(L, "Id `%d` is an invalid reference!", id);
 
     /* if actor_load doesn't return 0, it puts an error string on top of A */
-    if (actor_load(actor) != 0) {
+    if (actor_load(actor, L) != 0) {
         actor_pop_error(actor, L);
         tree_deref(id);
         lua_error(L);

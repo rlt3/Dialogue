@@ -1,8 +1,9 @@
 #include <stdlib.h>
+#include <assert.h>
+#include <string.h>
 #include "actor.h"
 #include "script.h"
 #include "utils.h"
-#include <assert.h>
 
 struct Actor {
     lua_State *L;
@@ -105,22 +106,50 @@ exit:
 }
 
 /*
- * The Actor loads (or reloads) all of its Scripts marked to be loaded.
+ * The Actor loads (or reloads) all of its Scripts marked to be loaded. 
+ *
+ * An optional argument specifying which Scripts should be forcefully loaded.
+ * If one passes the string "all" then all Scripts will be loaded. If one
+ * passes an integer, that is the nth Script which will be loaded.
  *
  * Errors from Scripts are caught in sequential order. Meaning an error for the
  * first Script will mask errors for any remaining. Errors are left on top of
  * the Actor's stack and 1 is returned. Otherwise, success, and returns 0.
  */
 int
-actor_load (Actor *actor)
+actor_load (Actor *actor, lua_State *L)
 {
+    const int opt_arg = 2; 
+    Script *script = actor->script_head;
     lua_State *A = actor->L;
+    int load_index = 0;
+    int load_all = 0;
     int ret = 1;
-    Script *script;
-    for (script = actor->script_head; script != NULL; script = script->next)
-        if (script->be_loaded)
+    int i = 1;
+
+    switch (lua_type(L, opt_arg)) {
+    case LUA_TNUMBER:
+        load_index = lua_tointeger(L, opt_arg);
+        break;
+
+    case LUA_TSTRING:
+        if (strncmp("all", lua_tostring(L, opt_arg), 3) == 0)
+            load_all = 1;
+        break;
+
+    default:
+        break;
+    }
+
+    for (; script != NULL; i++, script = script->next) {
+        if (load_index == i)
+            script->be_loaded = 1;
+
+        if (load_all || script->be_loaded)
             if (script_load(script, A) != 0)
                 goto exit;
+    }
+
     ret = 0;
 exit:
     assert(lua_gettop(A) == ret);
@@ -139,12 +168,16 @@ exit:
  * Errors from Scripts are caught in sequential order. Meaning an error for the
  * first Script will mask errors for any remaining. Errors are left on top of
  * the Actor's stack and 1 is returned. Otherwise, success, and returns 0.
+ *
+ * A special Error will occur when an Actor is asked to handle a message with
+ * no loaded Scripts.
  */
 int
 actor_send (Actor *actor, lua_State *L)
 {
     lua_State *A = actor->L;
     Script *script = NULL;
+    int count = 0;
     int ret = 1;
 
     luaL_checktype(L, -1, LUA_TTABLE);
@@ -152,17 +185,23 @@ actor_send (Actor *actor, lua_State *L)
 
     for (script = actor->script_head; script != NULL; script = script->next) {
         if (script->is_loaded) {
-            if (script_send(script, A) != 0) {
-                /* push error string to bottom so message table is popped */
-                lua_insert(A, 1);
-                goto exit;
-            }
+            count++;
+            if (script_send(script, A) != 0)
+                goto insert_error;
         }
+    }
+
+    if (count == 0) {
+        lua_pushfstring(A, "Actor `%d' has no loaded Scripts!", actor->id);
+insert_error:
+        /* push error string to bottom so message table is popped */
+        lua_insert(A, 1);
+        goto exit;
     }
 
     ret = 0;
 exit:
-    lua_pop(A, 1);
+    lua_pop(A, 1); /* message table */
     assert(lua_gettop(A) == ret);
     return ret;
 }
@@ -187,6 +226,7 @@ actor_probe (Actor *actor, lua_State *L)
     script_index = luaL_checkinteger(L, script_arg);
     field = luaL_checkstring(L, field_arg);
    
+    /* loop through the linked-list and while incrementing the counter */
     while (script != NULL && i < script_index) {
         script = script->next;
         i++;
@@ -244,8 +284,8 @@ actor_destroy (void *a)
     Script *script, *next;
 
     for (script = actor->script_head; script != NULL; script = next) {
-	next = script->next;
-	script_destroy(script, actor->L);
+        next = script->next;
+        script_destroy(script, actor->L);
     }
 
     actor->script_head = NULL;
