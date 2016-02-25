@@ -95,7 +95,6 @@ tree_index_is_valid (int id)
 
     if (tree_read() != 0)
         goto exit;
-
     ret = !(id > global_tree->list_size);
     tree_unlock();
 
@@ -256,19 +255,6 @@ node_cleanup_fullwr (int id)
 void
 node_destroy_fullwr (int id)
 {
-    int i;
-
-    if (node_is_used_rd(id)) {
-        printf("Node %d\n", id);
-        printf("\tparent: \n\t\t%d\n", global_tree->list[id].parent);
-        printf("\tchildren: \n\t\t");
-        for (i = 0; i < global_tree->list[id].max_children; i++) {
-            if (global_tree->list[id].children[i] > NODE_INVALID)
-                printf("%d ", global_tree->list[id].children[i]);
-        }
-        printf("\n");
-    }
-
     node_cleanup_fullwr(id);
 
     if (global_tree->list[id].children) {
@@ -345,17 +331,14 @@ node_remove_child (int id, int child)
     }
 
     node_unlock(id);
-
 exit:
     return ret;
 }
 
 /*
- * Verify id is valid. If it is valid, make sure it isn't being used. If it
- * isn't being used, try to acquire the mutex. If the mutex is busy (or any 
- * other asertions are incorrect), return 1 saying the node wasn't cleaned-up.
- * If the mutex wasn't busy (and it was acquired), acquire the write lock and
- * cleanup the node and return 0.
+ * Cleanup the Node from the given id.
+ * Returns 1 if it wasn't able to cleanup the Node.
+ * Returns 0 if successful.
  */
 int
 node_cleanup (int id)
@@ -364,7 +347,6 @@ node_cleanup (int id)
 
     if (node_read(id) != 0)
         goto exit;
-
     is_used = node_is_used_rd(id);
     node_unlock(id);
 
@@ -374,16 +356,18 @@ node_cleanup (int id)
     if (node_data_trylock(id) != 0)
         goto exit;
 
-    node_write(id);
+    if (node_write(id) != 0)
+        goto unlock_data;
 
-    /* verify again after read-lock has been released */
+    /* node can get changed after unlocking before, verify it's used */
     if (node_is_used_rd(id))
-        goto unlock;
+        goto unlock_node;
 
     node_cleanup_fullwr(id);
     ret = 0;
-unlock:
+unlock_node:
     node_unlock(id);
+unlock_data:
     node_data_unlock(id);
 exit:
     return ret;
@@ -391,7 +375,7 @@ exit:
 
 /*
  * Acquires the write-lock for the tree. Resizes the list by the factor given
- * at tree_init-- 2 doubles its size, 3 triples, etc. Returns 0 if successful.
+ * at tree_init -- 2 doubles its size, 3 triples, etc. Returns 0 if successful.
  */
 int
 tree_resize ()
@@ -418,7 +402,7 @@ tree_resize ()
         global_tree->list = memory;
         global_tree->list_size = size;
         
-        /* TODO: node_init fails here */
+        /* TODO: what if node_init fails here */
         for (; id < global_tree->list_size; id++)
             node_init_wr(id);
     }
@@ -433,8 +417,12 @@ unlock:
  * pointer with the data_cleanup_func_t given in tree_init. 
  *
  * The tree attaches the pointer to a Node which is added as a child of
- * parent_id.  If parent_id <= NODE_INVALID then the Tree assumes that is
- * supposed to be the root Node and saves it (the root node has no parent).
+ * parent_id.  
+ *
+ * If parent_id <= NODE_INVALID then the Tree -- the firs time -- assumes that
+ * is supposed to be the root Node and saves it (the root node has no parent).
+ * Every time after that if the parent_id <= NODE_INVALID then the Node created
+ * as a child of the root node.
  *
  * Returns the id of the Node inside the tree. 
  *
@@ -451,13 +439,13 @@ unlock:
 int
 tree_add_reference (void *data, int parent_id, int thread_id)
 {
-    int max_id, id, set_root = 0, ret = ERROR;
+    int max_id, id, invalid_parent = 0, ret = ERROR;
 
     if (data == NULL)
         goto exit;
 
     if (parent_id <= NODE_INVALID)
-        set_root = 1;
+        invalid_parent = 1;
 
 find_unused_node:
     max_id = tree_list_size();
@@ -478,8 +466,9 @@ find_unused_node:
 data_lock_and_write:
     /* 
      * We set the lock-order of the Node's data lock before the Node's
-     * structure write lock. This is so we can trylock the data first so we
-     * don't waste time acquiring the write lock if the mutex isn't ready.
+     * structure write lock. This is so later (in node_cleanup) we can safely
+     * do a trylock on the data without wasting time acquiring the write lock 
+     * on the Node to then do a trylock.
      */
     node_data_lock(id);
     node_write(id);
@@ -498,34 +487,51 @@ data_lock_and_write:
     node_mark_attached_fullwr(id, data, thread_id);
 
     /* 
-     * If we are setting the root of the Node, we obviously can't be adding
-     * it as a child of any particular node.
+     * The first time invalid_parent is true, the id found becomes the root
+     * node for the tree. Everytime after that, the node which has an invalid
+     * parent becomes the child of the root node. Only the root node has a
+     * parent of NODE_INVALID. All other parents will be valid indices.
      */
-    if (set_root) {
+    if (invalid_parent) {
         if (tree_write() != 0) {
             ret = ERROR;
             goto unlock;
         }
-        global_tree->root = id;
-        tree_unlock();
-    } else {
+        
+        /*
+         * TODO:
+         * A similar bug which caused the branch below arises when you try to
+         * delete the root node. You can't delete the root right now.
+         */
+
+        if (global_tree->root > NODE_INVALID) {
+            parent_id = global_tree->root;
+            tree_unlock();
+        } else {
+            global_tree->root = id;
+            tree_unlock();
+            goto success;
+        }
+    }
+
+    if (node_add_child(parent_id, id) != 0) {
         /* 
          * keep the allocated data but still return with an error. it will be
          * cleaned up automatically if we simply mark it as garbage.
          */
-        if (node_add_child(parent_id, id) != 0) {
-            node_mark_unused_wr(id);
-            ret = NODE_ERROR;
-            goto unlock;
-        }
-        global_tree->list[id].parent = parent_id;
+        node_mark_unused_wr(id);
+        ret = NODE_ERROR;
+        goto unlock;
     }
 
+success:
+    global_tree->list[id].parent = parent_id;
     ret = id;
 
 unlock:
     node_unlock(id);
     node_data_unlock(id);
+
 exit:
     return ret;
 }
@@ -589,7 +595,7 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
         } else {
             if (lock_func(children[id]) == 0) {
                 if (node_is_used_rd(root))
-	    	        function(children[id]);
+                    function(children[id]);
                 node_unlock(children[id]);
             }
         }

@@ -1,82 +1,74 @@
 #ifndef DIALOGUE_SCRIPT
 #define DIALOGUE_SCRIPT
 
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
-
-#define SCRIPT_LIB "Dialogue.Actor.Script"
-
-#define ERR_NOT_CALLING_THREAD "Calling thread isn't the Actor's thread."
-#define ERR_NO_MODULE_NEW      "'new' doesn't exist for the module."
-
-#define LOAD_OK         0
-#define LOAD_BAD_THREAD 1
-#define LOAD_FAIL       2
-
-#define SEND_OK         0
-#define SEND_BAD_THREAD 1
-#define SEND_SKIP       2
-#define SEND_FAIL       3
+#include "actor.h"
 
 typedef struct Script {
     struct Script *prev;
     struct Script *next;
-    struct Actor *actor;
 
     short int is_loaded;  /* is it loaded? true/false */
     short int be_loaded;  /* should it be loaded? true/false */
 
-    const char *error; /* if not loaded & shouldn't be loaded, here's why */
-
     int table_ref;  /* the definition of the script for reloading */
     int object_ref; /* the object that resides in the Actor's stack */
-    int ref;        /* a place for the actor to hold the ref so it's not gc'd */
 } Script;
 
 /*
- * Assumes the state mutex has been acquired.  Attempt to load the given
- * Script. *Must* be called from the Actor's thread.
+ * Expects a Script definition on top of the Lua stack A.  Returns a pointer to
+ * the Script.
  *
- * Returns: LOAD_OK, LOAD_BAD_THREAD, LOAD_FAIL
- *
- * If LOAD_FAIL is returned, the Script is turned off and exists as dead weight
- * -- skipped by all messages and sends the error which caused it not to load
- *  on any access of it. A user can to attempt to fix the errors and reload it
- *  manually.
- *
- * Additionally, details of the error are set if LOAD_FAIL is returned.
- */
-int
-script_load (Script *script);
-
-/*
- * Assumes access to state & stack mutexes. Unloads the Script making it exist
- * as dead weight. It will be skipped by messages and load attempts unless 
- * changed manually.
- */
-void
-script_unload (Script *script);
-
-/*
- * Assumes the state has been acquired and a message table at -1 in the form of
- *  { 'message' [, arg1 [, ... [, argn]]], author}
- *
- * Returns SEND_OK, SEND_BAD_THREAD, SEND_SKIP, SEND_FAIL.
- *
- * If SEND_FAIL is returned, the Script is unloaded and turned off.
- * Additionally, details of the error are set if SEND_FAIL is returned.
- */
-int
-script_send (Script *script);
-
-/*
- * Check for a Script at index. Errors if it isn't a Script.
+ * If the functions returns NULL, an error string is pushed onto A. Otherwise
+ * nothing is pushed onto A and the function returns the Script.
  */
 Script *
-lua_check_script (lua_State *L, int index);
+script_new (lua_State *A);
 
-int 
-luaopen_Dialogue_Actor_Script (lua_State *L);
+/*
+ * Loads (or reloads) the Script created in the given Lua stack.  
+ *
+ * Assume a Script definition table at -1 in the form of
+ *  { 'module' [, arg1 [, ... [, argn]]] }
+ *
+ * The module is `required' and then the function `new` is called on the table
+ * that is returned from `require`. The args supplied in the script definition
+ * are passed into the `new` function.
+ *
+ * Returns 0 if successful, 1 if an error occurs. If an error occurs, an error
+ * string is pushed onto A.
+ */
+int
+script_load (Script *script, lua_State *A);
+
+/*
+ * Sends a Message to the object created from script_load.
+ *
+ * Assumes a message definition table at -1 in the form of
+ *  { 'message' [, arg1 [, ... [, argn]]], author}
+ *
+ * The 'message' is some method of the instantiated object which was created in
+ * script_load. If it doesn't exist it actually isn't an error. This is one of
+ * those "it's a feature, not a bug" things -- by willing to say this isn't an
+ * error we gain the ability to very easily add new message primitives (the
+ * methods themselves) to the system.
+ *
+ * Returns 0 if successful, 1 if an error occurs. If an error occurs, an error
+ * string is pushed onto A.
+ */
+int
+script_send (Script *script, lua_State *A);
+
+/*
+ * Access a field and get the results from the object inside the Script.
+ *
+ * If there is an error this function returns 1 and leaves an error string on
+ * top of the Actor's stack. Returns 0 if successful and leaves the probed
+ * value on top of the Actor's stack.
+ */
+int
+script_probe (Script *script, lua_State *A, const char *field);
+
+void
+script_destroy (Script *script, lua_State *A);
 
 #endif

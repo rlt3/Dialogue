@@ -1,13 +1,23 @@
 #include <stdlib.h>
+#include <assert.h>
 #include "tree.h"
 #include "actor.h"
 #include "company.h"
+#include "utils.h"
 
 #define COMPANY_META "Dialogue.Company"
 #define ACTOR_META "Dialogue.Company.Actor"
 
 /*
  * Create the Company tree with the following options.
+ *
+ * base_actors is the default number of actors that can be created before the
+ * tree needs to resize for more.
+ *
+ * max_actors is the maximum size the actor list can be even after resizing.
+ *
+ * base_children is the default number of children an actor can have before
+ * resizing.
  */
 int
 company_create (int base_actors, int max_actors, int base_children)
@@ -16,36 +26,72 @@ company_create (int base_actors, int max_actors, int base_children)
             actor_assign_id, actor_destroy, actor_get_id);
 }
 
+/*
+ * Add an Actor to the Company. Expects an Actor's definition table on top of
+ * L. Will call lua_error on L. If thread_id > -1 then the created Actor will
+ * only be ran on the thread with that id (thread_id == 0 is the main thread).
+ */
 int 
 company_add (lua_State *L, int parent, int thread_id)
 {
+    /* 
+     * TODO: Refactor Lua errors into this function (and other like it) so this
+     * function can't be used safely anywhere.
+     */
     return tree_add_reference(actor_create(L), parent, thread_id);
 }
 
-int
-company_remove (int id, int is_delete)
+/*
+ * Remove an actor from the Company's Tree but still leave it accessible in
+ * memory (to be reloaded or otherwise tested).
+ */
+int 
+company_bench (int id)
 {
-    return tree_unlink_reference(id, is_delete);
+    return tree_unlink_reference(id, 0);
 }
 
+/*
+ * Join an actor which was benched back into the Company's tree.
+ */
 int
 company_join (int id)
 {
     return tree_link_reference(id);
 }
 
-void *
+/*
+ * Remove an Actor from the Company's Tree and mark it as garbage.
+ */
+int 
+company_delete (int id)
+{
+    return tree_unlink_reference(id, 1);
+}
+
+/*
+ * Get the actor associated with the id. Returns NULL if the id wasn't valid.
+ * Requires called `company_deref` is the return was *not NULL*.
+ */
+Actor *
 company_ref (int id)
 {
     return tree_ref(id);
 }
 
+/*
+ * Return the actor associated with the id. Calling this function for an id
+ * that returned NULL for `company_ref` produces undefined behavior.
+ */
 int
 company_deref (int id)
 {
     return tree_deref(id);
 }
 
+/*
+ * Destroy the Company and all the Actors.
+ */
 void
 company_close ()
 {
@@ -69,12 +115,14 @@ company_push_actor (lua_State *L, int actor_id)
 
 /*
  * An actor can be represented in many ways. All of them boil down to an id.
- * This function coerces many actor-types into getting the id it holds.
+ * This function returns the id of an actor at index. Will call lua_error on
+ * L if the type is unexpected.
  */
 int
 company_actor_id (lua_State *L, int index)
 {
-    int id, type = lua_type(L, index);
+    int id = -1;
+    int type = lua_type(L, index);
 
     switch(type) {
     case LUA_TTABLE:
@@ -88,36 +136,12 @@ company_actor_id (lua_State *L, int index)
         break;
         
     case LUA_TSTRING:
-        break;
-
     default:
-        luaL_error(L, "Cannot get id from unexpected Actor type");
+        luaL_error(L, "Cannot coerce Actor id from type!");
         break;
     }
 
     return id;
-}
-
-/*
- * -- find the actor that represents "dungeon" and return an actor object
- * room = Actor("dungeon")
- *
- * -- create an actor. its parent is the dungeon room
- * Actor({"entity", "player.png"}, room)
- *
- * -- create an actor with the name "graphics". lookup parent by name and
- * -- limit the operations of this actor to the main thread (thread 0).
- * Actor("graphics", {"window", 400, 600}, "dungeon", 0)
- *
- * So, an Actor can be represented in a multitude of ways:
- *   - id: all ways boil down to this -- all actors are an id
- *   - object: actor objects are just tables that hold an id
- *   - string: string name that gets mapped to an id
- */
-int
-lua_company_call (lua_State *L)
-{
-    return 0;
 }
 
 /*
@@ -153,19 +177,28 @@ lua_actor_new (lua_State *L)
         lua_pop(L, args - parent_arg + 1);
     }
 
+    assert(lua_gettop(L) == definition_arg);
     id = company_add(L, parent, thread);
 
     switch (id) {
     case ERROR:
-        luaL_error(L, "Creating Actor failed!");
+        /* 
+         * ERROR also catches if the actor data is NULL in
+         * `tree_add_reference`.  We throw a Lua error where ever we would
+         * return NULL in `actor_new` so techincally that error should never
+         * happen.
+         */
+        luaL_error(L, 
+                "Failed to create actor: write-lock for `%d` failed!", id);
         break;
 
     case NODE_ERROR:
-        luaL_error(L, "Invalid parent `%d` for new actor!", parent);
+        luaL_error(L, 
+                "Failed to create actor: invalid parent id `%d`!", parent);
         break;
 
     case NODE_INVALID:
-        luaL_error(L, "Unable to allocate memory for new Actor!");
+        luaL_error(L, "Failed to create actor: no memory!");
         break;
 
     default:
@@ -173,12 +206,66 @@ lua_actor_new (lua_State *L)
         break;
     }
 
+    /*
+     * TODO: Send a `load' message for the actor at id.
+     */
+
+    return 1;
+}
+
+/*
+ * The top-level dispatch function of the Company. This function can be called
+ * two ways right now: one can create an Actor and push Lua object to reference
+ * that Actor, or it can just push a Lua object to reference an id.
+ *
+ * When creating an actor, it will error through Lua with a descriptive error
+ * message. If not creating an actor (and just pushing a reference), it does no
+ * checks on the id given.
+ *
+ * Actor{ {"draw", 200, 400} } => actor
+ * Actor(20) => actor
+ */
+int
+lua_company_call (lua_State *L)
+{
+    const int bottom = 2;
+    const int args = lua_gettop(L);
+
+    if (args >= bottom && lua_type(L, bottom) == LUA_TTABLE) {
+        lua_actor_new(L);
+        goto exit;
+    }
+
+    if (args == bottom) {
+        company_push_actor(L, company_actor_id(L, bottom));
+        goto exit;
+    }
+
+    luaL_error(L, "Invalid # of arguments to Actor. Expected >= %d got %d",
+            bottom, args);
+
+exit:
     return 1;
 }
 
 int
 lua_actor_load (lua_State *L)
 {
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
+    Actor *actor = company_ref(id);
+
+    if (!actor)
+        luaL_error(L, "Id `%d` is an invalid reference!", id);
+
+    /* if actor_load doesn't return 0, it puts an error string on top of A */
+    if (actor_load(actor, L) != 0) {
+        actor_pop_error(actor, L);
+        company_deref(id);
+        lua_error(L);
+    }
+
+    company_deref(id);
     return 0;
 }
 
@@ -222,10 +309,9 @@ int
 lua_actor_bench (lua_State *L)
 {
     const int actor_arg = 1;
-    const int bench = 0;
     const int id = company_actor_id(L, actor_arg);
 
-    if (company_remove(id, bench) != 0)
+    if (company_bench(id) != 0)
         luaL_error(L, "Cannot bench invalid reference `%d`!", id);
 
     return 0;
@@ -240,15 +326,15 @@ lua_actor_join (lua_State *L)
 
     switch (rc) {
     case 1:
-        luaL_error(L, "Cannot join `%d` -- bad parent!", id);
+        luaL_error(L, "Cannot join `%d`: bad parent!", id);
         break;
 
     case 2:
-        luaL_error(L, "Cannot join `%d` -- not benched!", id);
+        luaL_error(L, "Cannot join `%d`: not benched!", id);
         break;
 
     case 3:
-        luaL_error(L, "Cannot join `%d` -- id invalid!", id);
+        luaL_error(L, "Cannot join `%d`: id invalid!", id);
         break;
 
     default:
@@ -262,12 +348,22 @@ int
 lua_actor_delete (lua_State *L)
 {
     const int actor_arg = 1;
-    const int delete = 1;
     const int id = company_actor_id(L, actor_arg);
 
-    if (company_remove(id, delete) != 0)
+    if (company_delete(id) != 0)
         luaL_error(L, "Cannot delete invalid reference `%d`!", id);
     
+    return 0;
+}
+
+int
+lua_actor_cleanup (lua_State *L)
+{
+    /*
+     * Because deleted Nodes only have their memory freed when the Tree needs
+     * the Node again, we need to be able to free a deleted Node's memory on
+     * command. This should error-out on *used* nodes.
+     */
     return 0;
 }
 
@@ -312,10 +408,61 @@ lua_actor_id (lua_State *L)
     return 1;
 }
 
+/*
+ * Send a messsage to the actor in the form of:
+ * { 'message' [, arg1 [, ... [, argn]]], author}
+ *
+ * a0 = Actor{ {"graphics", 200, 400} }
+ * a0:send{"draw", 20, 20, a0}
+ */
+int
+lua_actor_send (lua_State *L)
+{
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
+    Actor *actor = company_ref(id);
+
+    if (!actor)
+        luaL_error(L, "Id `%d` is an invalid reference!", id);
+
+    /* if actor_send doesn't return 0, it puts an error string on top of A */
+    if (actor_send(actor, L) != 0) {
+        actor_pop_error(actor, L);
+        company_deref(id);
+        lua_error(L);
+    }
+
+    company_deref(id);
+    return 0;
+}
+
+/*
+ * Probe a specific Script's object for the given field.
+ *
+ * actor:probe(script_id, field_name)
+ *
+ * a0 = Actor{ {"graphics", 200, 400} }
+ * a0:probe(1, "width") => 200
+ * a0:probe(1, "height") => 400
+ */
 int
 lua_actor_probe (lua_State *L)
 {
-    return 0;
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
+    Actor *actor = company_ref(id);
+
+    if (!actor)
+        luaL_error(L, "Id `%d` is an invalid reference!", id);
+
+    if (actor_probe(actor, L) != 0) {
+        actor_pop_error(actor, L);
+        company_deref(id);
+        lua_error(L);
+    }
+
+    company_deref(id);
+    return 1;
 }
 
 static const luaL_Reg actor_metamethods[] = {
@@ -323,17 +470,19 @@ static const luaL_Reg actor_metamethods[] = {
     {"child",    lua_actor_child},
     {"children", lua_actor_children},
     {"delete",   lua_actor_delete},
+    {"cleanup",  lua_actor_cleanup},
     {"lock",     lua_actor_lock},
     {"unlock",   lua_actor_unlock},
     {"id",       lua_actor_id},
     {"bench",    lua_actor_bench},
     {"join",     lua_actor_join},
+    {"send",     lua_actor_send},
     {"probe",    lua_actor_probe},
     { NULL, NULL }
 };
 
 static const luaL_Reg company_metamethods[] = {
-    {"__call",   lua_actor_new},
+    {"__call",   lua_company_call},
     { NULL, NULL }
 };
 
@@ -357,6 +506,9 @@ luaopen_Dialogue_Company (lua_State *L)
     return 1;
 }
 
+/*
+ * Set the Company's table inside the given Lua state.
+ */
 void
 company_set (lua_State *L)
 {

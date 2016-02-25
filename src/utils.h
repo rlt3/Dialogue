@@ -74,4 +74,31 @@ utils_transfer (lua_State *to, lua_State *from, const int n)
     }
 }
 
+
+
+/*
+ * Push the first element of a table at index.
+ */
+static inline void
+utils_push_table_head (lua_State *L, int index)
+{
+    lua_rawgeti(L, index, 1);
+}
+
+/*
+ * Push N elements after first of a table at index. Returns elements pushed.
+ */
+static inline int
+utils_push_table_data (lua_State *L, int index)
+{
+    luaL_checktype(L, index, LUA_TTABLE);
+    int i, len = luaL_len(L, index);
+
+    /* first element in an envelope table is the title */
+    for (i = 2; i <= len; i++)
+        lua_rawgeti(L, index, i);
+
+    return len - 1;
+}
+
 #endif
