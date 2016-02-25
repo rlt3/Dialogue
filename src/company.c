@@ -23,7 +23,7 @@ int
 company_create (int base_actors, int max_actors, int base_children)
 {
     return tree_init(base_actors, max_actors, 2, 
-            actor_assign_id, actor_destroy, actor_get_id);
+            actor_assign_id, actor_destroy);
 }
 
 /*

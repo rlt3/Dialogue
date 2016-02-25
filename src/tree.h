@@ -22,9 +22,9 @@
    `6` and the Tree's structure remains the same, we can say that `6 == F` and
    vice-versa.
 
-   There is a `map` utility for subtrees. A subtree is any Node which has at
-   least one child. This means that Node `A` above is techincally a subtree,
-   but that both `B` and `F` are as well. 
+   There is a `map` utility for subtrees. A subtree is any Node that exists
+   inside the tree.  This means that Node `A` above is techincally a subtree
+   and that `B`, `E`, and `F` are as well.
    
    The utility can be recursive or only go one-level deep. For instance, the
    subtree at `A` that is only one-level deep only represents `B`, `E`, and 
@@ -58,7 +58,6 @@
 
 typedef void (*data_set_id_func_t) (void *, int);
 typedef void (*data_cleanup_func_t) (void *);
-typedef int (*data_lookup_func_t) (void *);
 
 enum TreeReturn {
     ERROR = -3,
@@ -80,8 +79,7 @@ tree_init (
         int max_length, 
         int scale_factor, 
         data_set_id_func_t set_id,
-        data_cleanup_func_t cleanup,
-        data_lookup_func_t lookup);
+        data_cleanup_func_t cleanup);
 
 /*
  * Have the tree take ownship of the pointer. The tree will cleanup that

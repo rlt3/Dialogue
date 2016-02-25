@@ -77,8 +77,6 @@ exit:
 void
 script_destroy (Script *script, lua_State *A)
 {
-    //luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
-    //luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
     script->prev = NULL;
     script->next = NULL;
     free(script);

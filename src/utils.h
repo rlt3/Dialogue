@@ -91,8 +91,10 @@ utils_push_table_head (lua_State *L, int index)
 static inline int
 utils_push_table_data (lua_State *L, int index)
 {
+    int i, len; 
+
     luaL_checktype(L, index, LUA_TTABLE);
-    int i, len = luaL_len(L, index);
+    len = luaL_len(L, index);
 
     /* first element in an envelope table is the title */
     for (i = 2; i <= len; i++)
