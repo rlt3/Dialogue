@@ -10,6 +10,14 @@
 
 /*
  * Create the Company tree with the following options.
+ *
+ * base_actors is the default number of actors that can be created before the
+ * tree needs to resize for more.
+ *
+ * max_actors is the maximum size the actor list can be even after resizing.
+ *
+ * base_children is the default number of children an actor can have before
+ * resizing.
  */
 int
 company_create (int base_actors, int max_actors, int base_children)
@@ -18,36 +26,72 @@ company_create (int base_actors, int max_actors, int base_children)
             actor_assign_id, actor_destroy, actor_get_id);
 }
 
+/*
+ * Add an Actor to the Company. Expects an Actor's definition table on top of
+ * L. Will call lua_error on L. If thread_id > -1 then the created Actor will
+ * only be ran on the thread with that id (thread_id == 0 is the main thread).
+ */
 int 
 company_add (lua_State *L, int parent, int thread_id)
 {
+    /* 
+     * TODO: Refactor Lua errors into this function (and other like it) so this
+     * function can't be used safely anywhere.
+     */
     return tree_add_reference(actor_create(L), parent, thread_id);
 }
 
-int
-company_remove (int id, int is_delete)
+/*
+ * Remove an actor from the Company's Tree but still leave it accessible in
+ * memory (to be reloaded or otherwise tested).
+ */
+int 
+company_bench (int id)
 {
-    return tree_unlink_reference(id, is_delete);
+    return tree_unlink_reference(id, 0);
 }
 
+/*
+ * Join an actor which was benched back into the Company's tree.
+ */
 int
 company_join (int id)
 {
     return tree_link_reference(id);
 }
 
-void *
+/*
+ * Remove an Actor from the Company's Tree and mark it as garbage.
+ */
+int 
+company_delete (int id)
+{
+    return tree_unlink_reference(id, 1);
+}
+
+/*
+ * Get the actor associated with the id. Returns NULL if the id wasn't valid.
+ * Requires called `company_deref` is the return was *not NULL*.
+ */
+Actor *
 company_ref (int id)
 {
     return tree_ref(id);
 }
 
+/*
+ * Return the actor associated with the id. Calling this function for an id
+ * that returned NULL for `company_ref` produces undefined behavior.
+ */
 int
 company_deref (int id)
 {
     return tree_deref(id);
 }
 
+/*
+ * Destroy the Company and all the Actors.
+ */
 void
 company_close ()
 {
@@ -71,7 +115,8 @@ company_push_actor (lua_State *L, int actor_id)
 
 /*
  * An actor can be represented in many ways. All of them boil down to an id.
- * This function coerces many actor-types into getting the id it holds.
+ * This function returns the id of an actor at index. Will call lua_error on
+ * L if the type is unexpected.
  */
 int
 company_actor_id (lua_State *L, int index)
@@ -208,7 +253,7 @@ lua_actor_load (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = tree_ref(id);
+    Actor *actor = company_ref(id);
 
     if (!actor)
         luaL_error(L, "Id `%d` is an invalid reference!", id);
@@ -216,11 +261,11 @@ lua_actor_load (lua_State *L)
     /* if actor_load doesn't return 0, it puts an error string on top of A */
     if (actor_load(actor, L) != 0) {
         actor_pop_error(actor, L);
-        tree_deref(id);
+        company_deref(id);
         lua_error(L);
     }
 
-    tree_deref(id);
+    company_deref(id);
     return 0;
 }
 
@@ -264,10 +309,9 @@ int
 lua_actor_bench (lua_State *L)
 {
     const int actor_arg = 1;
-    const int bench = 0;
     const int id = company_actor_id(L, actor_arg);
 
-    if (company_remove(id, bench) != 0)
+    if (company_bench(id) != 0)
         luaL_error(L, "Cannot bench invalid reference `%d`!", id);
 
     return 0;
@@ -304,10 +348,9 @@ int
 lua_actor_delete (lua_State *L)
 {
     const int actor_arg = 1;
-    const int delete = 1;
     const int id = company_actor_id(L, actor_arg);
 
-    if (company_remove(id, delete) != 0)
+    if (company_delete(id) != 0)
         luaL_error(L, "Cannot delete invalid reference `%d`!", id);
     
     return 0;
@@ -377,7 +420,7 @@ lua_actor_send (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = tree_ref(id);
+    Actor *actor = company_ref(id);
 
     if (!actor)
         luaL_error(L, "Id `%d` is an invalid reference!", id);
@@ -385,11 +428,11 @@ lua_actor_send (lua_State *L)
     /* if actor_send doesn't return 0, it puts an error string on top of A */
     if (actor_send(actor, L) != 0) {
         actor_pop_error(actor, L);
-        tree_deref(id);
+        company_deref(id);
         lua_error(L);
     }
 
-    tree_deref(id);
+    company_deref(id);
     return 0;
 }
 
@@ -407,18 +450,18 @@ lua_actor_probe (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = tree_ref(id);
+    Actor *actor = company_ref(id);
 
     if (!actor)
         luaL_error(L, "Id `%d` is an invalid reference!", id);
 
     if (actor_probe(actor, L) != 0) {
         actor_pop_error(actor, L);
-        tree_deref(id);
+        company_deref(id);
         lua_error(L);
     }
 
-    tree_deref(id);
+    company_deref(id);
     return 1;
 }
 
@@ -463,6 +506,9 @@ luaopen_Dialogue_Company (lua_State *L)
     return 1;
 }
 
+/*
+ * Set the Company's table inside the given Lua state.
+ */
 void
 company_set (lua_State *L)
 {

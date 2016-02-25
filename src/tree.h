@@ -88,8 +88,12 @@ tree_init (
  * pointer with the data_cleanup_func_t given in tree_init. 
  *
  * The tree attaches the pointer to a Node which is added as a child of
- * parent_id.  If parent_id <= NODE_INVALID then the Tree assumes that is
- * supposed to be the root Node and saves it (the root node has no parent).
+ * parent_id.  
+ *
+ * If parent_id <= NODE_INVALID then the Tree -- the firs time -- assumes that
+ * is supposed to be the root Node and saves it (the root node has no parent).
+ * Every time after that if the parent_id <= NODE_INVALID then the Node created
+ * as a child of the root node.
  *
  * Returns the id of the Node inside the tree. 
  *
