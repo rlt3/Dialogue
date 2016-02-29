@@ -3,43 +3,37 @@
 
 #include "dialogue.h"
 
-typedef struct Director Director;
+/*
+ * Load the Director and all of the Workers.
+ */
+int
+director_create ();
 
 /*
- * Set the Director to a table at the index.
+ * Set the Director inside the Lua state.
  */
 void
-director_set (lua_State *L, int index, Director *director);
+director_set (lua_State *L);
 
 /*
- * Receive an action in this form:
- *     Dialogue{ action, actor [, data1 [, ... [, dataN]]] }
+ * Expects an Action on top of the Lua stack in the form:
+ *     { action, actor [, data1 [, ... [, dataN]]] }
  *
- * Send the action to an open worker.
+ * { OP_BENCH, bullet }
+ * { OP_SEND, player, "input", "JOYSTICK-FIRE" }
+ * { OP_LOAD, bullet, "location", x, y }
+ * { OP_JOIN, bullet }
+ * { OP_SEND, bullet, "target", 30, 40 }
+ *
+ * Send the action to an open worker. Returns 0 if successful.
  */
 int
-lua_director_action (lua_State *L);
+director_action (lua_State *L);
 
 /*
- * Stop any threads and free any memory associated with them and the director.
+ * Close the Director and all of the Workers.
  */
 int
-lua_director_quit (lua_State *L);
-
-int
-lua_director_tostring (lua_State *L);
-
-/*
- * Create the Director table with all the Actions in the given Lua state.
- */
-void
-create_director_table (lua_State *L);
-
-/*
- * Create the Director table using above, but add the garbage collection
- * function to the metatable.
- */
-int
-luaopen_Dialogue_Director (lua_State *L);
+director_close ();
 
 #endif

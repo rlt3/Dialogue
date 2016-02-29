@@ -8,13 +8,76 @@
 
 struct Director {
     Worker **workers;
-    Mailbox *mailbox;
     int worker_count;
+    Mailbox *main_mailbox;
     int rand_seed;
-    struct timeval stop, start;
+    struct timeval start;
+    struct timeval now;
 };
 
+enum Actions {
+    ACTION_SEND,
+    ACTION_LOAD,
+    ACTION_TONE,
+    ACTION_BENCH,
+    ACTION_JOIN,
+    ACTION_DELETE
+};
+
+static Director *global_director = NULL;
+
 static const char *director_field = "__ptr";
+
+int
+director_create (const int workers)
+{
+    const int director_table = 1;
+    int ret = 1;
+    int i, j;
+
+    global_director = malloc(sizeof(*director));
+
+    if (!global_director)
+        goto exit;
+
+    director->workers = malloc(sizeof(Worker*) * workers);
+
+    if (!director->workers) {
+        free(director);
+        goto exit;
+    }
+
+    director->mailbox = mailbox_create();
+
+    if (!director->mailbox) {
+        free(director->workers);
+        free(director);
+        goto exit;
+    }
+
+    for (i = 0; i < director->worker_count; i++) { 
+        director->workers[i] = worker_start(L, director);
+        
+        if (!director->workers[i]) {
+            for (j = 0; j < i; j++)
+                worker_cleanup(director->workers[j])
+            free(director->mailbox);
+            free(director->workers);
+            free(director);
+            goto exit;
+        }
+    }
+
+    director->rand_seed = time(NULL);
+    srand(director->rand_seed);
+
+    gettimeofday(&director->start, NULL);
+    director->now = director->start;
+
+    ret = 0;
+exit:
+    return ret;
+}
 
 /*
  * Set the Director to a table at the index.
