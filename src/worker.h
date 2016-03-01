@@ -2,14 +2,15 @@
 #define DIALOGUE_WORKER
 
 #include "dialogue.h"
-#include "director.h"
-#include "actor.h"
 
 typedef struct Worker Worker;
 
-
+/*
+ * Create a Worker, which spawns a thread.
+ * Returns NULL on failure.
+ */
 Worker *
-worker_start (lua_State *L, Director *director);
+worker_start ();
 
 /*
  * Have the worker take the action on top of the given Lua stack. 
@@ -17,14 +18,7 @@ worker_start (lua_State *L, Director *director);
  * Returns 1 if the action is taken, 0 if busy.
  */
 int
-worker_take_action (lua_State *L, Worker *worker);
-
-/*
- * Save an Actor's pointer to a table in the Worker's Lua state so that it can
- * be easily cleaned up.
- */
-void
-worker_save_actor (lua_State *W, Actor *actor);
+worker_pop_action (Worker *worker, lua_State *L);
 
 /*
  * Wait for the Worker to wait for work, then join it back to the main thread.
@@ -34,7 +28,7 @@ void
 worker_stop (Worker *worker);
 
 /*
- * Frees the worker. Frees any Actors it created.
+ * Frees the worker.
  */
 void
 worker_cleanup (Worker *worker);

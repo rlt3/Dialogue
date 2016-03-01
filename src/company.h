@@ -79,7 +79,7 @@ int
 company_join (int id);
 
 /*
- * Remove an Actor from the Company's Tree and mark it as garbage.
+ * Remove an actor from the Company's Tree and mark it as garbage.
  */
 int 
 company_delete (int id);

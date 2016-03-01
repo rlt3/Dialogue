@@ -1,53 +1,59 @@
+/*============================================================================/
+ 
+    The Actions are the primitives of Dialogue. This means everything in the 
+  Dialogue happen through these Actions.
+
+  Actions are just tables with a specific format. All Actions begin with their
+  id. Dialogue switches through these ids and compares them to the enum below.
+  Each entry in the enum describes the high-level operation and format for that
+  Action.
+
+  These Actions are implemented by combining the Company and Actor's public
+  functions. The Company's functions usually involve extracting the Actor itself
+  from the Tree and various tree operations. The Actor's functions act as
+  `instance methods' for those extracted Actors.
+
+/============================================================================*/
+
 #ifndef DIALOGUE_ACTION
 #define DIALOGUE_ACTION
 
-/*
- * The Actions are the primitives of Dialogue. This means everything in the 
- * Dialogue happens through one (or many) of these Actions.
- *
- * Actions, as they are implemented in the system, are actually methods of the
- * Director metatable (where the Director could be thought of as a singleton 
- * scheduler).
- *
- * We don't put the Actions in the Director file because, while these are 
- * methods for a metatable, they aren't object methods literally belonging to
- * an object instance. The Actions belong to the system and the Director just
- * directs the Actions.
- */
+enum Actions {
+    /* 
+     * Send a message to a specific actor.
+     * { ACTION_SEND, actor, "message" [arg1 [, ... [, argN]]] } 
+     */
+    ACTION_SEND,
 
-#include "dialogue.h"
+    /* 
+     * Have an actor deliver a message via tone. Implemented using ACTION_SEND.
+     * { ACTION_DELIVER, actor, "tone", "message" [arg1 [, ... [, argN]]] }
+     */
+    ACTION_DELIVER,
 
-/*
- * Synchronous:
- * Director:new(definition_table [, parent])
- *
- * Asynchronous:
- * Director{"new", definition_table [, parent]}
- *
- * See Actor.h (specifically function `actor_create') for the definition of
- * `definition_table'.
- *
- * Create an Actor and then load it asynchronously.
- */
-int
-lua_action_create (lua_State *L);
+    /* 
+     * Load an actor with an optional `init` message to be called afterwards.
+     * { ACTION_LOAD, actor [, "init" [arg1 [, ... [, argN]]] }
+     */
+    ACTION_LOAD,
 
-int
-lua_action_bench (lua_State *L);
+    /* 
+     * Remove the actor from the working tree, but don't delete it.
+     * { ACTION_BENCH, actor }
+     */
+    ACTION_BENCH,
 
-int
-lua_action_join (lua_State *L);
+    /* 
+     * Join a benched actor back into the working tree.
+     * { ACTION_JOIN, actor }
+     */
+    ACTION_JOIN,
 
-int
-lua_action_receive (lua_State *L);
-
-int
-lua_action_send (lua_State *L);
-
-int
-lua_action_load (lua_State *L);
-
-int
-lua_action_error (lua_State *L);
+    /* 
+     * Remove an actor from the working tree permanently.
+     * { ACTION_DELETE, actor }
+     */
+    ACTION_DELETE
+};
 
 #endif

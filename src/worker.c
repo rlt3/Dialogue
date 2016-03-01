@@ -76,26 +76,34 @@ next:
 }
 
 Worker *
-worker_start (lua_State *L, Director *director)
+worker_start ()
 {
     Worker *worker = malloc(sizeof(*worker));
-    /* TODO: check memory here */
+    
+    if (!worker)
+        goto exit;
+
     worker->L = luaL_newstate();
-    /* TODO: check memory here */
+
+    if (!worker->L) {
+        free(worker);
+        goto exit;
+    }
+
     worker->mailbox = mailbox_create();
+
+    if (!worker->mailbox) {
+        lua_close(worker->L);
+        free(worker);
+        goto exit;
+    }
+
     worker->working = 1;
     worker->processed = 0;
-
-    /* create the Director table of actions */
     luaL_openlibs(worker->L);
-    create_director_table(worker->L);
-    director_set(worker->L, 1, director);
-    lua_setglobal(worker->L, "Director");
-
-    lua_newtable(worker->L);
-    lua_setglobal(worker->L, "__actors_reference");
-
     pthread_create(&worker->thread, NULL, worker_thread, worker);
+
+exit:
     return worker;
 }
 
