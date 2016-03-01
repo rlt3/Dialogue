@@ -2,10 +2,12 @@
 #define DIALOGUE_MAILBOX
 
 #include "dialogue.h"
-#include "worker.h"
 
 typedef struct Mailbox Mailbox;
 
+/*
+ * Create the mailbox. Returns NULL if no memory.
+ */
 Mailbox *
 mailbox_create ();
 

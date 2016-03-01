@@ -6,15 +6,27 @@
 typedef struct Worker Worker;
 
 /*
- * Create a Worker, which spawns a thread.
+ * Create a worker without a thread.
+ * Returns NULL on failure.
+ */
+Worker *
+worker_create ();
+
+/*
+ * Create a Worker and start it, which spawns a thread.
  * Returns NULL on failure.
  */
 Worker *
 worker_start ();
 
+/* 
+ * Process the next Action from the Worker's mailbox.
+ */
+void
+worker_process_action (Worker *worker, const int action_table);
+
 /*
- * Have the worker take the action on top of the given Lua stack. 
- * Pops the top of the given Lua stack if the action is taken.
+ * Pop the Action from the Lua stack onto the Worker's mailbox.
  * Returns 1 if the action is taken, 0 if busy.
  */
 int

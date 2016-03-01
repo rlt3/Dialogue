@@ -17,10 +17,21 @@ Mailbox *
 mailbox_create ()
 {
     Mailbox *mailbox = malloc(sizeof(*mailbox));
-    /* TODO check mailbox NULL */
+    
+    if (!mailbox)
+        goto exit;
+
     mailbox->L = luaL_newstate();
-    /* TODO check state NULL */
+
+    if (!mailbox->L) {
+        lua_close(mailbox->L);
+        free(mailbox);
+        mailbox = NULL;
+    }
+
     pthread_mutex_init(&mailbox->mutex, NULL);
+
+exit:
     return mailbox;
 }
 
@@ -82,9 +93,8 @@ mailbox_destroy (Mailbox *mailbox)
 {
     pthread_mutex_lock(&mailbox->mutex);
     if (lua_gettop(mailbox->L) > 0)
-        printf("%p quit with %d left\n", mailbox, lua_gettop(mailbox->L));
+        printf("%p quit with %d left\n", (void*)mailbox, lua_gettop(mailbox->L));
     pthread_mutex_unlock(&mailbox->mutex);
-    pthread_mutex_destroy(&mailbox->mutex);
     lua_close(mailbox->L);
     free(mailbox);
 }

@@ -1,28 +1,20 @@
-UNAME := $(shell uname)
-
-SOURCES=src/main.o src/tree.o src/company.o src/actor.o src/script.o src/director.o
-
-ifeq ($(DIALOGUE_HEADLESS), true)
-  MODULE=Dialogue.so
-else
-  MODULE=dialogue
-  SOURCES+=src/main.o 
-endif
+UNAME:=$(shell uname)
+MODULE:=dialogue
+CFLAGS+=-Wall -std=c99 -pedantic -D _BSD_SOURCE -fPIC -Isrc/ -I./
+LDFLAGS+=-L./ -L/usr/local/lib -lpthread -lreadline
+SOURCES:=src/main.o \
+		src/tree.o src/company.o \
+		src/actor.o src/script.o \
+		src/director.o src/worker.o src/mailbox.o
 
 ifeq ($(UNAME), Linux)
-  ifeq ($(DIALOGUE_HEADLESS), true)
-    SOFLAGS=-shared
-  endif
-  CFLAGS+=-Wall -Isrc/ -I./ -I/usr/include/lua5.2/ -D _BSD_SOURCE -fPIC
-  LDFLAGS+=-L./ -L/usr/local/lib -llua5.2 -lpthread -lreadline
+	CFLAGS+=-I/usr/include/lua5.2/
+	LDFLAGS+=-llua5.2 
 endif
 
 ifeq ($(UNAME), Darwin)
-  ifeq ($(DIALOGUE_HEADLESS), true)
-    SOFLAGS=-bundle -undefined dynamic_lookup
-  endif
-  CFLAGS+=-Wall -Isrc/ -I./ -I/usr/local/include/ -D _BSD_SOURCE -fPIC
-  LDFLAGS+=-L./ -L/usr/local/lib -llua -lpthread -lreadline
+	CFLAGS+=-I/usr/local/include/
+	LDFLAGS+=-llua
 endif
 
 all: clean build

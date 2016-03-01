@@ -33,7 +33,7 @@ director_action (lua_State *L);
 /*
  * Close the Director and all of the Workers.
  */
-int
+void
 director_close ();
 
 #endif
