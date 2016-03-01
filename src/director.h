@@ -10,7 +10,7 @@ int
 director_create ();
 
 /*
- * Set the Director inside the Lua state.
+ * Set the `director_action` function inside the Lua state as "Director".
  */
 void
 director_set (lua_State *L);

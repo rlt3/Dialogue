@@ -74,6 +74,16 @@ exit:
 }
 
 /*
+ * Set the `director_action` function inside the Lua state as "Director".
+ */
+void
+director_set (lua_State *L)
+{
+    lua_pushcfunction(L, director_action);
+    lua_setglobal(L, "Director");
+}
+
+/*
  * Expects an Action on top of the Lua stack in the form:
  *     { action, actor [, data1 [, ... [, dataN]]] }
  *
