@@ -23,7 +23,7 @@ static Director *global_director = NULL;
  * Returns 0 if successfuly, >0 if the system didn't have enough memory.
  */
 int
-director_create (const int workers)
+director_create (const int num_workers)
 {
     int i, ret = 1;
 
@@ -32,7 +32,7 @@ director_create (const int workers)
     if (!global_director)
         goto exit;
 
-    global_director->workers = malloc(sizeof(Worker*) * workers);
+    global_director->workers = malloc(sizeof(Worker*) * num_workers);
 
     if (!global_director->workers) {
         free(global_director);
@@ -48,10 +48,10 @@ director_create (const int workers)
     }
 
     /* set memory to NULL so if an error occurs, NULL checks will catch */
-    for (i = 0; i < global_director->worker_count; i++)
+    for (i = 0; i < num_workers; i++)
         global_director->workers[i] = NULL;
 
-    for (i = 0; i < global_director->worker_count; i++) { 
+    for (i = 0; i < num_workers; i++) { 
         global_director->workers[i] = worker_start();
         
         if (!global_director->workers[i]) {
@@ -59,6 +59,8 @@ director_create (const int workers)
             goto exit;
         }
     }
+
+    global_director->worker_count = num_workers;
 
     global_director->rand_seed = time(NULL);
     srand(global_director->rand_seed);

@@ -9,10 +9,10 @@
 struct Worker {
     lua_State *L;
     pthread_t thread;
+    pthread_mutex_t mutex;
     Mailbox *mailbox;
     int processed;
     int working;
-    int ref;
 };
 
 void
@@ -59,9 +59,16 @@ worker_thread (void *arg)
 {
     Worker *worker = arg;
     lua_State *W = worker->L;
-    int top;
+    int top, working;
 
-    while (worker->working) {
+    while (1) {
+        pthread_mutex_lock(&worker->mutex);
+        working = worker->working;
+        pthread_mutex_unlock(&worker->mutex);
+
+        if (!working)
+            break;
+
         if (mailbox_pop_all(W, worker->mailbox) == 0)
             continue;
 
@@ -165,6 +172,7 @@ worker_create ()
     worker->working = 1;
     worker->processed = 0;
     luaL_openlibs(worker->L);
+    pthread_mutex_init(&worker->mutex, NULL);
 
 exit:
     return worker;
@@ -204,7 +212,10 @@ worker_pop_action (Worker *worker, lua_State *L)
 void
 worker_stop (Worker *worker)
 {
+    pthread_mutex_lock(&worker->mutex);
     worker->working = 0;
+    pthread_mutex_unlock(&worker->mutex);
+
     pthread_join(worker->thread, NULL);
 }
 

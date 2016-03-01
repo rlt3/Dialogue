@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "company.h"
+#include "director.h"
 
 void
 usage (const char *program)
@@ -18,7 +19,12 @@ main (int argc, char **argv)
     if (argc == 1)
         usage(argv[0]);
 
+    /* 10 base actors, 20 max actors, 10 children each */
     if (company_create(10, 20, 10) != 0)
+        goto quit;
+
+    /* director with 2 workers */
+    if (director_create(2) != 0)
         goto quit;
 
     L = luaL_newstate();
@@ -37,6 +43,7 @@ main (int argc, char **argv)
 
     ret = 0;
 cleanup:
+    director_close();
     lua_close(L);
     company_close();
 quit:
