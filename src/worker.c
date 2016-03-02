@@ -69,7 +69,7 @@ worker_thread (void *arg)
         if (!working)
             break;
 
-	/* 
+	    /* 
          * TODO: should be a cond_wait on if the mailbox is empty or not.
          */
         if (mailbox_pop_all(W, worker->mailbox) == 0) {
@@ -77,8 +77,10 @@ worker_thread (void *arg)
             continue;
         }
 
-        for (top = lua_gettop(W); top > 1; top--)
-            worker_process_action(worker, top);
+        for (top = lua_gettop(W); top >= 1; top--) {
+            printf("%p got action!\n", (void*) worker);
+            //worker_process_action(worker, top);
+        }
     }
 
     return NULL;

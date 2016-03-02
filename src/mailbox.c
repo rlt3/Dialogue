@@ -43,22 +43,20 @@ exit:
 int
 mailbox_push_top (lua_State *L, Mailbox *mailbox)
 {
-    int rc, ret = 0;
+    int ret = 0;
     lua_State *B = mailbox->L;
 
-    rc = pthread_mutex_trylock(&mailbox->mutex);
-
-    if (rc == EBUSY)
-        return 0;
+    if (pthread_mutex_trylock(&mailbox->mutex) == EBUSY)
+        goto exit;
 
     if (!lua_checkstack(B, 1))
         goto cleanup;
 
     utils_transfer(B, L, 1);
     ret = 1;
-
 cleanup:
     pthread_mutex_unlock(&mailbox->mutex);
+exit:
     return ret;
 }
 
