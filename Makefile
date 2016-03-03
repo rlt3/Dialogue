@@ -2,10 +2,13 @@ UNAME:=$(shell uname)
 MODULE:=dialogue
 CFLAGS+=-Wall -std=c99 -pedantic -D _BSD_SOURCE -fPIC -Isrc/ -I./
 LDFLAGS+=-L./ -L/usr/local/lib -lpthread -lreadline
-SOURCES:=src/main.o \
-		src/tree.o src/company.o \
-		src/actor.o src/script.o \
-		src/director.o src/worker.o src/mailbox.o
+
+#SOURCES:=src/main.o \
+#       src/tree.o src/company.o \
+#       src/actor.o src/script.o \
+#       src/director.o src/worker.o src/mailbox.o
+
+SOURCES:=src/main.o src/director.o src/worker.o src/mailbox.o
 
 ifeq ($(UNAME), Linux)
 	CFLAGS+=-I/usr/include/lua5.2/

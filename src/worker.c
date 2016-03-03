@@ -16,6 +16,25 @@ struct Worker {
     int processed;
 };
 
+/*
+ * All Director Actions happen one at a time -- we don't need the ability to 
+ * have a mailbox and the mailbox is actually redudant. Worker should process
+ * a single action at a time and then wait for input (another action).
+ */
+
+/* worker takes action from L if mutex is unlocked, i.e. state == WAITING */
+//int
+//worker_take_action (Worker *worker, lua_State *L);
+
+/* 
+ * looks at the top of W (the worker's stack) and processes the action. this is
+ * a `catch' function around the Lua actor object methods (implemented in
+ * Company.h). Basically this function *is* the pcall function for the entire
+ * system and is where errors are printed.
+ */
+//int
+//worker_process_action (lua_State *W);
+
 void
 worker_process_action (Worker *worker, const int action_table)
 {
@@ -89,6 +108,7 @@ worker_thread (void *arg)
     */
 
     pthread_mutex_lock(&worker->mutex);
+    printf("Spinning up %p\n", (void*) worker);
 
     while (worker->state != DONE) {
         /* 
@@ -106,6 +126,7 @@ worker_thread (void *arg)
             worker_process_action(worker, top);
     }
 
+    printf("Spinning down %p\n", (void*) worker);
     pthread_mutex_unlock(&worker->mutex);
 
     return NULL;
@@ -194,7 +215,7 @@ worker_stop (Worker *worker)
 {
     pthread_mutex_lock(&worker->mutex);
     worker->state = DONE;
-    //pthread_cond_signal(&worker->cond);
+    pthread_cond_signal(&worker->cond);
     pthread_mutex_unlock(&worker->mutex);
 
     pthread_join(worker->thread, NULL);
