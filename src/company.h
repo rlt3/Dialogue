@@ -58,6 +58,12 @@ int
 company_actor_id (lua_State *L, int index);
 
 /*
+ * Push an Actor reference object onto the Lua stack.
+ */
+void
+company_push_actor (lua_State *L, int actor_id);
+
+/*
  * Add an Actor to the Company. Expects an Actor's definition table on top of
  * L. Will call lua_error on L. If thread_id > -1 then the created Actor will
  * only be ran on the thread with that id (thread_id == 0 is the main thread).

@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include "worker.h"
-#include "action.h"
+#include "company.h"
 #include "utils.h"
 
 struct Worker {
@@ -13,44 +13,66 @@ struct Worker {
     pthread_cond_t cond;
 };
 
+/*
+ * Why not make Actions just a serialized object method call for a specific
+ * actor? This means that potentially all methods of an actor can be 
+ * 'asynchronous' if you just throw them into the Director.
+ *
+ * {a0, "load"} => a0:load()
+ * {a0, "send", "draw", "player.jpg"} => a0:send("draw", "player.jpg")
+ */
+int
+worker_catch (lua_State *W)
+{
+    int i, len;
+    const int action_arg = 1;
+    const char *message = NULL;
+    /* positions within the table */
+    const int actor_pos = 1;
+    const int method_pos = 2;
+    const int args_pos = 3;
+
+    luaL_checktype(W, action_arg, LUA_TTABLE);
+    len = luaL_len(W, action_arg);
+
+    if (len < 2)
+        luaL_error(W, "Invalid length for an Action: %d", len);
+
+    lua_rawgeti(W, action_arg, actor_pos);
+    company_push_actor(W, company_actor_id(W, -1));
+
+    lua_rawgeti(W, action_arg, method_pos);
+    message = lua_tostring(W, -1);
+    lua_gettable(W, -2);
+
+    if (!lua_isfunction(W, -1))
+        luaL_error(W, "Invalid method for an Action: %s", message);
+
+    /* push `self' reference */
+    lua_pushvalue(W, -2);
+
+    /* push rest of args */
+    for (i = args_pos; i <= len; i++)
+        lua_rawgeti(W, action_arg, i);
+
+    /* 
+     * push length of table minus 2 (skip first two elements) and plus one for
+     * the `self`
+     */
+    lua_call(W, len - 1, 0);
+
+    return 0;
+}
+
 void
 worker_process_action (lua_State *W)
 {
-    int top = lua_gettop(W);
-
-    lua_rawgeti(W, top, 1);
-
-    switch (lua_tointeger(W, -1)) {
-    case ACTION_SEND:
-        puts("Send");
-        break;
-
-    case ACTION_DELIVER:
-        puts("Deliver");
-        break;
-        
-    case ACTION_LOAD:
-        puts("Load");
-        break;
-
-    case ACTION_BENCH:
-        puts("Bench");
-        break;
-
-    case ACTION_JOIN:
-        puts("Join");
-        break;
-
-    case ACTION_DELETE:
-        puts("Delete");
-        break;
-
-    default:
-        puts("No Action!!!");
-        break;
+    lua_pushcfunction(W, worker_catch);
+    lua_insert(W, -2);
+    if (lua_pcall(W, 1, 0, 0)) {
+        printf("Action failed: %s\n", lua_tostring(W, -1));
+        lua_pop(W, 1);
     }
-
-    lua_pop(W, 2); /* first element of table & table itself */
 }
 
 /*
@@ -104,6 +126,7 @@ worker_create ()
     }
 
     luaL_openlibs(worker->L);
+    company_set(worker->L);
     pthread_mutex_init(&worker->mutex, NULL);
     pthread_cond_init(&worker->cond, NULL);
 
