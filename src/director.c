@@ -120,12 +120,9 @@ director_action (lua_State *L)
     count = global_director->worker_count;
     start = rand() % count;
 
-    for (i = start; i < count; i = (i + 1) % count) {
-        if (worker_pop_action(global_director->workers[i], L)) {
-            printf("%p took action\n", (void*) global_director->workers[i]);
+    for (i = start; i < count; i = (i + 1) % count)
+        if (worker_take_action(global_director->workers[i], L) == 0)
             break;
-        }
-    }
 
     return 0;
 }

@@ -20,17 +20,17 @@ Worker *
 worker_start ();
 
 /* 
- * Process the next Action from the Worker's mailbox.
+ * Process the next Action.
  */
 void
-worker_process_action (Worker *worker, const int action_table);
+worker_process_action (lua_State *W);
 
 /*
- * Pop the Action from the Lua stack onto the Worker's mailbox.
- * Returns 1 if the action is taken, 0 if busy.
+ * Worker takes action off the top of L if the worker needs an action. Returns
+ * 0 if the worker took the action and 1 if not.
  */
 int
-worker_pop_action (Worker *worker, lua_State *L);
+worker_take_action (Worker *worker, lua_State *L);
 
 /*
  * Wait for the Worker to wait for work, then join it back to the main thread.

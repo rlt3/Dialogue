@@ -3,49 +3,22 @@
 #include <unistd.h>
 #include <errno.h>
 #include "worker.h"
-#include "mailbox.h"
 #include "action.h"
+#include "utils.h"
 
 struct Worker {
     lua_State *L;
     pthread_t thread;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
-    Mailbox *mailbox;
-    enum { WORKING, WAITING, DONE } state;
-    int processed;
 };
 
-/*
- * All Director Actions happen one at a time -- we don't need the ability to 
- * have a mailbox and the mailbox is actually redudant. Worker should process
- * a single action at a time and then wait for input (another action).
- */
-
-/* worker takes action from L if mutex is unlocked, i.e. state == WAITING */
-//int
-//worker_take_action (Worker *worker, lua_State *L);
-
-/* 
- * looks at the top of W (the worker's stack) and processes the action. this is
- * a `catch' function around the Lua actor object methods (implemented in
- * Company.h). Basically this function *is* the pcall function for the entire
- * system and is where errors are printed.
- */
-//int
-//worker_process_action (lua_State *W);
-
 void
-worker_process_action (Worker *worker, const int action_table)
+worker_process_action (lua_State *W)
 {
-    lua_State *W = worker->L;
-    //int len  = luaL_len(W, action_table);
-    //int args = len - 1;
-    //int i;
-    
-    printf("%p got action @ %d!\n", (void*) worker, action_table);
+    int top = lua_gettop(W);
 
-    lua_rawgeti(W, action_table, 1);
+    lua_rawgeti(W, top, 1);
 
     switch (lua_tointeger(W, -1)) {
     case ACTION_SEND:
@@ -80,53 +53,31 @@ worker_process_action (Worker *worker, const int action_table)
     lua_pop(W, 2); /* first element of table & table itself */
 }
 
+/*
+ * The Worker thread was designed to handle a single message at a time but can
+ * handle more if somehow the Worker is faced with >1 Action on its stack.
+ *
+ * The Worker will loop forever until it finds `nil` as an Action, which is how
+ * `worker_stop` is implemented.
+ */
 void *
 worker_thread (void *arg)
 {
     Worker *worker = arg;
     lua_State *W = worker->L;
-    int top;
-
-    /*
-    enum { WORKING, WAITING, DONE } state;
-    while (1) {
-        pthread_mutex_lock(&worker->mutex);
-        state = worker->state;
-        pthread_mutex_unlock(&worker->mutex);
-
-        if (state == DONE)
-            break;
-
-        if (mailbox_pop_all(W, worker->mailbox) == 0) {
-            usleep(1000);
-            continue;
-        }
-
-        for (top = lua_gettop(W); top > 0; top--)
-            worker_process_action(worker, top);
-    }
-    */
 
     pthread_mutex_lock(&worker->mutex);
-    printf("Spinning up %p\n", (void*) worker);
 
-    while (worker->state != DONE) {
-        /* 
-         * TODO: Need to be able to wake from Mailbox when worker "goes to
-         * sleep" with a minimal number of locks.
-         *
-         * Perhaps N retrys before acquiring the mailbox's lock, setting
-         * a flag which tells the mailbox to signal the worker on the
-         * next action it receives.
-         */
-        if (mailbox_pop_all(W, worker->mailbox) == 0)
+    while (1) {
+        while (lua_gettop(W) == 0)
             pthread_cond_wait(&worker->cond, &worker->mutex);
 
-        for (top = lua_gettop(W); top > 0; top--)
-            worker_process_action(worker, top);
+        if (lua_isnil(W, -1))
+            break;
+
+        worker_process_action(W);
     }
 
-    printf("Spinning down %p\n", (void*) worker);
     pthread_mutex_unlock(&worker->mutex);
 
     return NULL;
@@ -151,18 +102,6 @@ worker_create ()
         worker = NULL;
         goto exit;
     }
-
-    worker->mailbox = mailbox_create();
-
-    if (!worker->mailbox) {
-        lua_close(worker->L);
-        free(worker);
-        worker = NULL;
-        goto exit;
-    }
-
-    worker->state = WORKING;
-    worker->processed = 0;
 
     luaL_openlibs(worker->L);
     pthread_mutex_init(&worker->mutex, NULL);
@@ -191,20 +130,21 @@ exit:
 }
 
 /*
- * Pop the Action from the Lua stack onto the Worker's mailbox.
- * Returns 1 if the action is taken, 0 if busy.
+ * Worker takes action off the top of L if the worker needs an action. Returns
+ * 0 if the worker took the action and 1 if not.
  */
 int
-worker_pop_action (Worker *worker, lua_State *L)
+worker_take_action (Worker *worker, lua_State *L)
 {
-    int ret = mailbox_push_top(L, worker->mailbox);
+    int rc = pthread_mutex_trylock(&worker->mutex);
 
-    /*
-    if (ret)
-        pthread_cond_signal(&worker->cond);
-    */
+    if (rc == EBUSY)
+        return 1;
 
-    return ret;
+    utils_transfer(worker->L, L, 1);
+    pthread_cond_signal(&worker->cond);
+    pthread_mutex_unlock(&worker->mutex);
+    return 0;
 }
 
 /*
@@ -214,7 +154,7 @@ void
 worker_stop (Worker *worker)
 {
     pthread_mutex_lock(&worker->mutex);
-    worker->state = DONE;
+    lua_pushnil(worker->L); /* it checks for nil as a sentinel to stop */
     pthread_cond_signal(&worker->cond);
     pthread_mutex_unlock(&worker->mutex);
 
@@ -227,7 +167,6 @@ worker_stop (Worker *worker)
 void
 worker_cleanup (Worker *worker)
 {
-    mailbox_destroy(worker->mailbox);
     lua_close(worker->L);
     free(worker);
 }
