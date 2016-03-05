@@ -267,14 +267,7 @@ actor_add_script (Actor *actor, Script *script)
 void
 actor_assign_id (void *actor, int id)
 {
-    //printf("Actor %p assigned to id %d\n", actor, id);
     ((Actor*)actor)->id = id;
-}
-
-int
-actor_get_id (void *actor)
-{
-    return ((Actor*)actor)->id;
 }
 
 void

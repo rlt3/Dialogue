@@ -10,30 +10,58 @@
 
 typedef struct Node {
     void *data;
+
+    /* TODO: represent the three states in a single member */
     int attached;
     int benched;
 
+    /*
+     * TODO: can have the children array below be a generic list of ids where
+     * the 0th element is always the parent and >0 are the children.
+     */
     int parent;
+
+    /* TODO: an array with the next index (`last_child` + 1) and the max
+     * children */
     int *children;
     int last_child;
     int max_children;
 
     int thread_id;
 
+    /* rwlock everything that isn't the data */
     pthread_rwlock_t rw_lock;
+
+    /*
+     * mutex for the data. garbage collection requires both rwlock & mutex to
+     * be acquired 
+     */
     pthread_mutex_t data_lock;
 } Node;
 
 typedef struct Tree {
-    pthread_rwlock_t rw_lock;
-    int list_size;
-    int list_max_size;
-    int list_resize_factor;
-    int root;
-    data_cleanup_func_t cleanup_func;
-    data_lookup_func_t lookup_func;
-    data_set_id_func_t set_id_func;
     Node *list;
+
+    /* the size of the tree's list right now */
+    int list_size;
+
+    /* the ceiling of the tree's list after resizing */
+    int list_max_size;
+
+    /* resize by 2 times, 3 times, n times ... */
+    int list_resize_factor;
+
+    /* id to the root of the tree (not always 0) */
+    int root;
+
+    /* the function responsible for garbage collecting Node data */
+    data_cleanup_func_t cleanup_func;
+
+    /* the function for setting the id in the given data */
+    data_set_id_func_t set_id_func;
+
+    /* everything is protected by the rwlock except the list */
+    pthread_rwlock_t rw_lock;
 } Tree;
 
 static Tree *global_tree = NULL;
@@ -134,9 +162,6 @@ node_is_used_rd (int id)
     return (global_tree->list[id].attached || global_tree->list[id].benched);
 }
 
-/*
- * Policy: data can only be read/changed with the mutex lock acquired.
- */
 int
 node_data_lock (int id)
 {
@@ -548,17 +573,16 @@ exit:
  * lock on the root, calls the function, and gets the children. This is so we
  * can keep the locking policy of: children are locked before their parents are
  * locked. This policy is implicity defined in tree_add_reference.
- * 
- * TODO: Juggle locking policies and figure out which one can better suit our
- * needs. This explicit stack overhead could pop.
  */
 void
 tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
 {
     int (*lock_func)(int);
     /* 
-     * TODO: use max_stack which is a global var protected by mutex and the
-     * largest children length for any given node.
+     * TODO: create map_max_stack as a global var protected by an rwlock and the
+     * largest children length for any given node. avoiding having to malloc
+     * here is a c99 feature, e.g. int children[map_max_stack]; or we have set
+     * a hard limit on the number of scripts.
      */
     int children[10];
     int max_id, id, cid = 0;
@@ -700,8 +724,7 @@ tree_init (
         int max_length, 
         int scale_factor, 
         data_set_id_func_t set_id,
-        data_cleanup_func_t cleanup,
-        data_lookup_func_t lookup)
+        data_cleanup_func_t cleanup)
 {
     int id, ret = 1;
 
@@ -716,7 +739,6 @@ tree_init (
     }
 
     global_tree->cleanup_func = cleanup;
-    global_tree->lookup_func = lookup;
     global_tree->set_id_func = set_id;
     global_tree->list_size = length;
     global_tree->list_max_size = max_length;

@@ -38,7 +38,7 @@ describe("An Actor reference object", function()
     it("will error on load if the actor id is invalid", function()
         assert.has_error(function() 
             a1:load()
-        end, "Id `20` is an invalid reference!")
+        end, "Actor id `20` is an invalid reference!")
     end)
 
     it("will error on load if the any Script has an invalid module", function()
