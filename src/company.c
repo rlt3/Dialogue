@@ -70,13 +70,19 @@ company_delete (int id)
 }
 
 /*
- * Get the actor associated with the id. Returns NULL if the id wasn't valid.
- * Requires called `company_deref` is the return was *not NULL*.
+ * Get the actor associated with the id. Will error out on L if the id isn't a
+ * valid reference. Requires called `company_deref` is the return was *not*
+ * NULL.
  */
 Actor *
-company_ref (int id)
+company_ref (lua_State *L, int id)
 {
-    return tree_ref(id);
+    Actor *actor = tree_ref(id);
+
+    if (!actor)
+        luaL_error(L, "Actor id `%d` is an invalid reference!", id);
+
+    return actor;
 }
 
 /*
@@ -253,10 +259,7 @@ lua_actor_load (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = company_ref(id);
-
-    if (!actor)
-        luaL_error(L, "Id `%d` is an invalid reference!", id);
+    Actor *actor = company_ref(L, id);
 
     /* if actor_load doesn't return 0, it puts an error string on top of A */
     if (actor_load(actor, L) != 0) {
@@ -381,7 +384,7 @@ lua_actor_lock (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    lua_pushboolean(L, (company_ref(id) != NULL));
+    lua_pushboolean(L, (company_ref(L, id) != NULL));
     return 1;
 }
 
@@ -420,10 +423,7 @@ lua_actor_send (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = company_ref(id);
-
-    if (!actor)
-        luaL_error(L, "Id `%d` is an invalid reference!", id);
+    Actor *actor = company_ref(L, id);
 
     /* if actor_send doesn't return 0, it puts an error string on top of A */
     if (actor_send(actor, L) != 0) {
@@ -450,10 +450,7 @@ lua_actor_probe (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = company_ref(id);
-
-    if (!actor)
-        luaL_error(L, "Id `%d` is an invalid reference!", id);
+    Actor *actor = company_ref(L, id);
 
     if (actor_probe(actor, L) != 0) {
         actor_pop_error(actor, L);

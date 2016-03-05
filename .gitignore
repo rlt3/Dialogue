@@ -8,3 +8,4 @@ dialogue
 *.swo
 weapon.lua
 draw.lua
+tags

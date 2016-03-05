@@ -77,8 +77,6 @@ exit:
 void
 script_destroy (Script *script, lua_State *A)
 {
-    //luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
-    //luaL_unref(A, LUA_REGISTRYINDEX, script->table_ref);
     script->prev = NULL;
     script->next = NULL;
     free(script);
@@ -145,7 +143,6 @@ script_load (Script *script, lua_State *A)
 
     script->object_ref = luaL_ref(A, LUA_REGISTRYINDEX);
     script->is_loaded = 1;
-    //printf("loading %p\n", script);
     ret = 0;
     lua_pop(A, 2); /* table returned from require and definition table */
 
@@ -179,7 +176,6 @@ script_send (Script *script, lua_State *A)
     int ret = 1;
 
     /* 
-     * local object;
      * object[message_title]:(arg1, arg2, ..., argN)
      */
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);

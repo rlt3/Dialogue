@@ -91,11 +91,12 @@ int
 company_delete (int id);
 
 /*
- * Get the actor associated with the id. Returns NULL if the id wasn't valid.
- * Requires called `company_deref` is the return was *not NULL*.
+ * Get the actor associated with the id. Will error out on L if the id isn't a
+ * valid reference. Requires called `company_deref` is the return was *not*
+ * NULL.
  */
 Actor *
-company_ref (int id);
+company_ref (lua_State *L, int id);
 
 /*
  * Return the actor associated with the id. Calling this function for an id
