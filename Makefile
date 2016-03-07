@@ -27,6 +27,7 @@ build: $(SOURCES)
 test:
 	cd spec/ && ../$(MODULE) company.lua
 	cd spec/ && ../$(MODULE) actor.lua
+	cd spec/ && ../$(MODULE) director.lua
 
 mem:
 	valgrind --leak-check=full -v ./$(MODULE) stage.lua

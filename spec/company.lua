@@ -7,6 +7,7 @@ describe("The Company of Actors", function()
     local a2
     local a3
     local a4
+    local a8
     local bad_actor
 
     it("creates Actors and returns actor objects which hold an id", function()
@@ -46,6 +47,7 @@ describe("The Company of Actors", function()
     end)
 
     it("can delete any actor by id", function()
+        -- TODO: some assertions that actually test if deleted somehow
         a3:delete()
         a3 = nil
     end)
@@ -84,6 +86,7 @@ describe("The Company of Actors", function()
     end)
 
     it("allows benching of actors which may be erroring often", function()
+        -- TODO: some assertions that test if a4 is part of the active tree or not
         a4:bench()
     end)
 
@@ -98,10 +101,12 @@ describe("The Company of Actors", function()
     end)
 
     it("allows benched actors to be new parents", function()
-        assert.is_equal(a4:child{}:id(), 8)
+        a8 = a4:child{}
+        assert.is_equal(a8:id(), 8)
     end)
 
     it("lets benched actors rejoin the tree", function()
+        -- TODO: some assertions that test if a4 is a child of its parent
         a4:join()
     end)
 
@@ -118,7 +123,6 @@ describe("The Company of Actors", function()
     end)
 
     it("doesn't allow joining of benched actors with bad parents", function()
-        local a8 = setmetatable( { 8 }, getmetatable(a0))
         a8:bench()
         a4:delete()
         assert.has_error(function() 
