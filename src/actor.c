@@ -3,6 +3,7 @@
 #include <string.h>
 #include "actor.h"
 #include "script.h"
+#include "company.h"
 #include "utils.h"
 
 struct Actor {
@@ -63,6 +64,7 @@ actor_create (lua_State *L)
     }
 
     luaL_openlibs(A);
+    company_set(A);
 
     actor->L = A;
     actor->script_head = NULL;
@@ -264,12 +266,22 @@ actor_add_script (Actor *actor, Script *script)
     }
 }
 
+/*
+ * Required for the Tree.h. Sets the id for the Actor. We take this opportunity
+ * to push a Lua Actor object for the Scripts to use.
+ */
 void
-actor_assign_id (void *actor, int id)
+actor_assign_id (void *a, int id)
 {
-    ((Actor*)actor)->id = id;
+    Actor *actor = a;
+    actor->id = id;
+    company_push_actor(actor->L, id);
+    lua_setglobal(actor->L, "actor");
 }
 
+/*
+ * Required for the Tree.h. Frees the memory at an Actor's pointer.
+ */
 void
 actor_destroy (void *a)
 {

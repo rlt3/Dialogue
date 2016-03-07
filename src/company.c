@@ -151,6 +151,27 @@ company_actor_id (lua_State *L, int index)
 }
 
 /*
+ * Call the Actor function with an Actor from the id, erroring out over L if
+ * the id is bad or if `func` fails.
+ */
+typedef int (*ActorFunc) (Actor*, lua_State*);
+
+void
+company_call_actor_func (lua_State *L, int id, ActorFunc func)
+{
+    Actor *actor = company_ref(L, id);
+
+    /* if actor_send doesn't return 0, it puts an error string on top of A */
+    if (func(actor, L) != 0) {
+        actor_pop_error(actor, L);
+        company_deref(id);
+        lua_error(L);
+    }
+
+    company_deref(id);
+}
+
+/*
  * Actor( definition_table [, parent] [, thread] )
  *
  * Creates the actor from the given definition table (see actor.h for more
@@ -259,16 +280,7 @@ lua_actor_load (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = company_ref(L, id);
-
-    /* if actor_load doesn't return 0, it puts an error string on top of A */
-    if (actor_load(actor, L) != 0) {
-        actor_pop_error(actor, L);
-        company_deref(id);
-        lua_error(L);
-    }
-
-    company_deref(id);
+    company_call_actor_func(L, id, actor_load);
     return 0;
 }
 
@@ -423,17 +435,8 @@ lua_actor_send (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = company_ref(L, id);
-
-    /* if actor_send doesn't return 0, it puts an error string on top of A */
-    if (actor_send(actor, L) != 0) {
-        actor_pop_error(actor, L);
-        company_deref(id);
-        lua_error(L);
-    }
-
-    company_deref(id);
-    return 0;
+    company_call_actor_func(L, id, actor_send);
+    return 1;
 }
 
 /*
@@ -450,15 +453,7 @@ lua_actor_probe (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    Actor *actor = company_ref(L, id);
-
-    if (actor_probe(actor, L) != 0) {
-        actor_pop_error(actor, L);
-        company_deref(id);
-        lua_error(L);
-    }
-
-    company_deref(id);
+    company_call_actor_func(L, id, actor_probe);
     return 1;
 }
 

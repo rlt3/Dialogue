@@ -70,10 +70,17 @@ actor_probe (Actor *actor, lua_State *L);
 int
 actor_send (Actor *actor, lua_State *L);
 
+/*
+ * Required for the Tree.h. Sets the id for the Actor. We take this opportunity
+ * to push a Lua Actor object for the Scripts to use.
+ */
 void
 actor_assign_id (void *actor, int id);
 
+/*
+ * Required for the Tree.h. Frees the memory at an Actor's pointer.
+ */
 void
-actor_destroy (void *);
+actor_destroy (void *actor);
 
 #endif
