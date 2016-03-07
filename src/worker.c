@@ -77,7 +77,7 @@ worker_process_action (lua_State *W)
     lua_pushcfunction(W, worker_catch);
     lua_insert(W, -2);
     if (lua_pcall(W, 1, 0, 0)) {
-        printf("Action failed: %s\n", lua_tostring(W, -1));
+        fprintf(stderr, "Action failed: %s\n", lua_tostring(W, -1));
         lua_pop(W, 1);
     }
 }
@@ -104,7 +104,6 @@ worker_thread (void *arg)
         if (lua_isnil(W, -1))
             break;
 
-        printf("%p processing action\n", (void*) worker);
         worker_process_action(W);
     }
 

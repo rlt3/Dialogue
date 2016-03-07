@@ -34,6 +34,20 @@ main (int argc, char **argv)
         goto quit;
 
     luaL_openlibs(L);
+
+    lua_newtable(L);
+
+    lua_newtable(L);
+    lua_setfield(L, -2, "Company");
+
+    lua_newtable(L);
+    lua_setfield(L, -2, "Director");
+
+    lua_newtable(L);
+    lua_setfield(L, -2, "Actor");
+
+    lua_setglobal(L, "Dialogue");
+
     company_set(L);
     director_set(L);
 

@@ -122,12 +122,10 @@ director_take_action (lua_State *L)
                 ? global_director->main_thread_worker
                 : global_director->workers[thread - 1];
 
-        printf("action specified for %p\n", (void*) worker);
-
-        if (worker_give_action(worker, L) == 0)
-            goto exit;
-        else
+        if (worker_give_action(worker, L) != 0)
             goto error;
+
+        goto exit;
     }
 
     count = global_director->worker_count;
