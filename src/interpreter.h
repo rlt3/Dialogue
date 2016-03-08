@@ -1,37 +1,23 @@
 #ifndef DIALOGUE_INTERPRETER
 #define DIALOGUE_INTERPRETER
 
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
-
-typedef struct Interpreter Interpreter;
-
 /*
- * Poll for any input and, if there is, interpret it.
- */
-void
-lua_interpret (lua_State *L);
-
-/*
- * Exit the interpreter.
- */
-void
-interpreter_exit ();
-
-/*
- * Polls the interpreter to see if it has any input. If there's no input 
- * available it returns NULL. Returns the string if there is.
- */
-const char *
-interpreter_poll_input ();
-
-/*
- * Register a given Lua state with the interpreter. This sets an exit function
- * to that Lua state using the is_running_ptr, which is a pointer to a boolean
- * integer.
+ * Load the interpreter thread.
+ * Return 0 if successful, otherwise an error.
  */
 int
-interpreter_register (lua_State *L, short int *is_running_ptr);
+interpreter_create ();
+
+/*
+ * Poll interpreter for input. If it returns 0, the value at the `input` pointer
+ * is set to the input string. Else, the `input` pointer is set to NULL.
+ *
+ * if (interpreter_poll_input(&input) == 0)
+ */
+int
+interpreter_poll_input (char **input);
+
+void
+interpreter_destroy ();
 
 #endif

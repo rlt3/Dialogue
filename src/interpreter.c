@@ -1,150 +1,106 @@
 #define _POSIX_C_SOURCE 200809L
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <signal.h>
-#include <string.h>
 #include <pthread.h>
-#include <unistd.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "interpreter.h"
 
-#define LINE_SIZE 256
+static pthread_t global_thread;
+static pthread_mutex_t global_mutex;
+static pthread_cond_t global_cond;
+static char *global_line = NULL;
+static int global_running = 1;
+static int global_get_input = 1;
 
-static pthread_t thread;
-static pthread_mutex_t mutex;
-static pthread_cond_t wait_cond;
-static short int input_ready;
-static short int *running;
-static const char *input_line;
-
-int interpreter_next_input ();
-
-/*
- * Interpret the input in the given lua_State*.
- */
 void
-lua_interpret (lua_State *L)
+interpreter_addline (char *line)
 {
-    const char *input = interpreter_poll_input();
-
-    if (input == NULL)
-        return;
-
-    if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0))
-        printf("%s\n", lua_tostring(L, -1));
+    global_get_input = 0;
+    global_line = line;
+    add_history(global_line);
 }
 
 /*
- * Exit the interpreter.
- */
-void
-interpreter_exit ()
-{
-    puts("\nGoodbye.");
-    *running = 0;
-    /* make sure it is dead if it waits on readline */
-    pthread_kill(thread, SIGINT);
-    usleep(10000);
-}
-
-/*
- * Exit the interpreter from inside the interpreter through 'exit()'
- */
-int
-lua_interpreter_exit (lua_State *L)
-{
-    interpreter_exit();
-    return 0;
-}
-
-/*
- * Exit the interpreter via CTRL-C
- */
-void 
-handle_sig_int (int arg)
-{
-    interpreter_exit();
-}
-
-/*
- * Polls the interpreter to see if it has any input. If there's no input 
- * available it returns NULL. Returns the string if there is.
- */
-const char *
-interpreter_poll_input ()
-{
-    const char *ret = NULL;
-    int rc = pthread_mutex_trylock(&mutex);
-
-    if (rc == EBUSY)
-        return NULL;
-
-    if (input_ready)
-        ret = input_line;
-
-    input_ready = 0;
-    pthread_mutex_unlock(&mutex);
-    pthread_cond_signal(&wait_cond);
-    return ret;
-}
-
-/*
- * Wait for input to be received. When it is, unlock the mutex and wait for the
- * signal to start looking for more input.
+ * The thread uses Readline's async functions so we can interrupt getting the 
+ * next input char and safely exit the thread any time.
  */
 void *
 interpreter_thread (void *arg)
 {
-    char *line;
-    signal(SIGINT, handle_sig_int);
-    pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(&global_mutex);
+    rl_callback_handler_install("> ", interpreter_addline);
 
     printf("Dialogue v0.0 with Lua v5.2\n"
            "    type `exit()` to exit.\n");
 
-    while (*running) {
-        line = readline("> ");
-        add_history(line);
+    while (global_running) {
+        /*
+         * when the `rl_callback_read_char` gets to the end of the line, it
+         * calls `interpreter_addline` which sets `global_get_input` to false.
+         */
+        while (global_get_input)
+            rl_callback_read_char();
 
-        //if (!line)
-        //    continue;
-
-        input_line = line;
-        input_ready = 1;
-        while (input_ready)
-            pthread_cond_wait(&wait_cond, &mutex);
-        input_line = NULL;
-        free(line);
+        while (global_running && global_line != NULL)
+            pthread_cond_wait(&global_cond, &global_mutex);
     }
-    pthread_mutex_unlock(&mutex);
+
+    rl_callback_handler_remove();
+    pthread_mutex_unlock(&global_mutex);
 
     return NULL;
 }
 
 /*
- * Register a given Lua state with the interpreter. This sets an exit function
- * to that Lua state using the is_running_ptr, which is a pointer to a boolean
- * integer.
+ * Load the interpreter thread.
+ * Return 0 if successful, otherwise an error.
  */
 int
-interpreter_register (lua_State *L, short int *is_running_ptr)
+interpreter_create ()
 {
-    pthread_mutexattr_t mutex_attr;
+    int ret = 1;
 
-    running = is_running_ptr;
-    input_line = NULL;
-    wait_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+    pthread_mutex_init(&global_mutex, NULL);
+    pthread_cond_init(&global_cond, NULL);
 
-    pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&mutex, &mutex_attr);
-    
-    lua_pushcfunction(L, lua_interpreter_exit);
-    lua_setglobal(L, "exit");
+    if (pthread_create(&global_thread, NULL, interpreter_thread, NULL) != 0)
+        goto exit;
 
-    pthread_create(&thread, NULL, interpreter_thread, NULL);
+    ret = 0;
+exit:
+    return ret;
+}
 
-    return 0;
+/*
+ * Poll interpreter for input. If it returns 0, the value at the `input` pointer
+ * is set to the input string. Else, the `input` pointer is set to NULL.
+ *
+ * if (interpreter_poll_input(&input) == 0)
+ */
+int
+interpreter_poll_input (char **input)
+{
+    int ret = 1;
+    int rc = pthread_mutex_trylock(&global_mutex);
+
+    if (rc != 0)
+        goto exit;
+
+    *input = global_line;
+    global_line = NULL;
+    global_get_input = 1;
+    pthread_cond_signal(&global_cond);
+    pthread_mutex_unlock(&global_mutex);
+
+    ret = 0;
+exit:
+    return ret;
+}
+
+void
+interpreter_destroy ()
+{
+    global_get_input = 1;
+    global_running = 0;
+    pthread_join(global_thread, NULL);
+    puts("\nGoodbye.");
 }
