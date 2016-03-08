@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <assert.h>
-#include "tree.h"
-#include "actor.h"
 #include "company.h"
+#include "tree.h"
+#include "director.h"
+#include "actor.h"
 #include "utils.h"
 
 #define COMPANY_META "Dialogue.Company"
@@ -457,6 +458,41 @@ lua_actor_probe (lua_State *L)
     return 1;
 }
 
+/*
+ * Create an Action for the Director for the actor. "Task" it with doing the
+ * method (with the given arguments).
+ *
+ * actor:async("send", "draw", 50, 50) => {actor, "send", "draw", 50, 50}
+ * actor:async("load") => {actor, "load"}
+ */
+int
+lua_actor_async (lua_State *L)
+{
+    const int args = lua_gettop(L);
+    const int self_arg = 1;
+    const int table_index = args + 1;
+    int i = self_arg;
+
+    lua_newtable(L);
+
+    for (; i <= args; i++) {
+        lua_pushvalue(L, i);
+        lua_rawseti(L, table_index, i);
+    }
+
+    director_take_action(L);
+
+    return 0;
+}
+
+int
+lua_actor_sync (lua_State *L)
+{
+    /*
+     */
+    return 0;
+}
+
 static const luaL_Reg actor_metamethods[] = {
     {"load",     lua_actor_load},
     {"child",    lua_actor_child},
@@ -470,6 +506,8 @@ static const luaL_Reg actor_metamethods[] = {
     {"join",     lua_actor_join},
     {"send",     lua_actor_send},
     {"probe",    lua_actor_probe},
+    {"async",    lua_actor_async},
+    {"sync",     lua_actor_sync},
     { NULL, NULL }
 };
 
