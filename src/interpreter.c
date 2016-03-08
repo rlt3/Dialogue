@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <pthread.h>
+#include <signal.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "interpreter.h"
@@ -8,16 +9,7 @@ static pthread_t global_thread;
 static pthread_mutex_t global_mutex;
 static pthread_cond_t global_cond;
 static char *global_line = NULL;
-static int global_running = 1;
-static int global_get_input = 1;
-
-void
-interpreter_addline (char *line)
-{
-    global_get_input = 0;
-    global_line = line;
-    add_history(global_line);
-}
+static volatile int global_running = 1;
 
 /*
  * The thread uses Readline's async functions so we can interrupt getting the 
@@ -26,25 +18,19 @@ interpreter_addline (char *line)
 void *
 interpreter_thread (void *arg)
 {
-    pthread_mutex_lock(&global_mutex);
-    rl_callback_handler_install("> ", interpreter_addline);
-
     printf("Dialogue v0.0 with Lua v5.2\n"
            "    type `exit()` to exit.\n");
 
+    pthread_mutex_lock(&global_mutex);
+    
     while (global_running) {
-        /*
-         * when the `rl_callback_read_char` gets to the end of the line, it
-         * calls `interpreter_addline` which sets `global_get_input` to false.
-         */
-        while (global_get_input)
-            rl_callback_read_char();
-
         while (global_running && global_line != NULL)
             pthread_cond_wait(&global_cond, &global_mutex);
+
+        global_line = readline("> ");
+        add_history(global_line);
     }
 
-    rl_callback_handler_remove();
     pthread_mutex_unlock(&global_mutex);
 
     return NULL;
@@ -85,13 +71,16 @@ interpreter_poll_input (char **input)
     if (rc != 0)
         goto exit;
 
+    if (!global_line)
+        goto cleanup;
+
     *input = global_line;
     global_line = NULL;
-    global_get_input = 1;
     pthread_cond_signal(&global_cond);
-    pthread_mutex_unlock(&global_mutex);
 
     ret = 0;
+cleanup:
+    pthread_mutex_unlock(&global_mutex);
 exit:
     return ret;
 }
@@ -99,8 +88,20 @@ exit:
 void
 interpreter_destroy ()
 {
-    global_get_input = 1;
+    /*
+     * A filthy hack I found on StackOverflow:
+     *      http://stackoverflow.com/a/2792129/5243467
+     *
+     * Since we need the main thread to handle Actor messages, we put the IO in
+     * a separate thread. Readline wasn't really meant for threads. So, when 
+     * you need to exit, the readline will wait in a loop until *some* input is
+     * entered (so it exits the loop and checks if its still running). Setting
+     * `rl_getc_function` allows graceful signaling, returning NULL.
+     */
+
     global_running = 0;
-    pthread_join(global_thread, NULL);
+    rl_getc_function = getc;
+    pthread_kill(global_thread, SIGINT);
+    //pthread_join(global_thread, NULL);
     puts("\nGoodbye.");
 }

@@ -34,6 +34,15 @@ int
 director_take_action (lua_State *L);
 
 /*
+ * Do the callback (an Action-level feature) in the Worker's Lua stack.
+ * callback_id is the index of the function in the callback table in the
+ * Worker's Lua stack.
+ * Any errors are printed to the console.
+ */
+int
+director_callback (int worker_id, int callback_id);
+
+/*
  * Close the Director and all of the Workers.
  */
 void
