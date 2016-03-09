@@ -3,10 +3,9 @@
 #include <signal.h>
 #include <unistd.h>
 #include "dialogue.h"
+#include "director.h"
 #include "worker.h"
 #include "console.h"
-
-static lua_State *L;
 
 void
 usage (const char *program)
@@ -18,6 +17,7 @@ usage (const char *program)
 int
 main (int argc, char **argv)
 {
+    lua_State *L;
     char *line = NULL;
     int ret = 1;
 
@@ -52,11 +52,14 @@ main (int argc, char **argv)
     }
 
     while (console_is_running()) {
-        /*
-        while (lua_gettop(L) > 0)
-            worker_process_action(L);
-        */
-
+//        /* if we transfered 0 actions */
+//        if (director_transfer_main_actions(L) == 0)
+//            goto input;
+//
+//        while (lua_gettop(L) > 0)
+//            worker_process_action(L);
+//
+//input:
         if (console_poll_input(&line) == 0)
             printf("INPUT: %s\n", line);
     }

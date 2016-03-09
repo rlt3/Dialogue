@@ -34,6 +34,13 @@ int
 director_take_action (lua_State *L);
 
 /*
+ * Transfer the Actions collected for the main thread to the given Lua stack.
+ * Returns the number of actions transfered.
+ */
+int
+director_transfer_main_actions (lua_State *L);
+
+/*
  * Do the callback (an Action-level feature) in the Worker's Lua stack.
  * callback_id is the index of the function in the callback table in the
  * Worker's Lua stack.

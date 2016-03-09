@@ -6,11 +6,11 @@
 typedef struct Worker Worker;
 
 /*
- * Create a worker without a thread.
- * Returns NULL on failure.
+ * Create a worker without a thread. Assigns the thread to main if it isn't 
+ * null. Returns NULL on failure.
  */
 Worker *
-worker_create ();
+worker_create (lua_State *main);
 
 /*
  * Create a Worker and start it, which spawns a thread.
