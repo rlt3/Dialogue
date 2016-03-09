@@ -1,8 +1,10 @@
 #define _POSIX_C_SOURCE 200809L
-#include <pthread.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
 #include <string.h>
+#include <stdarg.h>
+#include <pthread.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "console.h"
@@ -91,6 +93,33 @@ console_is_running ()
     running = cons_is_running;
     pthread_mutex_unlock(&cons_running_mutex);
     return running;
+}
+
+/*
+ * Log the formart string to the console. Returns the number of characters 
+ * printed.
+ */
+int 
+console_log (char *fmt, ...)
+{
+    va_list args;
+    int ret;
+    int saved_point = rl_point;
+    char *saved_line = rl_copy_text(0, rl_end);
+    rl_save_prompt();
+    rl_replace_line("", 0);
+    rl_redisplay();
+
+    va_start(args, fmt);
+    ret = vprintf(fmt, args);
+    va_end(args);
+
+    rl_restore_prompt();
+    rl_replace_line(saved_line, 0);
+    rl_point = saved_point;
+    rl_redisplay();
+    free(saved_line);
+    return ret;
 }
 
 /*

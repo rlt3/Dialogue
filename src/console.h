@@ -22,6 +22,13 @@ int
 console_is_running ();
 
 /*
+ * Log the formart string to the console. Returns the number of characters 
+ * printed.
+ */
+int 
+console_log (char *fmt, ...);
+
+/*
  * Poll console for input. If it returns 0, the value at the `input` pointer
  * is set to the input string. Else, the `input` pointer is set to NULL.
  *
