@@ -3,7 +3,8 @@ MODULE:=dialogue
 CFLAGS+=-Wall -std=c99 -pedantic -D _BSD_SOURCE -fPIC -Isrc/ -I./
 LDFLAGS+=-L./ -L/usr/local/lib -lpthread -lreadline
 
-SOURCES:=src/main.o src/interpreter.o\
+SOURCES:=src/main.o src/console.o\
+       src/dialogue.o \
        src/company.o src/tree.o \
        src/actor.o src/script.o \
        src/director.o src/worker.o
