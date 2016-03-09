@@ -79,7 +79,8 @@ main (int argc, char *argv[])
         goto load;
 
     /* from here, the console controls when the program exits */
-    //signal(SIGINT, console_handle_interrupt);
+    signal(SIGINT, console_handle_interrupt);
+    console_set_write(L);
     if (console_create() != 0) {
         fprintf(stderr, "Failed to create console thread!");
         goto cleanup;
@@ -91,8 +92,10 @@ load:
                 lua_tostring(L, -1));
     }
 
-    if (is_script)
+    if (is_script) {
+        ret = 0;
         goto cleanup;
+    }
 
     while (console_is_running()) {
         /* if we transfered 0 actions */

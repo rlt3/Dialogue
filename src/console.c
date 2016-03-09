@@ -19,6 +19,25 @@ static volatile int cons_is_running;
 
 static const char *prompt = "> ";
 
+int
+lua_console_log (lua_State *L)
+{
+    console_log("%s\n", luaL_checkstring(L, 1));
+    return 0;
+}
+
+/*
+ * Override the `io.write` method to one that can handle our console.
+ */
+void
+console_set_write (lua_State *L)
+{
+    lua_getglobal(L, "io");
+    lua_pushcfunction(L, lua_console_log);
+    lua_setfield(L, -2, "write");
+    lua_pop(L, 1);
+}
+
 /*
  * The thread uses Readline's async functions so we can interrupt getting the 
  * next input char and safely exit the thread any time.
@@ -26,9 +45,8 @@ static const char *prompt = "> ";
 void *
 console_thread (void *arg)
 {
-    signal(SIGINT, console_handle_interrupt);
-    printf("Dialogue v0.0 with Lua v5.2\n"
-           "    type `exit` to quit.\n");
+    printf("Dialogue v%s with Lua v%s\n"
+           "    type `exit` to quit.\n", DIALOGUE_VERSION,DIALOGUE_LUA_VERSION);
 
     pthread_mutex_lock(&cons_mutex);
     
@@ -37,10 +55,15 @@ console_thread (void *arg)
             pthread_cond_wait(&cons_cond, &cons_mutex);
 
         cons_input = readline(prompt);
-        add_history(cons_input);
 
-        if (strncmp("exit", cons_input, 4) == 0)
+        if (strncmp("exit", cons_input, 4) == 0) {
+            free(cons_input);
+            cons_input = NULL;
             break;
+        }
+
+        add_history(cons_input);
+        free(cons_input);
     }
 
     pthread_mutex_unlock(&cons_mutex);
@@ -103,29 +126,28 @@ console_is_running ()
  * printed.
  */
 int 
-console_log (char *fmt, ...)
+console_log (const char *fmt, ...)
 {
     va_list args;
-    int ret;
-    //char* saved_line;
-    //int saved_point;
-    //saved_point = rl_point;
-    //saved_line = rl_copy_text(0, rl_end);
-    //rl_set_prompt("");
-    //rl_replace_line("", 0);
-    //rl_redisplay();
-
+    char* saved_line;
+    int saved_point;
+    saved_point = rl_point;
+    saved_line = rl_copy_text(0, rl_end);
+    rl_set_prompt("");
+    rl_replace_line("", 0);
+    rl_redisplay();
+    
     va_start(args, fmt);
-    ret = vprintf(fmt, args);
+    vprintf(fmt, args);
     va_end(args);
 
-    //rl_set_prompt(prompt);
-    //rl_replace_line(saved_line, 0);
-    //rl_point = saved_point;
-    //rl_redisplay();
-    //free(saved_line);
+    rl_set_prompt(prompt);
+    rl_replace_line(saved_line, 0);
+    rl_point = saved_point;
+    rl_redisplay();
+    free(saved_line);
 
-    return ret;
+    return 0;
 }
 
 /*
@@ -161,5 +183,5 @@ void
 console_cleanup ()
 {
     pthread_join(cons_thread, NULL);
-    puts("\nGoodbye.");
+    puts("Goodbye.");
 }

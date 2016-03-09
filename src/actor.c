@@ -5,6 +5,7 @@
 #include "script.h"
 #include "company.h"
 #include "utils.h"
+#include "console.h"
 
 struct Actor {
     lua_State *L;
@@ -65,6 +66,11 @@ actor_create (lua_State *L)
 
     luaL_openlibs(A);
     company_set(A);
+    /*
+     * TODO: how to *not* set the custom write function when running without
+     * the console.
+     */
+    console_set_write(A);
 
     actor->L = A;
     actor->script_head = NULL;

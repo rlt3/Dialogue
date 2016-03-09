@@ -1,6 +1,14 @@
 #ifndef DIALOGUE_CONSOLE
 #define DIALOGUE_CONSOLE
 
+#include "dialogue.h"
+
+/*
+ * Override the `io.write` method to one that can handle our console.
+ */
+void
+console_set_write (lua_State *L);
+
 /*
  * Load the console thread.
  * Return 0 if successful, otherwise an error.
@@ -26,7 +34,7 @@ console_is_running ();
  * printed.
  */
 int 
-console_log (char *fmt, ...);
+console_log (const char *fmt, ...);
 
 /*
  * Poll console for input. If it returns 0, the value at the `input` pointer

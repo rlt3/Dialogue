@@ -31,7 +31,7 @@ test:
 	cd spec/ && ../$(MODULE) -s director.lua
 
 mem:
-	valgrind --leak-check=full --show-reachable=yes -v ./$(MODULE) stage.lua
+	valgrind --leak-check=full --show-reachable=yes -v ./$(MODULE) -s stage.lua
 
 hel:
 	valgrind --tool=helgrind -v ./$(MODULE) -s stage.lua
