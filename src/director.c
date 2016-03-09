@@ -7,7 +7,6 @@
 typedef struct Director {
     Worker **workers;
     int worker_count;
-    Worker *main_thread_worker;
     int rand_seed;
     struct timeval start;
     struct timeval now;
@@ -23,9 +22,9 @@ static Director *global_director = NULL;
  * Returns 0 if successfuly, >0 if the system didn't have enough memory.
  */
 int
-director_create (const int num_workers)
+director_create (const int has_main, const int num_workers)
 {
-    int i, ret = 1;
+    int i, start = 0, ret = 1;
 
     global_director = malloc(sizeof(*global_director));
 
@@ -39,19 +38,20 @@ director_create (const int num_workers)
         goto exit;
     }
 
-    global_director->main_thread_worker = worker_create();
-
-    if (!global_director->main_thread_worker) {
-        free(global_director->workers);
-        free(global_director);
-        goto exit;
+    /* Setup a Lua state just used for its stack which acts like a mailbox */
+    if (has_main) {
+        /* the main thread doesn't need a thread `started`, so skip it */
+        global_director->workers[0] = worker_create();
+        start = 1;
     }
 
+    global_director->worker_count = num_workers;
+
     /* set memory to NULL so if an error occurs, NULL checks will catch */
-    for (i = 0; i < num_workers; i++)
+    for (i = start; i < global_director->worker_count; i++)
         global_director->workers[i] = NULL;
 
-    for (i = 0; i < num_workers; i++) { 
+    for (i = start; i < global_director->worker_count; i++) { 
         global_director->workers[i] = worker_start();
         
         if (!global_director->workers[i]) {
@@ -59,8 +59,6 @@ director_create (const int num_workers)
             goto exit;
         }
     }
-
-    global_director->worker_count = num_workers;
 
     global_director->rand_seed = time(NULL);
     srand(global_director->rand_seed);
@@ -93,7 +91,7 @@ director_set (lua_State *L)
  * worker. 
  *
  * An optional thread_id can be passed which tells the director which Worker
- * process to target. If the thread_id == 0, the Director handles the message 
+ * process to target. If the thread_id == 1, the Director handles the message 
  * itself on the main thread.
  *
  * Returns 0 if successful.
@@ -101,7 +99,6 @@ director_set (lua_State *L)
 int
 director_take_action (lua_State *L)
 {
-    Worker *worker = NULL;
     const int thread_arg = 2;
     int count, start, i;
     int thread = -1;
@@ -118,13 +115,8 @@ director_take_action (lua_State *L)
 
     /* block & wait for the specific Worker (thread) to open up */
     if (thread > -1 && thread < global_director->worker_count + 1) {
-        worker = (thread == 0) 
-                ? global_director->main_thread_worker
-                : global_director->workers[thread - 1];
-
-        if (worker_give_action(worker, L) != 0)
+        if (worker_give_action(global_director->workers[thread - 1], L) != 0)
             goto error;
-
         goto exit;
     }
 
@@ -144,6 +136,22 @@ error:
 }
 
 /*
+ * Transfer the Actions collected for the main thread to the given Lua stack.
+ * Returns the number of actions transfered.
+ */
+int
+director_transfer_main_actions (lua_State *L)
+{
+    /*
+     * TODO: 
+     *  Worker function like the `actor_request_state` for the Worker so we 
+     *  can do operations on its Lua state. This function will come in handy
+     *  for implementing callbacks later.
+     */
+    return 0;
+}
+
+/*
  * Close the Director and all of the Workers.
  */
 void
@@ -159,7 +167,6 @@ director_close ()
     for (i = 0; i < global_director->worker_count; i++)
         worker_cleanup(global_director->workers[i]);
 
-    worker_cleanup(global_director->main_thread_worker);
     free(global_director->workers);
     free(global_director);
 }

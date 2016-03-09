@@ -7,7 +7,7 @@
  * Load the Director and all of the Workers.
  */
 int
-director_create ();
+director_create (const int has_main, const int num_workers);
 
 /*
  * Set the `director_action` function inside the Lua state as "Director".

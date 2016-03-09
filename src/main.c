@@ -52,14 +52,14 @@ main (int argc, char **argv)
     }
 
     while (console_is_running()) {
-//        /* if we transfered 0 actions */
-//        if (director_transfer_main_actions(L) == 0)
-//            goto input;
-//
-//        while (lua_gettop(L) > 0)
-//            worker_process_action(L);
-//
-//input:
+        /* if we transfered 0 actions */
+        if (director_transfer_main_actions(L) == 0)
+            goto input;
+
+        while (lua_gettop(L) > 0)
+            worker_process_action(L);
+
+input:
         if (console_poll_input(&line) == 0)
             printf("INPUT: %s\n", line);
     }

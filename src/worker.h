@@ -10,7 +10,7 @@ typedef struct Worker Worker;
  * null. Returns NULL on failure.
  */
 Worker *
-worker_create (lua_State *main);
+worker_create ();
 
 /*
  * Create a Worker and start it, which spawns a thread.

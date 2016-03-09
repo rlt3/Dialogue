@@ -36,7 +36,8 @@ luaopen_Dialogue (lua_State *L)
                        opts[ACTOR_CHILD_MAX]) != 0)
         luaL_error(L, "Dialogue: Failed to create the Company of Actors!");
 
-    if (director_create(opts[WORKER_COUNT]) != 0)
+    if (director_create(opts[WORKER_IS_MAIN], 
+                        opts[WORKER_COUNT]) != 0)
         luaL_error(L, "Dialogue: Failed to create the Director and Workers!");
 
     company_set(L);
