@@ -8,4 +8,4 @@ Director({a0, "send", {"move", 1}}, 2)
 Director({a0, "bad"}, 2)
 Director{a0}
 Director{37, "send", {"update"}}
---os.execute("sleep " .. tonumber(1))
+os.execute("sleep " .. tonumber(1))

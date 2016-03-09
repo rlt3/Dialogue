@@ -17,6 +17,8 @@ static char *cons_input;
 static pthread_mutex_t cons_running_mutex;
 static volatile int cons_is_running;
 
+static const char *prompt = "> ";
+
 /*
  * The thread uses Readline's async functions so we can interrupt getting the 
  * next input char and safely exit the thread any time.
@@ -24,7 +26,7 @@ static volatile int cons_is_running;
 void *
 console_thread (void *arg)
 {
-    //signal(SIGINT, console_handle_interrupt);
+    signal(SIGINT, console_handle_interrupt);
     printf("Dialogue v0.0 with Lua v5.2\n"
            "    type `exit` to quit.\n");
 
@@ -34,7 +36,7 @@ console_thread (void *arg)
         while (cons_input != NULL)
             pthread_cond_wait(&cons_cond, &cons_mutex);
 
-        cons_input = readline("> ");
+        cons_input = readline(prompt);
         add_history(cons_input);
 
         if (strncmp("exit", cons_input, 4) == 0)
@@ -80,7 +82,6 @@ void
 console_handle_interrupt (int arg)
 {
     console_log("To quit type `exit`!\n");
-    fflush(stdout);
 }
 
 /*
@@ -106,21 +107,24 @@ console_log (char *fmt, ...)
 {
     va_list args;
     int ret;
-    int saved_point = rl_point;
-    char *saved_line = rl_copy_text(0, rl_end);
-    rl_save_prompt();
-    rl_replace_line("", 0);
-    rl_redisplay();
+    //char* saved_line;
+    //int saved_point;
+    //saved_point = rl_point;
+    //saved_line = rl_copy_text(0, rl_end);
+    //rl_set_prompt("");
+    //rl_replace_line("", 0);
+    //rl_redisplay();
 
     va_start(args, fmt);
     ret = vprintf(fmt, args);
     va_end(args);
 
-    rl_restore_prompt();
-    rl_replace_line(saved_line, 0);
-    rl_point = saved_point;
-    rl_redisplay();
-    free(saved_line);
+    //rl_set_prompt(prompt);
+    //rl_replace_line(saved_line, 0);
+    //rl_point = saved_point;
+    //rl_redisplay();
+    //free(saved_line);
+
     return ret;
 }
 

@@ -79,7 +79,7 @@ main (int argc, char *argv[])
         goto load;
 
     /* from here, the console controls when the program exits */
-    signal(SIGINT, console_handle_interrupt);
+    //signal(SIGINT, console_handle_interrupt);
     if (console_create() != 0) {
         fprintf(stderr, "Failed to create console thread!");
         goto cleanup;

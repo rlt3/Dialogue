@@ -43,12 +43,13 @@ luaopen_Dialogue (lua_State *L)
     company_set(L);
     director_set(L);
 
+    lua_newtable(L);
+
     luaL_newmetatable(L, DIALOGUE_META);
     lua_pushvalue(L, -1);
     lua_setfield(L, -1, "__index");
     luaL_setfuncs(L, dialogue_metamethods, 0);
 
-    lua_newtable(L);
     lua_setmetatable(L, -2);
 
     /*
