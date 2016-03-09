@@ -24,8 +24,9 @@ static volatile int cons_is_running;
 void *
 console_thread (void *arg)
 {
+    //signal(SIGINT, console_handle_interrupt);
     printf("Dialogue v0.0 with Lua v5.2\n"
-           "    type `exit` to exit.\n");
+           "    type `exit` to quit.\n");
 
     pthread_mutex_lock(&cons_mutex);
     
@@ -78,7 +79,8 @@ exit:
 void
 console_handle_interrupt (int arg)
 {
-    printf("To exit type `exit`\n");
+    console_log("To quit type `exit`!\n");
+    fflush(stdout);
 }
 
 /*

@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <errno.h>
+#include "console.h"
 #include "worker.h"
 #include "company.h"
 #include "utils.h"
@@ -77,7 +78,7 @@ worker_process_action (lua_State *W)
     lua_pushcfunction(W, worker_catch);
     lua_insert(W, -2);
     if (lua_pcall(W, 1, 0, 0)) {
-        fprintf(stderr, "Action failed: %s\n", lua_tostring(W, -1));
+        console_log("Action failed: %s\n", lua_tostring(W, -1));
         lua_pop(W, 1);
     }
 }

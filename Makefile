@@ -26,9 +26,9 @@ build: $(SOURCES)
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
 test:
-	cd spec/ && ../$(MODULE) company.lua
-	cd spec/ && ../$(MODULE) actor.lua
-	cd spec/ && ../$(MODULE) director.lua
+	cd spec/ && ../$(MODULE) -s company.lua
+	cd spec/ && ../$(MODULE) -s actor.lua
+	cd spec/ && ../$(MODULE) -s director.lua
 
 mem:
 	valgrind --leak-check=full -v ./$(MODULE) stage.lua
