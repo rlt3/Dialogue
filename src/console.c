@@ -143,27 +143,28 @@ console_log (const char *fmt, ...)
      *  > ><enter>
      *  >
      */
-    //static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+    static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
     va_list args;
     char* saved_line;
     int saved_point;
+
+    pthread_mutex_lock(&log_mutex);
     saved_point = rl_point;
     saved_line = rl_copy_text(0, rl_end);
     rl_set_prompt("");
     rl_replace_line("", 0);
     rl_redisplay();
     
-    //pthread_mutex_lock(&log_mutex);
     va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
+    vprintf(fmt, args);
     va_end(args);
-    //pthread_mutex_unlock(&log_mutex);
 
     rl_set_prompt(prompt);
     rl_replace_line(saved_line, 0);
     rl_point = saved_point;
     rl_redisplay();
     free(saved_line);
+    pthread_mutex_unlock(&log_mutex);
 
     return 0;
 }
