@@ -622,7 +622,7 @@ tree_map_subtree (int root,
             tree_map_subtree(children[id], function, data, is_read, is_recurse);
         } else {
             if (lock_func(children[id]) == 0) {
-                if (node_is_used_rd(root))
+                if (node_is_used_rd(id))
                     function(data, children[id]);
                 node_unlock(children[id]);
             }
