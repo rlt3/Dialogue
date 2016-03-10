@@ -61,7 +61,7 @@ main (int argc, char *argv[])
 
     /* see arg.h */
     ARGBEGIN {
-        case 'h': usage(argv[0]); ret = 1; goto cleanup; break;
+        case 'h': ret = 1; usage(argv[0]); goto cleanup;
         case 's': is_script = 1; break;
         case 'w': dialogue_option_set(WORKER_COUNT, atoi(ARGF())); break;
         case 'm': dialogue_option_set(WORKER_IS_MAIN, 1); break;
@@ -71,6 +71,9 @@ main (int argc, char *argv[])
 
     if (is_script)
         dialogue_option_set(WORKER_IS_MAIN, 0);
+
+    /* set the correct io.write function for console vs default */
+    dialogue_option_set(ACTOR_CONSOLE_WRITE, !is_script);
 
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
@@ -87,6 +90,7 @@ main (int argc, char *argv[])
     }
 
 load:
+    dialogue_set_io_write(L);
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         fprintf(stderr, "File: %s could not load: %s\n", file,
                 lua_tostring(L, -1));
@@ -111,8 +115,12 @@ load:
             worker_process_action(L);
 
 input:
-        if (console_poll_input(&input) == 0)
-            console_log("INPUT: %s\n", input);
+        if (console_poll_input(&input) == 0) {
+            if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0)) {
+                console_log("%s\n", lua_tostring(L, -1));
+                lua_pop(L, 1);
+            }
+        }
     }
 
     console_cleanup();

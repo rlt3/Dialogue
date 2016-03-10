@@ -7,6 +7,7 @@ a2:load()
 Director({a0, "send", {"output", "foobar", 3}}, 1)
 Director({a1, "send", {"output", "bar", 2}}, 1)
 Director({a2, "send", {"output", "foo", 1}}, 1)
+--os.execute("sleep " .. tonumber(7))
 --a0:send{"move", 2, 2}
 --print(a0:probe(1, "coordinates")[1])
 --print(a0:probe(1, "coordinates")[2])

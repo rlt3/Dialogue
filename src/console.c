@@ -12,6 +12,8 @@
 static pthread_t cons_thread;
 static pthread_mutex_t cons_mutex;
 static pthread_cond_t cons_cond;
+
+static char *cons_prev_input;
 static char *cons_input;
 
 static pthread_mutex_t cons_running_mutex;
@@ -22,7 +24,7 @@ static const char *prompt = "> ";
 int
 lua_console_log (lua_State *L)
 {
-    console_log("%s\n", luaL_checkstring(L, 1));
+    console_log(luaL_checkstring(L, 1));
     return 0;
 }
 
@@ -39,6 +41,16 @@ console_set_write (lua_State *L)
 }
 
 /*
+ * Handle sigint.
+ * TODO: I'm not even sure this works. Also handle ctrl+d as well as ctrl+c.
+ */
+void
+console_handle_interrupt (int arg)
+{
+    console_log("To quit type `exit`!\n");
+}
+
+/*
  * The thread uses Readline's async functions so we can interrupt getting the 
  * next input char and safely exit the thread any time.
  */
@@ -51,19 +63,20 @@ console_thread (void *arg)
     pthread_mutex_lock(&cons_mutex);
     
     while (1) {
-        while (cons_input != NULL)
-            pthread_cond_wait(&cons_cond, &cons_mutex);
-
         cons_input = readline(prompt);
 
         if (strncmp("exit", cons_input, 4) == 0) {
+            /* free and set NULL here so input isn't caught before quitting */
             free(cons_input);
             cons_input = NULL;
             break;
         }
 
         add_history(cons_input);
-        free(cons_input);
+
+        /* `console_poll_input` resets the condition */
+        while (cons_input != NULL)
+            pthread_cond_wait(&cons_cond, &cons_mutex);
     }
 
     pthread_mutex_unlock(&cons_mutex);
@@ -91,20 +104,12 @@ console_create ()
         goto exit;
 
     cons_is_running = 1;
+    cons_prev_input = NULL;
     cons_input = NULL;
 
     ret = 0;
 exit:
     return ret;
-}
-
-/*
- * Handle sigint.
- */
-void
-console_handle_interrupt (int arg)
-{
-    console_log("To quit type `exit`!\n");
 }
 
 /*
@@ -128,6 +133,17 @@ console_is_running ()
 int 
 console_log (const char *fmt, ...)
 {
+    /*
+     * TODO: Everything about outputting to the console asynchronously.
+     *  Why does the console "redisplay" the last line sometimes? The
+     *  occurance bellow happens far too often.
+     *
+     *  > ffffff<enter>
+     *  > ffffff> ffffff<enter>
+     *  > ><enter>
+     *  >
+     */
+    //static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
     va_list args;
     char* saved_line;
     int saved_point;
@@ -137,9 +153,11 @@ console_log (const char *fmt, ...)
     rl_replace_line("", 0);
     rl_redisplay();
     
+    //pthread_mutex_lock(&log_mutex);
     va_start(args, fmt);
-    vprintf(fmt, args);
+    vfprintf(stderr, fmt, args);
     va_end(args);
+    //pthread_mutex_unlock(&log_mutex);
 
     rl_set_prompt(prompt);
     rl_replace_line(saved_line, 0);
@@ -153,8 +171,6 @@ console_log (const char *fmt, ...)
 /*
  * Poll console for input. If it returns 0, the value at the `input` pointer
  * is set to the input string. Else, the `input` pointer is set to NULL.
- *
- * if (console_poll_input(&input) == 0)
  */
 int
 console_poll_input (char **input)
@@ -168,7 +184,9 @@ console_poll_input (char **input)
     if (!cons_input)
         goto cleanup;
 
+    free(cons_prev_input);
     *input = cons_input;
+    cons_prev_input = cons_input;
     cons_input = NULL;
     pthread_cond_signal(&cons_cond);
 
@@ -183,5 +201,9 @@ void
 console_cleanup ()
 {
     pthread_join(cons_thread, NULL);
+
+    free(cons_prev_input);
+    cons_prev_input = NULL;
+
     puts("Goodbye.");
 }
