@@ -7,6 +7,7 @@
 #include "tree.h"
 
 #define NODE_FAMILY_MAX 4
+#define MAP_MAX_STACK 10
 
 typedef struct Node {
     void *data;
@@ -198,10 +199,11 @@ node_mark_attached_fullwr (int id, void *data, int thread_id)
 /*
  * With a write lock:
  * Mark a node as benched. This keeps its reference id valid and its data from
- * being cleaned-up even if it removed from the tree.
+ * being cleaned-up even if it removed from the tree. The contract has `data` 
+ * because this is can be used as a callback function for `tree_map_subtree`
  */
 void
-node_mark_benched_wr (int id)
+node_mark_benched_wr (void *data, int id)
 {
     global_tree->list[id].attached = 0;
     global_tree->list[id].benched = 1;
@@ -209,10 +211,12 @@ node_mark_benched_wr (int id)
 
 /*
  * With a write lock:
- * Mark a node unusued, telling to system it is free to be cleaned-up.
+ * Mark a node unusued, telling to system it is free to be cleaned-up.  The
+ * contract has `data` because this is can be used as a callback function for
+ * `tree_map_subtree`
  */
 void
-node_mark_unused_wr (int id)
+node_mark_unused_wr (void *data, int id)
 {
     global_tree->list[id].attached = 0;
     global_tree->list[id].benched = 0;
@@ -230,7 +234,7 @@ node_init_wr (int id)
 {
     int i, length = 5, ret = 1;
 
-    node_mark_unused_wr(id);
+    node_mark_unused_wr(NULL, id);
     pthread_rwlock_init(&global_tree->list[id].rw_lock, NULL);
     pthread_mutex_init(&global_tree->list[id].data_lock, NULL);
 
@@ -457,14 +461,14 @@ unlock:
  * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use (a
  * valid. 
  * 
- * Returns ERROR
+ * ReturnsTREE_ERROR
  *      - if data is NULL
  *      - write-lock fails while setting the root node
  */
 int
 tree_add_reference (void *data, int parent_id, int thread_id)
 {
-    int max_id, id, invalid_parent = 0, ret = ERROR;
+    int max_id, id, invalid_parent = 0, ret =TREE_ERROR;
 
     if (data == NULL)
         goto exit;
@@ -519,7 +523,7 @@ data_lock_and_write:
      */
     if (invalid_parent) {
         if (tree_write() != 0) {
-            ret = ERROR;
+            ret =TREE_ERROR;
             goto unlock;
         }
         
@@ -544,7 +548,7 @@ data_lock_and_write:
          * keep the allocated data but still return with an error. it will be
          * cleaned up automatically if we simply mark it as garbage.
          */
-        node_mark_unused_wr(id);
+        node_mark_unused_wr(NULL, id);
         ret = NODE_ERROR;
         goto unlock;
     }
@@ -562,29 +566,29 @@ exit:
 }
 
 /*
- * Map the function to the subtree starting at the given root node. If is_read
- * is true, then read locks will be used. Otherwise write locks will be used.
+ * Map the given callback function to the subtree starting at the given root
+ * node. The root node can be any node in the tree.
  *
- * If is_recurse is tree, will go down the list of children calling the 
- * for all descendents of the initial root function. If is_recurse is false 
- * then the function will only do the given root and its direct children.
-
- * Keeps a stack-allocated list of 10 potential children. It acquires the write
- * lock on the root, calls the function, and gets the children. This is so we
- * can keep the locking policy of: children are locked before their parents are
- * locked. This policy is implicity defined in tree_add_reference.
+ * If is_read is true, then read locks will be acquired before calling the
+ * callback. Otherwise write locks will be used.
+ *
+ * If is_recurse is true, the callback will be called recursively starting at
+ * the root node and end when every ancestor of the that node has been
+ * processed.  If is_recurse is false then the function will only do the given
+ * root and its direct children.
+ *
+ * The data is any data that needs to be passed into the callback. The callback
+ * function is always passed the current Node's id.
  */
 void
-tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
+tree_map_subtree (int root, 
+        map_callback_t function, 
+        void *data, 
+        int is_read, 
+        int is_recurse)
 {
     int (*lock_func)(int);
-    /* 
-     * TODO: create map_max_stack as a global var protected by an rwlock and the
-     * largest children length for any given node. avoiding having to malloc
-     * here is a c99 feature, e.g. int children[map_max_stack]; or we have set
-     * a hard limit on the number of scripts.
-     */
-    int children[10];
+    int children[MAP_MAX_STACK];
     int max_id, id, cid = 0;
 
     if (is_read)
@@ -600,9 +604,9 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
         return;
     }
 
-    memset(&children, -1, sizeof(int) * 10);
+    memset(&children, -1, sizeof(int) * MAP_MAX_STACK);
     max_id = global_tree->list[root].last_child;
-    function(root);
+    function(data, root);
 
     for (id = 0; id < max_id; id++) {
         if (global_tree->list[root].children[id] > NODE_INVALID) {
@@ -615,11 +619,11 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
 
     for (id = 0; id < cid; id++) {
         if (is_recurse) {
-            tree_map_subtree(children[id], function, is_read, is_recurse);
+            tree_map_subtree(children[id], function, data, is_read, is_recurse);
         } else {
             if (lock_func(children[id]) == 0) {
                 if (node_is_used_rd(root))
-                    function(children[id]);
+                    function(data, children[id]);
                 node_unlock(children[id]);
             }
         }
@@ -637,10 +641,8 @@ tree_map_subtree (int root, void (*function) (int), int is_read, int is_recurse)
 int
 tree_unlink_reference (int id, int is_delete)
 {
-    const int write = 0;
-    const int recurse = 1;
     int parent, ret = 1;
-    void (*unlink_func)(int);
+    void (*unlink_func)(void*, int);
 
     if (node_write(id) != 0)
         goto exit;
@@ -660,7 +662,7 @@ unlock:
     node_unlock(id);
 
     if (ret == 0)
-        tree_map_subtree(id, unlink_func, write, recurse);
+        tree_map_subtree(id, unlink_func, NULL, TREE_WRITE, TREE_RECURSE);
 exit:
     return ret;
 }
@@ -794,6 +796,18 @@ tree_reference_thread (int id)
     node_unlock(id);
 exit:
     return thread;
+}
+
+int
+tree_node_parent (int id)
+{
+    int parent = NODE_INVALID;
+    if (node_read(id) != 0)
+        goto exit;
+    parent = global_tree->list[id].parent;
+    node_unlock(id);
+exit:
+    return parent;
 }
 
 /*

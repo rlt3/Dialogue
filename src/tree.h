@@ -58,12 +58,15 @@
 
 typedef void (*data_set_id_func_t) (void *, int);
 typedef void (*data_cleanup_func_t) (void *);
+typedef void (*map_callback_t) (void *, int);
 
-enum TreeReturn {
-    ERROR = -3,
-    NODE_ERROR = -2,
-    NODE_INVALID = -1
-};
+#define TREE_WRITE       0
+#define TREE_READ        1
+#define TREE_RECURSE     1
+#define TREE_NON_RECURSE 0
+#define TREE_ERROR      -3
+#define NODE_ERROR      -2
+#define NODE_INVALID    -1
 
 /*
  * Initialze the tree with the given length and the cleanup function for the
@@ -155,6 +158,40 @@ tree_deref (int id);
  */
 int
 tree_reference_thread (int id);
+
+/*
+ * Map the given callback function to the subtree starting at the given root
+ * node. The root node can be any node in the tree.
+ *
+ * If is_read is true, then read locks will be acquired before calling the
+ * callback. Otherwise write locks will be used.
+ *
+ * If is_recurse is true, the callback will be called recursively starting at
+ * the root node and end when every ancestor of the that node has been
+ * processed.  If is_recurse is false then the function will only do the given
+ * root and its direct children.
+ *
+ * The data is any data that needs to be passed into the callback. The callback
+ * function is always passed the current Node's id.
+ */
+void
+tree_map_subtree (int root, 
+        map_callback_t function, 
+        void *data, 
+        int is_read, 
+        int is_recurse);
+
+/*
+ * Returns the id of the root node. Returns NODE_ERROR if an error occurs.
+ */
+int
+tree_root ();
+
+/*
+ * Returns the parent id of the Node. Returns NODE_ERROR if an error occurs.
+ */
+int
+tree_node_parent (int id);
 
 /*
  * Mark all active Nodes as garbage and clean them up. Then free the memory for

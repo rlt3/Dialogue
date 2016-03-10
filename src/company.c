@@ -209,9 +209,9 @@ lua_actor_new (lua_State *L)
     id = company_add(L, parent, thread);
 
     switch (id) {
-    case ERROR:
+    case TREE_ERROR:
         /* 
-         * ERROR also catches if the actor data is NULL in
+         * TREE_ERROR also catches if the actor data is NULL in
          * `tree_add_reference`.  We throw a Lua error where ever we would
          * return NULL in `actor_new` so techincally that error should never
          * happen.
@@ -493,6 +493,99 @@ lua_actor_sync (lua_State *L)
     return 0;
 }
 
+void
+company_audience_callback (void* data, int id)
+{
+    lua_State *L = data;
+    lua_pushinteger(L, id);
+    lua_rawseti(L, -2, luaL_len(L, -2));
+}
+
+void
+company_push_audience (lua_State *L, int id, const char *tone)
+{
+    /*
+     * Yell is recursive from the Root node.
+     * Command is recursive from `id` node.
+     * Say is non-recursive from the parent of `id` node.
+     * Neither think nor whisper need a tree operation.
+     */
+
+    lua_newtable(L);
+
+    switch (tone[0]) {
+    case 'y': case 'Y':
+        id = tree_root();
+        break;
+
+    case 'c': case 'C':
+        break;
+
+    case 's': case 'S':
+        id = tree_node_parent(id);
+        break;
+
+    default:
+        //lua_pop(L, 1);
+        return;
+    }
+
+    tree_map_subtree(id, company_audience_callback, L,
+            TREE_READ, TREE_NON_RECURSE);
+}
+
+int
+lua_actor_audience (lua_State *L)
+{
+    const int self_arg = 2;
+    const int tone_arg = 2;
+    const int id = company_actor_id(L, self_arg);
+    const char *tone = luaL_checkstring(L, tone_arg);
+    company_push_audience(L, id, tone);
+    return 1;
+}
+
+/*
+ * actor:yell{"draw", 4}
+ *  {a0, "send", {"draw", 4}}
+ */
+int
+lua_actor_yell (lua_State *L)
+{
+    const int self_arg = 1;
+    const int args = lua_gettop(L);
+    const int audience_index = args + 2;
+    const int id = company_actor_id(L, self_arg);
+    int i;
+
+    /* push the "send" to the appropriate place */
+    lua_pushliteral(L, "send");
+    lua_insert(L, 2);
+
+    company_push_audience(L, id, "yell");
+
+    while (lua_next(L, audience_index)) {
+        lua_newtable(L);
+        
+        /* push the audience member */
+        lua_pushvalue(L, -1);
+        lua_rawseti(L, -2, 1);
+
+        for (i = 2; i <= args; i++) {
+            lua_pushvalue(L, i);
+            lua_rawseti(L, -2, i);
+        }
+
+        director_take_action(L);
+
+        lua_pop(L, -1);
+    }
+    lua_pop(L, -1);
+
+
+    return 0;
+}
+
 static const luaL_Reg actor_metamethods[] = {
     {"load",     lua_actor_load},
     {"child",    lua_actor_child},
@@ -508,6 +601,14 @@ static const luaL_Reg actor_metamethods[] = {
     {"probe",    lua_actor_probe},
     {"async",    lua_actor_async},
     {"sync",     lua_actor_sync},
+    {"audience", lua_actor_audience},
+    {"yell",     lua_actor_yell},
+    /*
+    {"command",  lua_actor_command},
+    {"say",      lua_actor_say},
+    {"whisper",  lua_actor_whisper},
+    {"think",    lua_actor_think},
+    */
     { NULL, NULL }
 };
 
