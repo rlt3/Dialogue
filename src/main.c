@@ -61,7 +61,7 @@ main (int argc, char *argv[])
 
     /* see arg.h */
     ARGBEGIN {
-        case 'h': usage(argv[0]); goto exit; break;
+        case 'h': usage(argv[0]); ret = 1; goto cleanup; break;
         case 's': is_script = 1; break;
         case 'w': dialogue_option_set(WORKER_COUNT, atoi(ARGF())); break;
         case 'm': dialogue_option_set(WORKER_IS_MAIN, 1); break;
@@ -98,6 +98,11 @@ load:
     }
 
     while (console_is_running()) {
+        /*
+         * TODO: Figure out what to do here when the main thread *isn't* a
+         * Worker (which means the `-m` flag wasn't passed). Perhaps just a 
+         * call to `console_thread` ?
+         */
         /* if we transfered 0 actions */
         if (director_transfer_main_actions(L) == 0)
             goto input;

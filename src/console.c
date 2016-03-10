@@ -46,7 +46,7 @@ void *
 console_thread (void *arg)
 {
     printf("Dialogue v%s with Lua v%s\n"
-           "    type `exit` to quit.\n", DIALOGUE_VERSION,DIALOGUE_LUA_VERSION);
+           "↳  type `exit` to quit.\n", DIALOGUE_VERSION,DIALOGUE_LUA_VERSION);
 
     pthread_mutex_lock(&cons_mutex);
     
