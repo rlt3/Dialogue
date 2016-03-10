@@ -107,13 +107,20 @@ load:
          * Worker (which means the `-m` flag wasn't passed). Perhaps just a 
          * call to `console_thread` ?
          */
-        /* if we transfered 0 actions */
         if (director_transfer_main_actions(L) == 0)
             goto input;
 
         while (lua_gettop(L) > 0)
             worker_process_action(L);
 
+        /*
+         * TODO: The only reason why we make the main thread into a Worker is 
+         * that many C-written Lua modules require execution in the main thread
+         * but that requirement isn't about *which* Lua state in the Main 
+         * thread. If we give the *real* main Lua state to the console and just
+         * use a Worker's state here, it solves that problem. This also means 
+         * the main thread doesn't have to check the interpreter every loop.
+         */
 input:
         if (console_poll_input(&input) == 0) {
             if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0)) {

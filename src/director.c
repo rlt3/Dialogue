@@ -3,6 +3,7 @@
 #include <sys/time.h>
 #include "director.h"
 #include "worker.h"
+#include "utils.h"
 
 typedef struct Director {
     Worker **workers;
@@ -142,13 +143,20 @@ error:
 int
 director_transfer_main_actions (lua_State *L)
 {
-    /*
-     * TODO: 
-     *  Worker function like the `actor_request_state` for the Worker so we 
-     *  can do operations on its Lua state. This function will come in handy
-     *  for implementing callbacks later.
-     */
-    return 0;
+    int count = 0;
+    lua_State *W = worker_request_state(global_director->workers[0]);
+
+    if (!W)
+        goto exit;
+
+    count = lua_gettop(W);
+
+    if (count > 0)
+        utils_transfer(L, W, count);
+
+    worker_return_state(global_director->workers[0]);
+exit:
+    return count;
 }
 
 /*
