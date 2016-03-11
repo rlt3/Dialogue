@@ -641,21 +641,21 @@ tree_map_subtree (int root,
 int
 tree_unlink_reference (int id, int is_delete)
 {
-    int parent, ret = 1;
+    int ret = 1;
     void (*unlink_func)(void*, int);
 
     if (node_write(id) != 0)
         goto exit;
-
-    parent = global_tree->list[id].parent;
 
     if (is_delete)
         unlink_func = node_mark_unused_wr;
     else
         unlink_func = node_mark_benched_wr;
 
-    if (node_remove_child(parent, id) != 0)
+    if (!global_tree->list[id].benched &&
+        node_remove_child(global_tree->list[id].parent, id) != 0) {
         goto unlock;
+    }
 
     ret = 0;
 unlock:
@@ -668,14 +668,15 @@ exit:
 }
 
 /*
- * Re-link a (benched) reference back into the tree. 
+ * Re-link a (benched) reference back into the tree. If parent is > -1 the
+ * node rejoined to the tree as a child of that parent.
  * Returns 0 if successful.
  * Returns 1 if the there was an error re-linking back to its parent.
  * Returns 2 if the node wasn't benched.
  * Returns 3 if the node was invalid.
  */
 int
-tree_link_reference (int id)
+tree_link_reference (const int id, const int parent)
 {
     int ret = 3;
 
@@ -686,6 +687,9 @@ tree_link_reference (int id)
         ret = 2;
         goto unlock;
     }
+
+    if (parent > NODE_INVALID)
+        global_tree->list[id].parent = parent;
 
     if (node_add_child(global_tree->list[id].parent, id) != 0) {
         ret = 1;

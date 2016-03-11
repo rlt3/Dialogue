@@ -56,9 +56,9 @@ company_bench (int id)
  * Join an actor which was benched back into the Company's tree.
  */
 int
-company_join (int id)
+company_join (const int id, const int parent)
 {
-    return tree_link_reference(id);
+    return tree_link_reference(id, parent);
 }
 
 /*
@@ -128,7 +128,7 @@ company_push_actor (lua_State *L, int actor_id)
 int
 company_actor_id (lua_State *L, int index)
 {
-    int id = -1;
+    int id = NODE_INVALID;
     int type = lua_type(L, index);
 
     switch(type) {
@@ -333,14 +333,22 @@ lua_actor_bench (lua_State *L)
     return 0;
 }
 
+/*
+ * Join a benched Actor back to the tree. If no parent is specified, the Actor
+ * is joined as a child of its old parent. Otherwise, it is joined as a child
+ * of the provided parent.
+ *
+ * actor:join([new parent])
+ */
 int
 lua_actor_join (lua_State *L)
 {
     const int actor_arg = 1;
+    const int parent_opt_arg = 2;
     const int id = company_actor_id(L, actor_arg);
-    int rc = company_join(id);
+    const int parent = luaL_optinteger(L, parent_opt_arg, NODE_INVALID);
 
-    switch (rc) {
+    switch (company_join(id, parent)) {
     case 1:
         luaL_error(L, "Cannot join `%d`: bad parent!", id);
         break;

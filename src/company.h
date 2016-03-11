@@ -82,7 +82,7 @@ company_bench (int id);
  * Join an actor which was benched back into the Company's tree.
  */
 int
-company_join (int id);
+company_join (const int id, const int parent);
 
 /*
  * Remove an actor from the Company's Tree and mark it as garbage.

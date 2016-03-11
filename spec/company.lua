@@ -4,7 +4,7 @@ require 'busted.runner'()
 --
 -- Watch out! The nature of the Company (and Tree) is that Actors persist over
 -- typical Lua scopes. I have written these tests and assume that the root node
--- (id of 0) exists globally in each test.
+-- (id of 0) exists globally in each test (except a few first tests)
 --
 
 describe("The Company of Actors", function()
@@ -183,12 +183,23 @@ describe("The Company of Actors", function()
             a2:join()
         end, "Cannot join `2`: bad parent!")
 
-        -- quick hack, make the bad parent correct again because we can't
-        -- delete benched actors!
-        assert.is_equal(a0:child{}:id(), 1)
-        a2:join()
         a2:delete()
+    end)
+
+    it("can join an Actor as a child of a provided parent id", function()
+        local a0 = Actor(0)
+        local a1 = a0:child{}
+        local a2 = a1:child{}
+        assert.is_equal(a1:id(), 1)
+        assert.is_equal(a2:id(), 2)
+        assert.is_equal(a1:parent():id(), 0)
+        assert.is_equal(a2:parent():id(), 1)
+
+        a2:bench()
         a1:delete()
+        a2:join(0)
+        -- TODO: assert #Actor(0):children() == 1
+        a2:delete()
     end)
 
     it("handles the audience for each Actor", function()
