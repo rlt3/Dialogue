@@ -53,7 +53,8 @@ company_bench (int id)
 }
 
 /*
- * Join an actor which was benched back into the Company's tree.
+ * Join an actor which was benched back into the Company's tree. If the parent 
+ * is >NODE_INVALID then the benched Actor is joined as a child of that parent.
  */
 int
 company_join (const int id, const int parent)
@@ -121,6 +122,81 @@ company_push_actor (lua_State *L, int actor_id)
 }
 
 /*
+ * Push all the ids to the table on top of the stack.
+ */
+void
+company_audience_callback (void* data, int id)
+{
+    lua_State *L = data;
+    lua_pushinteger(L, id);
+    lua_rawseti(L, -2, luaL_len(L, -2) + 1);
+}
+
+/*
+ * Callback data for the tree_map_subtree function. It accepts void* so we 
+ * just passed the address of the stack pointer for the data.
+ */
+struct company_callback_data {
+    lua_State *L;
+    int id;
+};
+
+/*
+ * Push all the ids to the table on top of the stack except the parent's.
+ */
+void
+company_children_callback (void *data, int id)
+{
+    struct company_callback_data *c = data;
+    lua_State *L = c->L;
+    const int parent = c->id;
+
+    if (parent == id)
+        return;
+
+    lua_pushinteger(L, id);
+    lua_rawseti(L, -2, luaL_len(L, -2) + 1);
+}
+
+/*
+ * Pushes a table of actor ids which correspond to the audience of the actor by
+ * the tone.
+ */
+void
+company_push_audience (lua_State *L, int id, const char *tone)
+{
+    /*
+     * Yell is recursive from the Root node.
+     * Command is recursive from `id` node.
+     * Say is non-recursive from the parent of `id` node.
+     * Neither think nor whisper need a tree operation.
+     */
+
+    lua_newtable(L);
+
+    switch (tone[0]) {
+    case 'y': case 'Y':
+        tree_map_subtree(tree_root(), company_audience_callback, L,
+                TREE_READ, TREE_RECURSE);
+        break;
+
+    case 'c': case 'C':
+        tree_map_subtree(id, company_audience_callback, L,
+                TREE_READ, TREE_RECURSE);
+        break;
+
+    case 's': case 'S':
+        tree_map_subtree(tree_node_parent(id), company_audience_callback, L,
+                TREE_READ, TREE_NON_RECURSE);
+        break;
+
+    default:
+        //lua_pop(L, 1);
+        return;
+    }
+}
+
+/*
  * An actor can be represented in many ways. All of them boil down to an id.
  * This function returns the id of an actor at index. Will call lua_error on
  * L if the type is unexpected.
@@ -151,12 +227,12 @@ company_actor_id (lua_State *L, int index)
     return id;
 }
 
+typedef int (*ActorFunc) (Actor*, lua_State*);
+
 /*
  * Call the Actor function with an Actor from the id, erroring out over L if
  * the id is bad or if `func` fails.
  */
-typedef int (*ActorFunc) (Actor*, lua_State*);
-
 void
 company_call_actor_func (lua_State *L, int id, ActorFunc func)
 {
@@ -276,6 +352,15 @@ exit:
     return 1;
 }
 
+/*
+ * Load the actor. If a specific script needs to be reloaded, pass the id of 
+ * that script. If you would like to reload all the scripts forcefully, pass
+ * the string "all".
+ *
+ * actor:load()
+ * actor:load(2)
+ * actor:load("all")
+ */
 int
 lua_actor_load (lua_State *L)
 {
@@ -286,8 +371,8 @@ lua_actor_load (lua_State *L)
 }
 
 /*
- * actor:child( definition_table )
  * Call lua_actor_new with the actor (owner of the child method) as the parent.
+ * actor:child( definition_table )
  */
 int
 lua_actor_child (lua_State *L)
@@ -309,18 +394,30 @@ lua_actor_child (lua_State *L)
     return 1;
 }
 
+/*
+ * Return the children of the actor as an array of actor ids.
+ * actor:children()
+ */
 int
 lua_actor_children (lua_State *L)
 {
-    /*
-     * TODO: tree_map_subtree for functions with (void *, int) that can map to
-     * (lua_State*, int id) functions?
-     *
-     * It would enable: tree_map_subtree(id, L, company_push_actor, no_recurse)
-     */
-    return 0;
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
+    struct company_callback_data data = { L, id };
+    lua_newtable(L);
+    tree_map_subtree(id, company_children_callback, &data, 
+            TREE_READ, TREE_NON_RECURSE);
+    return 1;
 }
 
+/*
+ * Bench an actor from the Tree. This removes it as a child from its parent. It
+ * won't show up in the audience of any other Actor, but it still exists and can
+ * be reloaded, changed, etc. A benched Actor can be rejoined to the tree with
+ * `actor:join()`
+ *
+ * actor:bench()
+ */
 int
 lua_actor_bench (lua_State *L)
 {
@@ -368,6 +465,13 @@ lua_actor_join (lua_State *L)
     return 0;
 }
 
+/*
+ * Delete an Actor from the tree, marking it as garbage. This is a permanent
+ * action and cannot be undone. Please see `actor:bench()` to temporarily 
+ * remove an Actor from the tree.
+ *
+ * actor:delete()
+ */
 int
 lua_actor_delete (lua_State *L)
 {
@@ -424,6 +528,10 @@ lua_actor_unlock (lua_State *L)
     return 1;
 }
 
+/*
+ * Return the actor's id.
+ * actor:id()
+ */
 int
 lua_actor_id (lua_State *L)
 {
@@ -432,6 +540,10 @@ lua_actor_id (lua_State *L)
     return 1;
 }
 
+/*
+ * Return the id of the actor's parent.
+ * actor:parent()
+ */
 int
 lua_actor_parent (lua_State *L)
 {
@@ -509,48 +621,13 @@ lua_actor_sync (lua_State *L)
     return 0;
 }
 
-void
-company_audience_callback (void* data, int id)
-{
-    lua_State *L = data;
-    lua_pushinteger(L, id);
-    lua_rawseti(L, -2, luaL_len(L, -2) + 1);
-}
-
-void
-company_push_audience (lua_State *L, int id, const char *tone)
-{
-    /*
-     * Yell is recursive from the Root node.
-     * Command is recursive from `id` node.
-     * Say is non-recursive from the parent of `id` node.
-     * Neither think nor whisper need a tree operation.
-     */
-
-    lua_newtable(L);
-
-    switch (tone[0]) {
-    case 'y': case 'Y':
-        tree_map_subtree(tree_root(), company_audience_callback, L,
-                TREE_READ, TREE_RECURSE);
-        break;
-
-    case 'c': case 'C':
-        tree_map_subtree(id, company_audience_callback, L,
-                TREE_READ, TREE_RECURSE);
-        break;
-
-    case 's': case 'S':
-        tree_map_subtree(tree_node_parent(id), company_audience_callback, L,
-                TREE_READ, TREE_NON_RECURSE);
-        break;
-
-    default:
-        //lua_pop(L, 1);
-        return;
-    }
-}
-
+/*
+ * Push the audience of an Actor by the tone it's using. The audience is just 
+ * an array (table) of actor ids.
+ * 
+ * actor:audience("say")
+ * actor:audience("yell")
+ */
 int
 lua_actor_audience (lua_State *L)
 {

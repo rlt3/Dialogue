@@ -64,6 +64,13 @@ void
 company_push_actor (lua_State *L, int actor_id);
 
 /*
+ * Pushes a table of actor ids which correspond to the audience of the actor by
+ * the tone.
+ */
+void
+company_push_audience (lua_State *L, int id, const char *tone);
+
+/*
  * Add an Actor to the Company. Expects an Actor's definition table on top of
  * L. Will call lua_error on L. If thread_id > -1 then the created Actor will
  * only be ran on the thread with that id (thread_id == 0 is the main thread).
@@ -79,7 +86,8 @@ int
 company_bench (int id);
 
 /*
- * Join an actor which was benched back into the Company's tree.
+ * Join an actor which was benched back into the Company's tree. If the parent 
+ * is >NODE_INVALID then the benched Actor is joined as a child of that parent.
  */
 int
 company_join (const int id, const int parent);

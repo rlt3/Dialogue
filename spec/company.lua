@@ -15,7 +15,7 @@ describe("The Company of Actors", function()
 
     it("lets Actors be accessed by their id", function()
         local a0 = Actor(0)
-        -- TODO: assert #a0:children() == 0
+        assert.is_equal(#a0:children(), 0)
         assert.is_equal(a0:id(), 0)
         assert.is_equal(a0:parent():id(), -1)
     end)
@@ -34,7 +34,7 @@ describe("The Company of Actors", function()
         local a2 = a0:child{}
         assert.is_equal(a2:id(), 2)
         assert.is_equal(a2:parent():id(), 0)
-        -- TODO: assert #a0:children() == 2
+        assert.is_equal(#a0:children(), 2)
     end)
 
     it("will error if creating a child attached to a bad parent", function()
@@ -53,7 +53,7 @@ describe("The Company of Actors", function()
         -- undeleted children from `creation of children` above
         Actor(1):delete()
         Actor(2):delete()
-        -- TODO: assert #a0:children() == 0
+        assert.is_equal(#Actor(0):children(), 0)
     end)
 
     it("will error if delete is called for an invalid actor", function()
@@ -127,10 +127,9 @@ describe("The Company of Actors", function()
         local a1 = Actor(0):child{}
         assert.is_equal(a1:id(), 1)
         a1:bench()
-        -- TODO: assert #a0:children == 0
+        assert.is_equal(#Actor(0):children(), 0)
         a1:join()
-        -- TODO: assert #a0:children == 1
-        -- TODO: Can't delete a benched node, fix it
+        assert.is_equal(#Actor(0):children(), 1)
         a1:delete()
     end)
 
@@ -198,7 +197,7 @@ describe("The Company of Actors", function()
         a2:bench()
         a1:delete()
         a2:join(0)
-        -- TODO: assert #Actor(0):children() == 1
+        assert.is_equal(#Actor(0):children(), 1)
         a2:delete()
     end)
 
