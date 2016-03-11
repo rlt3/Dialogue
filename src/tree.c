@@ -527,12 +527,6 @@ data_lock_and_write:
             goto unlock;
         }
         
-        /*
-         * TODO:
-         * A similar bug which caused the branch below arises when you try to
-         * delete the root node. You can't delete the root right now.
-         */
-
         if (global_tree->root > NODE_INVALID) {
             parent_id = global_tree->root;
             tree_unlock();
@@ -652,6 +646,17 @@ tree_unlink_reference (int id, int is_delete)
     else
         unlink_func = node_mark_benched_wr;
 
+    /* if we're deleting the root node, set the root node to invalid */
+    if (global_tree->list[id].parent == NODE_INVALID && tree_root() == id) {
+        if (tree_write() == 0) {
+            global_tree->root = NODE_INVALID;
+            tree_unlock();
+            ret = 0;
+        }
+        goto unlock;
+    }
+
+    /* if the node isn't benched and has a valid parent id */
     if (!global_tree->list[id].benched &&
         node_remove_child(global_tree->list[id].parent, id) != 0) {
         goto unlock;
