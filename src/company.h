@@ -72,31 +72,35 @@ company_push_audience (lua_State *L, int id, const char *tone);
 
 /*
  * Add an Actor to the Company. Expects an Actor's definition table on top of
- * L. Will call lua_error on L. If thread_id > -1 then the created Actor will
- * only be ran on the thread with that id (thread_id == 0 is the main thread).
+ * L. If thread_id > -1 then the created Actor will only be ran on the thread
+ * with that id (thread_id == 0 is the main thread).  Returns the id of the new
+ * Actor if successful otherwise it will call lua_error on L. 
  */
 int 
 company_add (lua_State *L, int parent, int thread_id);
 
 /*
  * Remove an actor from the Company's Tree but still leave it accessible in
- * memory (to be reloaded or otherwise tested).
+ * memory (to be reloaded or otherwise tested). Will error through L if the
+ * id is invalid.
  */
-int 
-company_bench (int id);
+void 
+company_bench (lua_State *L, int id);
 
 /*
  * Join an actor which was benched back into the Company's tree. If the parent 
  * is >NODE_INVALID then the benched Actor is joined as a child of that parent.
+ * Will error through L.
  */
-int
-company_join (const int id, const int parent);
+void
+company_join (lua_State *L, const int id, const int parent);
 
 /*
- * Remove an actor from the Company's Tree and mark it as garbage.
+ * Remove an Actor from the Company's Tree and mark it as garbage. Will error
+ * through L if the id is invalid.
  */
-int 
-company_delete (int id);
+void 
+company_delete (lua_State *L, int id);
 
 /*
  * Get the actor associated with the id. Will error out on L if the id isn't a

@@ -671,20 +671,20 @@ exit:
  * Re-link a (benched) reference back into the tree. If parent is > -1 the
  * node rejoined to the tree as a child of that parent.
  * Returns 0 if successful.
- * Returns 1 if the there was an error re-linking back to its parent.
- * Returns 2 if the node wasn't benched.
- * Returns 3 if the node was invalid.
+ * Returns TREE_ERROR if the there was an error re-linking back to its parent.
+ * Returns NODE_ERROR if the node wasn't benched.
+ * Returns NODE_INVALID if the node was invalid.
  */
 int
 tree_link_reference (const int id, const int parent)
 {
-    int ret = 3;
+    int ret = NODE_INVALID;
 
     if (node_write(id) != 0)
         goto exit;
 
     if (global_tree->list[id].attached) {
-        ret = 2;
+        ret = NODE_ERROR;
         goto unlock;
     }
 
@@ -692,7 +692,7 @@ tree_link_reference (const int id, const int parent)
         global_tree->list[id].parent = parent;
 
     if (node_add_child(global_tree->list[id].parent, id) != 0) {
-        ret = 1;
+        ret = TREE_ERROR;
         goto unlock;
     }
 

@@ -29,46 +29,86 @@ company_create (int base_actors, int max_actors, int base_children)
 
 /*
  * Add an Actor to the Company. Expects an Actor's definition table on top of
- * L. Will call lua_error on L. If thread_id > -1 then the created Actor will
- * only be ran on the thread with that id (thread_id == 0 is the main thread).
+ * L. If thread_id > -1 then the created Actor will only be ran on the thread
+ * with that id (thread_id == 0 is the main thread).  Returns the id of the new
+ * Actor if successful otherwise it will call lua_error on L. 
  */
 int 
 company_add (lua_State *L, int parent, int thread_id)
 {
-    /* 
-     * TODO: Refactor Lua errors into this function (and other like it) so this
-     * function can't be used safely anywhere.
-     */
-    return tree_add_reference(actor_create(L), parent, thread_id);
+    int id = tree_add_reference(actor_create(L), parent, thread_id);
+    switch (id) {
+    case TREE_ERROR:
+        /* 
+         * TREE_ERROR also catches if the actor data is NULL in
+         * `tree_add_reference`.  We throw a Lua error where ever we would
+         * return NULL in `actor_new` so techincally that error should never
+         * happen.
+         */
+        luaL_error(L, 
+                "Failed to create actor: write-lock for `%d` failed!", id);
+        break;
+
+    case NODE_ERROR:
+        luaL_error(L, 
+                "Failed to create actor: invalid parent id `%d`!", parent);
+        break;
+
+    case NODE_INVALID:
+        luaL_error(L, "Failed to create actor: no memory!");
+        break;
+
+    default:
+        break;
+    }
+    return id;
 }
 
 /*
  * Remove an actor from the Company's Tree but still leave it accessible in
  * memory (to be reloaded or otherwise tested).
  */
-int 
-company_bench (int id)
+void 
+company_bench (lua_State *L, int id)
 {
-    return tree_unlink_reference(id, 0);
+    if (tree_unlink_reference(id, 0) != 0)
+        luaL_error(L, "Cannot bench invalid reference `%d`!", id);
 }
 
 /*
- * Join an actor which was benched back into the Company's tree. If the parent 
+ * Join an actor which was benched back into the Company's tree. If the parent
  * is >NODE_INVALID then the benched Actor is joined as a child of that parent.
  */
-int
-company_join (const int id, const int parent)
+void
+company_join (lua_State *L, const int id, const int parent)
 {
-    return tree_link_reference(id, parent);
+    switch (tree_link_reference(id, parent)) {
+    case TREE_ERROR:
+        luaL_error(L, "Cannot join `%d`: bad parent!", id);
+        break;
+
+    case NODE_ERROR:
+        luaL_error(L, "Cannot join `%d`: not benched!", id);
+        break;
+
+    case NODE_INVALID:
+        luaL_error(L, "Cannot join `%d`: id invalid!", id);
+        break;
+
+    default:
+        break;
+    }
 }
 
 /*
- * Remove an Actor from the Company's Tree and mark it as garbage.
+ * Remove an Actor from the Company's Tree and mark it as garbage. Will error
+ * through L if the id is invalid.
  */
-int 
-company_delete (int id)
+void 
+company_delete (lua_State *L, int id)
 {
-    return tree_unlink_reference(id, 1);
+    if (tree_unlink_reference(id, 1) != 0)
+        luaL_error(L, "Cannot delete invalid reference `%d`!", id);
 }
 
 /*
@@ -264,7 +304,6 @@ lua_actor_new (lua_State *L)
     int args = lua_gettop(L);
     int parent = NODE_INVALID;
     int thread = NODE_INVALID;
-    int id;
     
     luaL_checktype(L, definition_arg, LUA_TTABLE);
 
@@ -282,33 +321,7 @@ lua_actor_new (lua_State *L)
     }
 
     assert(lua_gettop(L) == definition_arg);
-    id = company_add(L, parent, thread);
-
-    switch (id) {
-    case TREE_ERROR:
-        /* 
-         * TREE_ERROR also catches if the actor data is NULL in
-         * `tree_add_reference`.  We throw a Lua error where ever we would
-         * return NULL in `actor_new` so techincally that error should never
-         * happen.
-         */
-        luaL_error(L, 
-                "Failed to create actor: write-lock for `%d` failed!", id);
-        break;
-
-    case NODE_ERROR:
-        luaL_error(L, 
-                "Failed to create actor: invalid parent id `%d`!", parent);
-        break;
-
-    case NODE_INVALID:
-        luaL_error(L, "Failed to create actor: no memory!");
-        break;
-
-    default:
-        company_push_actor(L, id);
-        break;
-    }
+    company_push_actor(L, company_add(L, parent, thread));
 
     /*
      * TODO: Send a `load' message for the actor at id.
@@ -423,10 +436,7 @@ lua_actor_bench (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-
-    if (company_bench(id) != 0)
-        luaL_error(L, "Cannot bench invalid reference `%d`!", id);
-
+    company_bench(L, id);
     return 0;
 }
 
@@ -444,24 +454,7 @@ lua_actor_join (lua_State *L)
     const int parent_opt_arg = 2;
     const int id = company_actor_id(L, actor_arg);
     const int parent = luaL_optinteger(L, parent_opt_arg, NODE_INVALID);
-
-    switch (company_join(id, parent)) {
-    case 1:
-        luaL_error(L, "Cannot join `%d`: bad parent!", id);
-        break;
-
-    case 2:
-        luaL_error(L, "Cannot join `%d`: not benched!", id);
-        break;
-
-    case 3:
-        luaL_error(L, "Cannot join `%d`: id invalid!", id);
-        break;
-
-    default:
-        break;
-    }
-
+    company_join(L, id, parent);
     return 0;
 }
 
@@ -477,10 +470,7 @@ lua_actor_delete (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-
-    if (company_delete(id) != 0)
-        luaL_error(L, "Cannot delete invalid reference `%d`!", id);
-    
+    company_delete(L, id);
     return 0;
 }
 
