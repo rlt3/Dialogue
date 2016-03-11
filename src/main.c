@@ -31,25 +31,64 @@ usage (const char *program)
         "   -h\n"
         "       Display this help menu and exit the program.\n\n"
         , program);
+    exit(1);
+}
+
+enum ExecutionPath {
+    MAIN_SCRIPT, MAIN_WORKER, MAIN_CONSOLE
+};
+
+/*
+ * Because our main thread can be so many different things depending on the
+ * options, we just switch on an ExecutionPath between the different ways the
+ * main thread can function.
+ */
+enum ExecutionPath
+handle_args (int argc, char *argv[])
+{
+    enum ExecutionPath path = MAIN_CONSOLE;
+    char *argv0; /* for ARGBEGIN macro, see arg.h */
+    int is_script = 0;
+    int is_worker = 0;
+
+    ARGBEGIN {
+        case 'w': dialogue_option_set(WORKER_COUNT, atoi(ARGF())); break;
+        case 'l': dialogue_option_set(ACTOR_AUTO_LOAD, 0); break;
+        case 's': is_script = 1; break;
+        case 'm': is_worker = 1; break;
+        case 'h': usage(argv[0]); break;
+        default: break;
+    } ARGEND
+
+    /* `-s` overrides `-m` */
+    if (is_script) {
+        dialogue_option_set(WORKER_IS_MAIN, 0);
+        dialogue_option_set(ACTOR_CONSOLE_WRITE, 0);
+        is_worker = 0;
+        path = MAIN_SCRIPT;
+    }
+
+    if (is_worker) {
+        dialogue_option_set(WORKER_IS_MAIN, 1);
+        path = MAIN_WORKER;
+    }
+
+    return path;
 }
 
 int
 main (int argc, char *argv[])
 {
-    lua_State *L;
+    lua_State *L = NULL;
     char *file = NULL;
-    char *input = NULL;
-    char *argv0; /* for ARGBEGIN macro */
-    int is_script = 0;
     int ret = 1;
+    enum ExecutionPath path;
 
-    if (argc == 1) {
+    if (argc == 1)
         usage(argv[0]);
-        goto exit;
-    }
 
     file = argv[argc - 1];
-
+    path = handle_args(argc, argv);
     L = luaL_newstate();
 
     if (!L) {
@@ -58,92 +97,38 @@ main (int argc, char *argv[])
     }
 
     luaL_openlibs(L);
-
-    /* see arg.h */
-    ARGBEGIN {
-        case 'h': ret = 1; usage(argv[0]); goto cleanup;
-        case 's': is_script = 1; break;
-        case 'w': dialogue_option_set(WORKER_COUNT, atoi(ARGF())); break;
-        case 'm': dialogue_option_set(WORKER_IS_MAIN, 1); break;
-        case 'l': dialogue_option_set(ACTOR_AUTO_LOAD, 0); break;
-        default: break;
-    } ARGEND
-
-    if (is_script)
-        dialogue_option_set(WORKER_IS_MAIN, 0);
-
-    /* set the correct io.write function for console vs default */
-    dialogue_option_set(ACTOR_CONSOLE_WRITE, !is_script);
-
+    dialogue_set_io_write(L);
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
 
-    if (is_script)
-        goto load;
-
-    /* from here, the console controls when the program exits */
-    signal(SIGINT, console_handle_interrupt);
-    console_set_write(L);
-    if (console_create() != 0) {
-        fprintf(stderr, "Failed to create console thread!");
-        goto cleanup;
-    }
-
-load:
-    dialogue_set_io_write(L);
-    if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
-        fprintf(stderr, "File: %s could not load: %s\n", file,
-                lua_tostring(L, -1));
-    }
-
-    if (is_script) {
-        ret = 0;
-        goto cleanup;
-    }
-
-    /*
-     * TODO:
-     *
-     * If `-m` flag is passed, the main thread makes a call to
-     * `director_main_thread_process` and the main thread effectively becomes
-     * a worker. The console is given the main Lua state and it runs in its own
-     * separate thread.  The Director takes the main thread worker and calls
-     * the `worker_thread` function directly. This means the main thread will
-     * end when the workers are stopped and the main thread won't stop until
-     * the Console garbage collects the Dialogue table.
-     *
-     * After `director_main_thread_process` completes a synchronization call
-     * needs to be made to wait for the console to cleanup everything and that
-     * all threads are joined. When that sync call completes, the main thread
-     * can be ended.
-     *
-     * If `-m` ISN'T passed, the main thread can call `console_thread`
-     * directly, passing the correct Lua state in. No sync needs to be made
-     * since the console_thread will cleanup the main lua state automatically.
-     *
-     * If `-s` is passed, it negates `-m` and the console will be handled in
-     * the main thread.
-     */
-
-    while (console_is_running()) {
-        if (director_transfer_main_actions(L) == 0)
-            goto input;
-
-        while (lua_gettop(L) > 0)
-            worker_process_action(L);
-input:
-        if (console_poll_input(&input) == 0) {
-            if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0)) {
-                console_log("%s\n", lua_tostring(L, -1));
-                lua_pop(L, 1);
-            }
+    switch (path) {
+    case MAIN_SCRIPT:
+        if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
+            fprintf(stderr, "File: %s could not load: %s\n", file,
+                    lua_tostring(L, -1));
+            lua_close(L);
+            goto exit;
+        } else {
+            lua_close(L);
         }
+        break;
+
+    case MAIN_WORKER:
+        if (console_start(L, file, CONSOLE_THREADED) != 0)
+            goto exit;
+        //director_process_work();
+        wait_for_console_exit();
+        break;
+
+    case MAIN_CONSOLE:
+        console_start(L, file, CONSOLE_NON_THREADED);
+        break;
+
+    default:
+        break;
     }
 
-    console_cleanup();
     ret = 0;
-cleanup:
-    lua_close(L);
 exit:
     return ret;
 }

@@ -9,17 +9,9 @@
 #include <readline/history.h>
 #include "console.h"
 
-static pthread_t cons_thread;
-static pthread_mutex_t cons_mutex;
-static pthread_cond_t cons_cond;
-
-static char *cons_prev_input;
-static char *cons_input;
-
-static pthread_mutex_t cons_running_mutex;
-static volatile int cons_is_running;
-
-static const char *prompt = "> ";
+static pthread_t console_pthread;
+static const char *console_file;
+const char *console_prompt = "> ";
 
 int
 lua_console_log (lua_State *L)
@@ -50,87 +42,53 @@ console_handle_interrupt (int arg)
     console_log("To quit type `exit`!\n");
 }
 
-/*
- * The thread uses Readline's async functions so we can interrupt getting the 
- * next input char and safely exit the thread any time.
- */
-void *
+void*
 console_thread (void *arg)
 {
+    lua_State *L = arg;
+    char *input = NULL;
+
     printf("Dialogue v%s with Lua v%s\n"
-           "↳  type `exit` to quit.\n", DIALOGUE_VERSION,DIALOGUE_LUA_VERSION);
+           "↳  type `exit` to quit.\n", 
+           DIALOGUE_VERSION, DIALOGUE_LUA_VERSION);
 
-    pthread_mutex_lock(&cons_mutex);
-    
-    while (1) {
-        cons_input = readline(prompt);
+    signal(SIGINT, console_handle_interrupt);
+    console_set_write(L);
 
-        if (strncmp("exit", cons_input, 4) == 0) {
-            /* free and set NULL here so input isn't caught before quitting */
-            free(cons_input);
-            cons_input = NULL;
-            break;
-        }
-
-        add_history(cons_input);
-
-        /* `console_poll_input` resets the condition */
-        while (cons_input != NULL)
-            pthread_cond_wait(&cons_cond, &cons_mutex);
+    if (luaL_loadfile(L, console_file) || lua_pcall(L, 0, 0, 0)) {
+        fprintf(stderr, "File: %s could not load: %s\n", 
+                console_file, lua_tostring(L, -1));
+        goto exit;
     }
 
-    pthread_mutex_unlock(&cons_mutex);
+    while (1) {
+        input = readline(console_prompt);
 
-    pthread_mutex_lock(&cons_running_mutex);
-    cons_is_running = 0;
-    pthread_mutex_unlock(&cons_running_mutex);
+        if (strncmp("exit", input, 4) == 0)
+            goto exit;
+
+        if (strlen(input) == 0)
+            add_history(input);
+
+        if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0)) {
+            console_log("%s\n", lua_tostring(L, -1));
+            lua_pop(L, 1);
+        }
+    }
+
+exit:
+    free(input);
+    lua_close(L);
+    console_file = NULL;
+    puts("Goodbye.");
 
     return NULL;
 }
 
 /*
- * Load the console thread.
- * Return 0 if successful, otherwise an error.
+ * Log the formart string to the console.
  */
-int
-console_create ()
-{
-    int ret = 1;
-
-    pthread_mutex_init(&cons_mutex, NULL);
-    pthread_cond_init(&cons_cond, NULL);
-
-    if (pthread_create(&cons_thread, NULL, console_thread, NULL) != 0)
-        goto exit;
-
-    cons_is_running = 1;
-    cons_prev_input = NULL;
-    cons_input = NULL;
-
-    ret = 0;
-exit:
-    return ret;
-}
-
-/*
- * Returns 1 or 0 (true or false) whether or not the console is still 
- * running.
- */
-int
-console_is_running ()
-{
-    int running = 0;
-    pthread_mutex_lock(&cons_running_mutex);
-    running = cons_is_running;
-    pthread_mutex_unlock(&cons_running_mutex);
-    return running;
-}
-
-/*
- * Log the formart string to the console. Returns the number of characters 
- * printed.
- */
-int 
+void
 console_log (const char *fmt, ...)
 {
     /*
@@ -159,52 +117,47 @@ console_log (const char *fmt, ...)
     vprintf(fmt, args);
     va_end(args);
 
-    rl_set_prompt(prompt);
+    rl_set_prompt(console_prompt);
     rl_replace_line(saved_line, 0);
     rl_point = saved_point;
     rl_redisplay();
     free(saved_line);
     pthread_mutex_unlock(&log_mutex);
-
-    return 0;
 }
 
 /*
- * Poll console for input. If it returns 0, the value at the `input` pointer
- * is set to the input string. Else, the `input` pointer is set to NULL.
+ * The console takes ownership of the given Lua state and acts as an interpreter
+ * for it. It loads the given `stage` file. The console controls the exit for
+ * the entire program and will cleanup the Lua state itself.
+ *
+ * If is_threaded is true then the console is started in a new thread
+ * and this function can return 1 if creating the thread fails. If is_threaded
+ * is false the function blocks, runs the console, and stops blocking when the
+ * user has exited it.
+ *
+ * Returns 0 when successful.
  */
 int
-console_poll_input (char **input)
+console_start (lua_State *L, const char *file, const int is_threaded)
 {
     int ret = 1;
-    int rc = pthread_mutex_trylock(&cons_mutex);
 
-    if (rc != 0)
-        goto exit;
+    console_file = file;
 
-    if (!cons_input)
-        goto cleanup;
-
-    free(cons_prev_input);
-    *input = cons_input;
-    cons_prev_input = cons_input;
-    cons_input = NULL;
-    pthread_cond_signal(&cons_cond);
+    if (is_threaded) {
+        if (pthread_create(&console_pthread, NULL, console_thread, L) != 0)
+            goto exit;
+    } else {
+        console_thread(L);
+    }
 
     ret = 0;
-cleanup:
-    pthread_mutex_unlock(&cons_mutex);
 exit:
     return ret;
 }
 
 void
-console_cleanup ()
+wait_for_console_exit ()
 {
-    pthread_join(cons_thread, NULL);
-
-    free(cons_prev_input);
-    cons_prev_input = NULL;
-
-    puts("Goodbye.");
+    pthread_join(console_pthread, NULL);
 }
