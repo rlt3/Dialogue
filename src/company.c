@@ -424,6 +424,14 @@ lua_actor_id (lua_State *L)
     return 1;
 }
 
+int
+lua_actor_parent (lua_State *L)
+{
+    const int actor_arg = 1;
+    company_push_actor(L, tree_node_parent(company_actor_id(L, actor_arg)));
+    return 1;
+}
+
 /*
  * Send a messsage to the actor in the form of:
  * { 'message' [, arg1 [, ... [, argn]]], author}
@@ -498,7 +506,7 @@ company_audience_callback (void* data, int id)
 {
     lua_State *L = data;
     lua_pushinteger(L, id);
-    lua_rawseti(L, -2, luaL_len(L, -2));
+    lua_rawseti(L, -2, luaL_len(L, -2) + 1);
 }
 
 void
@@ -515,29 +523,30 @@ company_push_audience (lua_State *L, int id, const char *tone)
 
     switch (tone[0]) {
     case 'y': case 'Y':
-        id = tree_root();
+        tree_map_subtree(tree_root(), company_audience_callback, L,
+                TREE_READ, TREE_RECURSE);
         break;
 
     case 'c': case 'C':
+        tree_map_subtree(id, company_audience_callback, L,
+                TREE_READ, TREE_RECURSE);
         break;
 
     case 's': case 'S':
-        id = tree_node_parent(id);
+        tree_map_subtree(tree_node_parent(id), company_audience_callback, L,
+                TREE_READ, TREE_NON_RECURSE);
         break;
 
     default:
         //lua_pop(L, 1);
         return;
     }
-
-    tree_map_subtree(id, company_audience_callback, L,
-            TREE_READ, TREE_NON_RECURSE);
 }
 
 int
 lua_actor_audience (lua_State *L)
 {
-    const int self_arg = 2;
+    const int self_arg = 1;
     const int tone_arg = 2;
     const int id = company_actor_id(L, self_arg);
     const char *tone = luaL_checkstring(L, tone_arg);
@@ -595,6 +604,7 @@ static const luaL_Reg actor_metamethods[] = {
     {"lock",     lua_actor_lock},
     {"unlock",   lua_actor_unlock},
     {"id",       lua_actor_id},
+    {"parent",   lua_actor_parent},
     {"bench",    lua_actor_bench},
     {"join",     lua_actor_join},
     {"send",     lua_actor_send},

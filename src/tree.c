@@ -340,18 +340,18 @@ exit:
 int
 node_remove_child (int id, int child)
 {
-    int cid, max_id, ret = 1;
+    int child_id, max_id, ret = 1;
 
     if (node_write(id) != 0)
         goto exit;
     
     max_id = global_tree->list[id].max_children;
 
-    for (cid = 0; cid < max_id; cid++) {
-        if (global_tree->list[id].children[cid] == child) {
-            global_tree->list[id].children[cid] = NODE_INVALID;
+    for (child_id = 0; child_id < max_id; child_id++) {
+        if (global_tree->list[id].children[child_id] == child) {
+            global_tree->list[id].children[child_id] = NODE_INVALID;
 
-            if (global_tree->list[id].last_child == cid)
+            if (global_tree->list[id].last_child == child_id)
                 global_tree->list[id].last_child--;
 
             ret = 0;

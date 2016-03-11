@@ -17,6 +17,7 @@ describe("The Company of Actors", function()
         local a0 = Actor(0)
         -- TODO: assert #a0:children() == 0
         assert.is_equal(a0:id(), 0)
+        assert.is_equal(a0:parent():id(), -1)
     end)
 
     it("creates Actor objects with just an id", function()
@@ -28,9 +29,11 @@ describe("The Company of Actors", function()
         -- explicit creation
         local a0 = Actor(0)
         assert.is_equal(Actor({}, a0):id(), 1)
+        assert.is_equal(Actor(1):parent():id(), 0)
         -- implicit creation
         local a2 = a0:child{}
         assert.is_equal(a2:id(), 2)
+        assert.is_equal(a2:parent():id(), 0)
         -- TODO: assert #a0:children() == 2
     end)
 
@@ -65,7 +68,13 @@ describe("The Company of Actors", function()
         assert.is_equal(a1:id(), 1)
         assert.is_equal(a1:child{}:id(), 2)
         assert.is_equal(a1:child{}:id(), 3)
+
+        assert.is_equal(Actor(1):parent():id(), 0)
+        assert.is_equal(Actor(2):parent():id(), 1)
+        assert.is_equal(Actor(3):parent():id(), 1)
+
         a1:delete()
+
         assert.has_error(function() 
             Actor(1):child{}
         end, "Failed to create actor: invalid parent id `1`!")
@@ -81,6 +90,7 @@ describe("The Company of Actors", function()
         -- id of new Actor will be 1 even though 1 existed before
         local new_actor = Actor(0):child{}
         assert.is_equal(new_actor:id(), 1)
+        assert.is_equal(new_actor:parent():id(), 0)
         new_actor:delete()
     end)
 
@@ -88,8 +98,12 @@ describe("The Company of Actors", function()
         local a0 = Actor(0)
         local a1 = a0:child{}
         local a2 = a1:child{}
+
         assert.is_equal(a1:id(), 1)
         assert.is_equal(a2:id(), 2)
+
+        assert.is_equal(a1:parent():id(), 0)
+        assert.is_equal(a2:parent():id(), 1)
 
         -- lock a2 (same mechanism as reference) and delete its parent
         assert.is_true(a2:lock())
@@ -129,6 +143,7 @@ describe("The Company of Actors", function()
     it("doesn't cleanup benched ids", function()
         local a1 = Actor(0):child{}
         assert.is_equal(a1:id(), 1)
+        assert.is_equal(a1:parent():id(), 0)
         a1:bench()
         -- doesn't take id `1` because benching isn't deletion
         assert.is_equal(Actor(0):child{}:id(), 2)
@@ -145,6 +160,7 @@ describe("The Company of Actors", function()
 
     it("doesn't allow joining of non-benched actors", function()
         local a1 = Actor(0):child{}
+        assert.is_equal(a1:parent():id(), 0)
         assert.has_error(function() 
             a1:join()
         end, "Cannot join `1`: not benched!")
@@ -157,15 +173,22 @@ describe("The Company of Actors", function()
         local a2 = a1:child{}
         assert.is_equal(a1:id(), 1)
         assert.is_equal(a2:id(), 2)
+        assert.is_equal(a1:parent():id(), 0)
+        assert.is_equal(a2:parent():id(), 1)
+
         a2:bench()
         a1:delete()
+
         assert.has_error(function() 
             a2:join()
         end, "Cannot join `2`: bad parent!")
+
         -- quick hack, make the bad parent correct again because we can't
         -- delete benched actors!
         assert.is_equal(a0:child{}:id(), 1)
+        a2:join()
         a2:delete()
+        a1:delete()
     end)
 
     it("handles the audience for each Actor", function()
@@ -182,7 +205,7 @@ describe("The Company of Actors", function()
         --   / | \
         --  1  2  5
         --    / \
-        --   3   5
+        --   3   4
 
         assert.is_equal(a0:id(), 0)
         assert.is_equal(a1:id(), 1)
@@ -193,6 +216,6 @@ describe("The Company of Actors", function()
 
         assert.are_same(a2:audience("yell"), {0, 1, 2, 3, 4, 5})
         assert.are_same(a2:audience("say"), {0, 1, 2, 5})
-        assert.are_same(a2:audience("command"), {2, 3, 5})
+        assert.are_same(a2:audience("command"), {2, 3, 4})
     end)
 end)
