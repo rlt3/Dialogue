@@ -147,8 +147,10 @@ console_start (lua_State *L, const char *file, const int is_threaded)
     console_file = file;
 
     if (is_threaded) {
-        if (pthread_create(&console_pthread, NULL, console_thread, L) != 0)
+        if (pthread_create(&console_pthread, NULL, console_thread, L) != 0) {
+            lua_close(L);
             goto exit;
+        }
     } else {
         console_thread(L);
     }

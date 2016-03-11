@@ -51,6 +51,9 @@ handle_args (int argc, char *argv[])
     int is_script = 0;
     int is_worker = 0;
 
+    if (argc == 1)
+        usage(argv[0]);
+
     ARGBEGIN {
         case 'w': dialogue_option_set(WORKER_COUNT, atoi(ARGF())); break;
         case 'l': dialogue_option_set(ACTOR_AUTO_LOAD, 0); break;
@@ -84,11 +87,8 @@ main (int argc, char *argv[])
     int ret = 1;
     enum ExecutionPath path;
 
-    if (argc == 1)
-        usage(argv[0]);
-
-    file = argv[argc - 1];
     path = handle_args(argc, argv);
+    file = argv[argc - 1];
     L = luaL_newstate();
 
     if (!L) {
@@ -97,7 +97,6 @@ main (int argc, char *argv[])
     }
 
     luaL_openlibs(L);
-    dialogue_set_io_write(L);
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
 
@@ -114,8 +113,10 @@ main (int argc, char *argv[])
         break;
 
     case MAIN_WORKER:
-        if (console_start(L, file, CONSOLE_THREADED) != 0)
+        if (console_start(L, file, CONSOLE_THREADED) != 0) {
+            fprintf(stderr, "Failed to start console's thread!\n");
             goto exit;
+        }
         director_process_work();
         wait_for_console_exit();
         break;
