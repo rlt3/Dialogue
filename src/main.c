@@ -101,26 +101,36 @@ load:
         goto cleanup;
     }
 
+    /*
+     * TODO:
+     *
+     * If `-m` flag is passed, the main thread makes a call to
+     * `director_main_thread_process` and the main thread effectively becomes
+     * a worker. The console is given the main Lua state and it runs in its own
+     * separate thread.  The Director takes the main thread worker and calls
+     * the `worker_thread` function directly. This means the main thread will
+     * end when the workers are stopped and the main thread won't stop until
+     * the Console garbage collects the Dialogue table.
+     *
+     * After `director_main_thread_process` completes a synchronization call
+     * needs to be made to wait for the console to cleanup everything and that
+     * all threads are joined. When that sync call completes, the main thread
+     * can be ended.
+     *
+     * If `-m` ISN'T passed, the main thread can call `console_thread`
+     * directly, passing the correct Lua state in. No sync needs to be made
+     * since the console_thread will cleanup the main lua state automatically.
+     *
+     * If `-s` is passed, it negates `-m` and the console will be handled in
+     * the main thread.
+     */
+
     while (console_is_running()) {
-        /*
-         * TODO: Figure out what to do here when the main thread *isn't* a
-         * Worker (which means the `-m` flag wasn't passed). Perhaps just a 
-         * call to `console_thread` ?
-         */
         if (director_transfer_main_actions(L) == 0)
             goto input;
 
         while (lua_gettop(L) > 0)
             worker_process_action(L);
-
-        /*
-         * TODO: The only reason why we make the main thread into a Worker is 
-         * that many C-written Lua modules require execution in the main thread
-         * but that requirement isn't about *which* Lua state in the Main 
-         * thread. If we give the *real* main Lua state to the console and just
-         * use a Worker's state here, it solves that problem. This also means 
-         * the main thread doesn't have to check the interpreter every loop.
-         */
 input:
         if (console_poll_input(&input) == 0) {
             if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0)) {

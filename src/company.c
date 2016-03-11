@@ -37,6 +37,7 @@ int
 company_add (lua_State *L, int parent, int thread_id)
 {
     int id = tree_add_reference(actor_create(L), parent, thread_id);
+
     switch (id) {
     case TREE_ERROR:
         /* 
@@ -45,13 +46,12 @@ company_add (lua_State *L, int parent, int thread_id)
          * return NULL in `actor_new` so techincally that error should never
          * happen.
          */
-        luaL_error(L, 
-                "Failed to create actor: write-lock for `%d` failed!", id);
+        luaL_error(L, "Failed to create actor: write-lock failed!");
         break;
 
     case NODE_ERROR:
-        luaL_error(L, 
-                "Failed to create actor: invalid parent id `%d`!", parent);
+        luaL_error(L, "Failed to create actor: invalid parent id `%d`!", 
+                parent);
         break;
 
     case NODE_INVALID:
@@ -61,6 +61,7 @@ company_add (lua_State *L, int parent, int thread_id)
     default:
         break;
     }
+
     return id;
 }
 
