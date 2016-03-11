@@ -197,7 +197,8 @@ script_send (Script *script, lua_State *A)
     if (lua_pcall(A, args + 1, 0, 0)) {
         script_unload(script);
         /* TODO: Figure out why the 'Cannot send message' isn't appearing */
-        lua_pushfstring(A, "Cannot send message `%s': %s", message, lua_tostring(A, -1));
+        lua_pushfstring(A, "Cannot send message `%s': %s", 
+                message, lua_tostring(A, -1));
         /* push error message beneath pcall error and object_ref */
         lua_insert(A, lua_gettop(A) - 2);
         lua_pop(A, 2); /* pcall error and object_ref */

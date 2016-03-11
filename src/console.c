@@ -74,6 +74,8 @@ console_thread (void *arg)
             console_log("%s\n", lua_tostring(L, -1));
             lua_pop(L, 1);
         }
+
+        free(input);
     }
 
 exit:

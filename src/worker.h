@@ -19,6 +19,9 @@ worker_create ();
 Worker *
 worker_start ();
 
+void*
+worker_thread (void *arg);
+
 /* 
  * Process the next Action.
  */

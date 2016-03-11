@@ -2,6 +2,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include "director.h"
+#include "console.h"
 #include "worker.h"
 #include "utils.h"
 
@@ -137,26 +138,14 @@ error:
 }
 
 /*
- * Transfer the Actions collected for the main thread to the given Lua stack.
- * Returns the number of actions transfered.
+ * This function blocks and becomes a Worker thread using the first Worker in
+ * the Director's worker list. This function should only be called when
+ * `has_main` passed to `director_create` was true.
  */
-int
-director_transfer_main_actions (lua_State *L)
+void
+director_process_work ()
 {
-    int count = 0;
-    lua_State *W = worker_request_state(global_director->workers[0]);
-
-    if (!W)
-        goto exit;
-
-    count = lua_gettop(W);
-
-    if (count > 0)
-        utils_transfer(L, W, count);
-
-    worker_return_state(global_director->workers[0]);
-exit:
-    return count;
+    worker_thread(global_director->workers[0]);
 }
 
 /*

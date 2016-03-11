@@ -116,7 +116,7 @@ main (int argc, char *argv[])
     case MAIN_WORKER:
         if (console_start(L, file, CONSOLE_THREADED) != 0)
             goto exit;
-        //director_process_work();
+        director_process_work();
         wait_for_console_exit();
         break;
 

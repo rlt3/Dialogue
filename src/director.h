@@ -34,11 +34,12 @@ int
 director_take_action (lua_State *L);
 
 /*
- * Transfer the Actions collected for the main thread to the given Lua stack.
- * Returns the number of actions transfered.
+ * This function blocks and becomes a Worker thread using the first Worker in
+ * the Director's worker list. This function should only be called when
+ * `has_main` passed to `director_create` was true.
  */
-int
-director_transfer_main_actions (lua_State *L);
+void
+director_process_work ();
 
 /*
  * Do the callback (an Action-level feature) in the Worker's Lua stack.
