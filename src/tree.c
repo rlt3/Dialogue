@@ -12,7 +12,7 @@
 typedef struct Node {
     void *data;
 
-    /* TODO: represent the three states in a single member */
+    /* TODO: represent benched, attached, garbage in single member */
     int attached;
     int benched;
 
@@ -468,7 +468,7 @@ unlock:
 int
 tree_add_reference (void *data, int parent_id, int thread_id)
 {
-    int max_id, id, invalid_parent = 0, ret =TREE_ERROR;
+    int max_id, id, invalid_parent = 0, ret = TREE_ERROR;
 
     if (data == NULL)
         goto exit;
@@ -519,11 +519,12 @@ data_lock_and_write:
      * The first time invalid_parent is true, the id found becomes the root
      * node for the tree. Everytime after that, the node which has an invalid
      * parent becomes the child of the root node. Only the root node has a
-     * parent of NODE_INVALID. All other parents will be valid indices.
+     * parent of NODE_INVALID. All other parents will be valid indices except
+     * benched nodes.
      */
     if (invalid_parent) {
         if (tree_write() != 0) {
-            ret =TREE_ERROR;
+            ret = TREE_ERROR;
             goto unlock;
         }
         
