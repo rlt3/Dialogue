@@ -67,7 +67,7 @@ console_thread (void *arg)
         if (strncmp("exit", input, 4) == 0)
             goto exit;
 
-        if (strlen(input) == 0)
+        if (strlen(input) > 0)
             add_history(input);
 
         if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0)) {
