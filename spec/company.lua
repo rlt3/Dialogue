@@ -58,45 +58,45 @@ describe("The Company", function()
     end)
 
     it("considers ids from removed (and non-existing) actors to be invalid", function()
-        --assert.has_error(function() 
-        --    a3:parent():id()
-        --end, "Cannot get parent of invalid Actor `3`!")
+        assert.has_error(function() 
+            a3:parent():id()
+        end, "Cannot get parent of invalid Actor `3`!")
 
-        --assert.has_error(function() 
-        --    a2:child{}
-        --end, "Failed to create actor: invalid parent id `2`!")
+        assert.has_error(function() 
+            a2:child{}
+        end, "Failed to create actor: invalid parent id `2`!")
 
-        --assert.has_error(function() 
-        --    a2:send{}
-        --end, "Actor id `2` is an invalid reference!")
+        assert.has_error(function() 
+            a2:send{}
+        end, "Actor id `2` is an invalid reference!")
 
-        --assert.has_error(function() 
-        --    a2:load()
-        --end, "Actor id `2` is an invalid reference!")
+        assert.has_error(function() 
+            a2:load()
+        end, "Actor id `2` is an invalid reference!")
 
-        --assert.has_error(function() 
-        --    a2:probe()
-        --end, "Actor id `2` is an invalid reference!")
+        assert.has_error(function() 
+            a2:probe()
+        end, "Actor id `2` is an invalid reference!")
 
-        --assert.has_error(function() 
-        --    a2:remove()
-        --end, "Cannot delete invalid reference `2`!")
+        assert.has_error(function() 
+            a2:remove()
+        end, "Cannot delete invalid reference `2`!")
 
-        --assert.has_error(function() 
-        --    a2:bench()
-        --end, "Cannot bench invalid reference `2`!")
+        assert.has_error(function() 
+            a2:bench()
+        end, "Cannot bench invalid reference `2`!")
 
-        --assert.has_error(function() 
-        --    a2:join()
-        --end, "Cannot join `2`: id invalid!")
+        assert.has_error(function() 
+            a2:join()
+        end, "Cannot join `2`: id invalid!")
 
-        ----assert.has_error(function() 
-        ----    a2:async("send", {})
-        ----end, "Starting async method `nil` failed: invalid Actor id `2`!")
+        assert.has_error(function() 
+            a2:async("send", {})
+        end, "Starting async method `send` failed: invalid Actor id `2`!")
 
-        ---- Fail silently right now
-        --a2:children()
-        --a2:audience("foo")
+        -- Fail silently right now
+        a2:children()
+        a2:audience("foo")
     end)
 
     it("it recycles garbage ids when creating assigning new ones", function()

@@ -642,6 +642,9 @@ tree_unlink_reference (int id, int is_delete)
     if (node_write(id) != 0)
         goto exit;
 
+    if (!node_is_used_rd(id))
+        goto unlock;
+
     if (is_delete)
         unlink_func = node_mark_unused_wr;
     else
@@ -690,7 +693,7 @@ tree_link_reference (const int id, const int parent)
         goto exit;
 
     if (!node_is_used_rd(id))
-        goto exit;
+        goto unlock;
 
     if (global_tree->list[id].attached) {
         ret = NODE_ERROR;
