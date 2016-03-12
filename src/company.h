@@ -103,6 +103,13 @@ void
 company_delete (lua_State *L, int id);
 
 /*
+ * Return the parent of the actor with id.
+ * Will error through L if the actor at id isn't used.
+ */
+int
+company_actor_parent (lua_State *L, const int id);
+
+/*
  * Get the actor associated with the id. Will error out on L if the id isn't a
  * valid reference. Requires called `company_deref` is the return was *not*
  * NULL.

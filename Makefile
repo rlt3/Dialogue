@@ -27,7 +27,7 @@ build: $(SOURCES)
 
 test:
 	cd spec/ && ../$(MODULE) -s company.lua
-	cd spec/ && ../$(MODULE) -s actor.lua
+#	cd spec/ && ../$(MODULE) -s actor.lua
 #   cd spec/ && ../$(MODULE) -s director.lua
 
 mem:

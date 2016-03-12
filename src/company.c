@@ -245,6 +245,7 @@ company_push_audience (lua_State *L, int id, const char *tone)
 int
 company_actor_id (lua_State *L, int index)
 {
+    const char *error_type = "Unkown Type!";
     int id = NODE_INVALID;
     int type = lua_type(L, index);
 
@@ -260,12 +261,56 @@ company_actor_id (lua_State *L, int index)
         break;
         
     case LUA_TSTRING:
+        error_type = "string";
+        goto error;
+
+    case LUA_TFUNCTION:
+        error_type = "function";
+        goto error;
+
+    case LUA_TLIGHTUSERDATA:
+    case LUA_TUSERDATA:
+        error_type = "userdata";
+        goto error;
+
+    case LUA_TBOOLEAN:
+        error_type = "boolean";
+        goto error;
+
+    case LUA_TTHREAD:
+        error_type = "thread";
+        goto error;
+
+    case LUA_TNIL:
+        error_type = "nil";
+error:
     default:
-        luaL_error(L, "Cannot coerce Actor id from type!");
+        luaL_error(L, "Cannot coerce Actor id from type `%s`!", error_type);
         break;
     }
 
     return id;
+}
+
+/*
+ * Return the parent of the actor with id.
+ * Will error through L if the actor at id isn't used.
+ */
+int
+company_actor_parent (lua_State *L, const int id)
+{
+    int ret = tree_node_parent(id);
+    switch (ret) {
+    case TREE_ERROR:
+        luaL_error(L, 
+            "Failed getting Actor `%s`'s parent: read lock failed!", id);
+        break;
+
+    case NODE_ERROR:
+        luaL_error(L, "Cannot get parent of invalid Actor `%d`!", id);
+        break;
+    }
+    return ret;
 }
 
 typedef int (*ActorFunc) (Actor*, lua_State*);
@@ -278,6 +323,10 @@ void
 company_call_actor_func (lua_State *L, int id, ActorFunc func)
 {
     Actor *actor = company_ref(L, id);
+
+    /*
+     * TODO: Pass string which tells which function the error happened.
+     */
 
     /* if actor_send doesn't return 0, it puts an error string on top of A */
     if (func(actor, L) != 0) {
@@ -322,11 +371,13 @@ lua_actor_new (lua_State *L)
     }
 
     assert(lua_gettop(L) == definition_arg);
-    company_push_actor(L, company_add(L, parent, thread));
 
-    /*
-     * TODO: Send a `load' message for the actor at id.
-     */
+    company_push_actor(L, company_add(L, parent, thread));
+    /* actor:async('load') */
+    lua_getfield(L, -1, "async");
+    lua_pushvalue(L, -2);
+    lua_pushliteral(L, "load");
+    lua_call(L, 2, 0);
 
     return 1;
 }
@@ -359,7 +410,7 @@ lua_company_call (lua_State *L)
         goto exit;
     }
 
-    luaL_error(L, "Invalid # of arguments to Actor. Expected >= %d got %d",
+    luaL_error(L, "Invalid # of arguments to `Actor`. Expected >= %d got %d",
             bottom, args);
 
 exit:
@@ -386,7 +437,7 @@ lua_actor_load (lua_State *L)
 
 /*
  * Call lua_actor_new with the actor (owner of the child method) as the parent.
- * actor:child( definition_table )
+ * actor:child{ definition_table }
  */
 int
 lua_actor_child (lua_State *L)
@@ -396,7 +447,8 @@ lua_actor_child (lua_State *L)
     const int args = lua_gettop(L);
 
     if (args != expected_args)
-        luaL_error(L, "Invalid # of args to actor:child. Expected %d got %d\n",
+        luaL_error(L, 
+                "Invalid # of args to `actor:child`. Expected %d got %d\n",
                 expected_args, args);
 
     /* shift the arguments around: actor @ 3, table @ 2, nothing at bottom */
@@ -464,10 +516,10 @@ lua_actor_join (lua_State *L)
  * action and cannot be undone. Please see `actor:bench()` to temporarily 
  * remove an Actor from the tree.
  *
- * actor:delete()
+ * actor:remove()
  */
 int
-lua_actor_delete (lua_State *L)
+lua_actor_remove (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
@@ -479,6 +531,7 @@ int
 lua_actor_cleanup (lua_State *L)
 {
     /*
+     * TODO:
      * Because deleted Nodes only have their memory freed when the Tree needs
      * the Node again, we need to be able to free a deleted Node's memory on
      * command. This should error-out on *used* nodes.
@@ -539,7 +592,9 @@ int
 lua_actor_parent (lua_State *L)
 {
     const int actor_arg = 1;
-    company_push_actor(L, tree_node_parent(company_actor_id(L, actor_arg)));
+    company_push_actor(L, 
+            company_actor_parent(L, 
+                company_actor_id(L, actor_arg)));
     return 1;
 }
 
@@ -587,28 +642,32 @@ lua_actor_probe (lua_State *L)
 int
 lua_actor_async (lua_State *L)
 {
-    const int args = lua_gettop(L);
     const int self_arg = 1;
-    const int table_index = args + 1;
-    int i = self_arg;
+    const int args = lua_gettop(L);
+    const int id = company_actor_id(L, self_arg);
+    const int thread_id = tree_reference_thread(id);
+    int i, call_args = 1;
 
+    if (thread_id == NODE_ERROR)
+        luaL_error(L, 
+                "Starting async method `%s` failed: invalid Actor id `%d`!", 
+                lua_tostring(L, self_arg + 1), id);
+
+    lua_pushcfunction(L, director_take_action);
     lua_newtable(L);
 
-    for (; i <= args; i++) {
+    for (i = self_arg; i <= args; i++) {
         lua_pushvalue(L, i);
-        lua_rawseti(L, table_index, i);
+        lua_rawseti(L, -2, i);
     }
 
-    director_take_action(L);
+    if (thread_id > NODE_INVALID) {
+        lua_pushinteger(L, thread_id);
+        call_args++;
+    }
 
-    return 0;
-}
+    lua_call(L, call_args, 0);
 
-int
-lua_actor_sync (lua_State *L)
-{
-    /*
-     */
     return 0;
 }
 
@@ -630,12 +689,8 @@ lua_actor_audience (lua_State *L)
     return 1;
 }
 
-/*
- * actor:yell{"draw", 4}
- *  {a0, "send", {"draw", 4}}
- */
 int
-lua_actor_yell (lua_State *L)
+company_actor_tone (lua_State *L, const char *tone)
 {
     const int self_arg = 1;
     const int args = lua_gettop(L);
@@ -643,39 +698,60 @@ lua_actor_yell (lua_State *L)
     const int id = company_actor_id(L, self_arg);
     int i;
 
-    /* push the "send" to the appropriate place */
+    /* insert "send" so it will get `fed up` correctly below */
     lua_pushliteral(L, "send");
     lua_insert(L, 2);
 
-    company_push_audience(L, id, "yell");
+    company_push_audience(L, id, tone);
 
+    /* foreach (actor : audience) { actor:async("send", {msg}) } */
     while (lua_next(L, audience_index)) {
-        lua_newtable(L);
-        
-        /* push the audience member */
-        lua_pushvalue(L, -1);
-        lua_rawseti(L, -2, 1);
-
-        for (i = 2; i <= args; i++) {
+        lua_pushcfunction(L, lua_actor_async);
+        lua_pushvalue(L, -2); /* self arg */
+        for (i = 2; i < args; i++)
             lua_pushvalue(L, i);
-            lua_rawseti(L, -2, i);
-        }
-
-        director_take_action(L);
-
+        lua_call(L, args, 0);
         lua_pop(L, -1);
     }
-    lua_pop(L, -1);
-
 
     return 0;
+}
+
+/*
+ * Yell a message to the entire Company.
+ * actor:yell{"attack", "B", "4"}
+ */
+int
+lua_actor_yell (lua_State *L)
+{
+    return company_actor_tone(L, "yell");
+}
+
+/*
+ * Send a message to the Actor's children
+ * actor:command{"does_collide", {4, 6}, {5, 3}}
+ */
+int
+lua_actor_command (lua_State *L)
+{
+    return company_actor_tone(L, "command");
+}
+
+/*
+ * Send a message to itself and its siblings (the children of its parent).
+ * actor:say{"moving", 2, 4}
+ */
+int
+lua_actor_say (lua_State *L)
+{
+    return company_actor_tone(L, "say");
 }
 
 static const luaL_Reg actor_metamethods[] = {
     {"load",     lua_actor_load},
     {"child",    lua_actor_child},
     {"children", lua_actor_children},
-    {"delete",   lua_actor_delete},
+    {"remove",   lua_actor_remove},
     {"cleanup",  lua_actor_cleanup},
     {"lock",     lua_actor_lock},
     {"unlock",   lua_actor_unlock},
@@ -686,12 +762,11 @@ static const luaL_Reg actor_metamethods[] = {
     {"send",     lua_actor_send},
     {"probe",    lua_actor_probe},
     {"async",    lua_actor_async},
-    {"sync",     lua_actor_sync},
     {"audience", lua_actor_audience},
     {"yell",     lua_actor_yell},
-    /*
     {"command",  lua_actor_command},
     {"say",      lua_actor_say},
+    /*
     {"whisper",  lua_actor_whisper},
     {"think",    lua_actor_think},
     */

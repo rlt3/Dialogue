@@ -689,6 +689,9 @@ tree_link_reference (const int id, const int parent)
     if (node_write(id) != 0)
         goto exit;
 
+    if (!node_is_used_rd(id))
+        goto exit;
+
     if (global_tree->list[id].attached) {
         ret = NODE_ERROR;
         goto unlock;
@@ -794,30 +797,52 @@ tree_cleanup ()
 
 /*
  * Returns the thread id for the node of the given id.
- * Returns NODE_ERROR if an error occurs (bad node, etc)
+ * Returns NODE_ERROR if the node at id is garbage.
+ * Returns TREE_ERROR if the node read lock fails.
  */
 int
 tree_reference_thread (int id)
 {
-    int thread = NODE_ERROR;
+    int ret = TREE_ERROR;
+
     if (node_read(id) != 0)
         goto exit;
-    thread = global_tree->list[id].thread_id;
+
+    if (!node_is_used_rd(id)) {
+        ret = NODE_ERROR;
+        goto unlock;
+    }
+
+    ret = global_tree->list[id].thread_id;
+unlock:
     node_unlock(id);
 exit:
-    return thread;
+    return ret;
 }
 
+/*
+ * Returns the parent of the node (NODE_INVALID is a valid return).
+ * Returns NODE_ERROR if the node at id is garbage.
+ * Returns TREE_ERROR if the node read lock fails.
+ */
 int
 tree_node_parent (int id)
 {
-    int parent = NODE_INVALID;
+    int ret = TREE_ERROR;
+
     if (node_read(id) != 0)
         goto exit;
-    parent = global_tree->list[id].parent;
+
+    if (!node_is_used_rd(id)) {
+        ret = NODE_ERROR;
+        goto unlock;
+    }
+
+    ret = global_tree->list[id].parent;
+unlock:
     node_unlock(id);
 exit:
-    return parent;
+    return ret;
 }
 
 /*
