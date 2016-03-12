@@ -787,7 +787,9 @@ tree_cleanup ()
     int id, max_id = tree_list_size();
 
     for (id = 0; id < max_id; id++) {
-        node_data_lock(id);
+        /* Better to cause an memory leak than to lock up */
+        if (node_data_trylock(id) != 0)
+            continue;
         node_write(id);
         node_destroy_fullwr(id);
         node_unlock(id);
