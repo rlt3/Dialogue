@@ -40,7 +40,7 @@ company_add (lua_State *L, int parent, int thread_id)
 
     switch (id) {
     case TREE_ERROR:
-        luaL_error(L, "Failed to create actor: realloc failed for Company!");
+        luaL_error(L, "Failed to create actor: resize failed for Company!");
         break;
 
     case NODE_ERROR:
@@ -49,7 +49,7 @@ company_add (lua_State *L, int parent, int thread_id)
         break;
 
     case NODE_INVALID:
-        luaL_error(L, "Failed to create actor: realloc failed for parent `%d`!", 
+        luaL_error(L, "Failed to create actor: resize failed for parent `%d`!", 
                 parent);
         break;
 
@@ -64,7 +64,7 @@ company_add (lua_State *L, int parent, int thread_id)
  * Remove an actor from the Company's Tree but still leave it accessible in
  * memory (to be reloaded or otherwise tested).
  */
-void 
+void
 company_bench (lua_State *L, int id)
 {
     if (tree_unlink_reference(id, 0) != 0)
@@ -100,7 +100,7 @@ company_join (lua_State *L, const int id, const int parent)
  * Remove an Actor from the Company's Tree and mark it as garbage. Will error
  * through L if the id is invalid.
  */
-void 
+void
 company_delete (lua_State *L, int id)
 {
     if (tree_unlink_reference(id, 1) != 0)

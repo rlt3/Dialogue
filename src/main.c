@@ -11,7 +11,7 @@
 void
 usage (const char *program)
 {
-    fprintf(stderr, 
+    fprintf(stderr,
         "Usage: %s [OPTIONS] <STAGE-FILE>\n\n"
         "OPTIONS:\n"
         "   -w <number>\n"
@@ -103,15 +103,6 @@ main (int argc, char *argv[])
     luaL_openlibs(L);
     luaL_requiref(L, "Dialogue", luaopen_Dialogue, 1);
     lua_pop(L, 1);
-
-    /*
-     * TODO:
-     *  Director.timed(30, 1000, { action })
-     *  Do an action 30 times per second (1000 miliseconds)
-     *
-     *  Spawn a thread which loops over given actions and send them with the
-     *  chosen regularity.
-     */
 
     switch (path) {
     case MAIN_SCRIPT:

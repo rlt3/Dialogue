@@ -42,6 +42,16 @@ void
 director_process_work ();
 
 /*
+ * TODO:
+ *  Director.timed(30, 1000, { action })
+ *  Do an action 30 times per second (1000 miliseconds)
+ *
+ *  Spawn a thread which loops over given actions and send them with the
+ *  chosen regularity. The thread can be spawned by the Director.timed function
+ *  which spawns the thread the first time its called.
+ */
+
+/*
  * Do the callback (an Action-level feature) in the Worker's Lua stack.
  * callback_id is the index of the function in the callback table in the
  * Worker's Lua stack.

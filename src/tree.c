@@ -122,7 +122,7 @@ tree_list_size ()
     return ret;
 }
 
-static inline int 
+static inline int
 node_write (const int id)
 {
     if (!tree_index_is_valid(id))
@@ -130,7 +130,7 @@ node_write (const int id)
     return pthread_rwlock_wrlock(&global_tree->list[id].rw_lock);
 }
 
-static inline int 
+static inline int
 node_read (const int id)
 {
     if (!tree_index_is_valid(id))
@@ -138,7 +138,7 @@ node_read (const int id)
     return pthread_rwlock_rdlock(&global_tree->list[id].rw_lock);
 }
 
-static inline int 
+static inline int
 node_unlock (const int id)
 {
     return pthread_rwlock_unlock(&global_tree->list[id].rw_lock);
@@ -263,7 +263,7 @@ node_destroy_fullwr (const int id)
 /*
  * With a write lock:
  * Mark a node as benched. This keeps its reference id valid and its data from
- * being cleaned-up even if it removed from the tree. The contract has `data` 
+ * being cleaned-up even if it removed from the tree. The contract has `data`
  * because this is can be used as a callback function for `tree_map_subtree`
  */
 static void
@@ -284,8 +284,8 @@ node_is_used_rd (const int id)
 }
 
 /*
- * Acquire the write lock on the given Node to add the given child. Doesn't 
- * check the child id. If it successfully adds the child, returns 0. 
+ * Acquire the write lock on the given Node to add the given child. Doesn't
+ * check the child id. If it successfully adds the child, returns 0.
  * Returns NODE_INVALID if the parent node isn't being used.
  * Returns TREE_ERROR if realloc failed.
  */
@@ -294,8 +294,6 @@ node_add_child (const int id, const int child)
 {
     void *memory = NULL;
     int child_id, max, ret = NODE_INVALID;
-
-    printf("Adding child %d to parent %d\n", child, id);
 
     if (node_write(id) != 0)
         goto exit;
@@ -306,6 +304,7 @@ node_add_child (const int id, const int child)
     max = global_tree->list[id].max_children;
 
 find_open_slot:
+    printf("Adding child %d to parent %d, with max: %d\n", child, id, max);
     for (child_id = 0; child_id < max; child_id++) {
         if (global_tree->list[id].children[child_id] == NODE_INVALID) {
             global_tree->list[id].children[child_id] = child;
@@ -319,14 +318,15 @@ find_open_slot:
     }
 
     /* if there's no more room for children and we haven't been here before */
-    if (!memory && child_id == max) {
+    if (memory == NULL && child_id == max) {
         max *= 2;
-        printf("Reallocing `%d` with max %d to new max %d\n", 
+        printf("Reallocing actor `%d` with max %d to new max %d\n",
                 id, child_id, max);
         memory = realloc(global_tree->list[id].children, max * sizeof(Node));
 
         if (memory == NULL) {
             ret = TREE_ERROR;
+            printf("Reallocing actor `%d` failed!\n", id);
             goto unlock;
         }
 
@@ -335,6 +335,8 @@ find_open_slot:
 
         for (; child_id < max; child_id++)
             global_tree->list[id].children[child_id] = NODE_INVALID;
+
+        printf("Reallocing actor `%d` was a success!\n", id);
 
         goto find_open_slot;
     }
@@ -347,7 +349,7 @@ exit:
 
 /*
  * Acquire the write lock on the given Node to remove the given child. If the
- * child is removed, returns 0. Otherwise (not found, incorrect id, etc) 
+ * child is removed, returns 0. Otherwise (not found, incorrect id, etc)
  * returns 1.
  */
 static int
@@ -357,7 +359,7 @@ node_remove_child (const int id, const int child)
 
     if (node_write(id) != 0)
         goto exit;
-    
+
     max_id = global_tree->list[id].max_children;
 
     for (child_id = 0; child_id < max_id; child_id++) {
@@ -437,7 +439,7 @@ tree_resize ()
     if (new_max > global_tree->list_max_size)
         new_max = global_tree->list_max_size;
 
-    printf("Reallocing with max %d to new max %d\n", old_max, new_max);
+    printf("Reallocing tree with max %d to new max %d\n", old_max, new_max);
 
     memory = realloc(global_tree->list, new_max * sizeof(Node));
 
@@ -445,8 +447,9 @@ tree_resize ()
         goto unlock;
 
     global_tree->list = memory;
-        
+
     /* if init_wr fails here we keep the old_max as the list_size */
+    /* TODO: figure out a more granular error ret here rather than binary */
     for (id = old_max; id < new_max; id++)
         if (node_init_wr(id) != 0)
             goto unlock;
@@ -466,10 +469,10 @@ unlock:
  * It will resize itself by `scale_factor` (e.g. 2 doubles, 3 triples, etc).
  *
  * `cu` is the cleanup function called on all data given for reference. `lu` is
- * the lookup function on the data. 
+ * the lookup function on the data.
  *
  * and the cleanup function for the
- * references (pointers it owns) it holds. 
+ * references (pointers it owns) it holds.
  *
  * The `initial_length' also serves as
  * the base for resizing by a factor. So, if the length is 10, it is resized by
@@ -479,9 +482,9 @@ unlock:
  */
 int
 tree_init (
-        int length, 
-        int max_length, 
-        int scale_factor, 
+        int length,
+        int max_length,
+        int scale_factor,
         data_set_id_func_t set_id,
         data_cleanup_func_t cleanup)
 {
@@ -521,22 +524,22 @@ exit:
 
 /*
  * Have the tree take ownship of the pointer. The tree will cleanup that
- * pointer with the data_cleanup_func_t given in tree_init. 
+ * pointer with the data_cleanup_func_t given in tree_init.
  *
  * The tree attaches the pointer to a Node which is added as a child of
- * parent_id.  
+ * parent_id.
  *
  * If parent_id <= NODE_INVALID then the Tree -- the firs time -- assumes that
  * is supposed to be the root Node and saves it (the root node has no parent).
  * Every time after that if the parent_id <= NODE_INVALID then the Node created
  * as a child of the root node.
  *
- * Returns the id of the Node inside the tree. 
+ * Returns the id of the Node inside the tree.
  *
  * Returns NODE_INVALID if realloc failed when adding a child.
  *
  * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use.
- * 
+ *
  * Returns TREE_ERROR
  *      - realloc fails allocating more Nodes
  *      - write-lock fails while setting the root node
@@ -572,10 +575,10 @@ find_unused_node:
     }
 
 data_lock_and_write:
-    /* 
+    /*
      * We set the lock-order of the Node's data lock before the Node's
      * structure write lock. This is so later (in node_cleanup) we can safely
-     * do a trylock on the data without wasting time acquiring the write lock 
+     * do a trylock on the data without wasting time acquiring the write lock
      * on the Node to then do a trylock.
      */
     node_data_lock(id);
@@ -594,7 +597,7 @@ data_lock_and_write:
 
     node_mark_attached_fullwr(id, data, thread_id);
 
-    /* 
+    /*
      * The first time invalid_parent is true, the id found becomes the root
      * node for the tree. Everytime after that, the node which has an invalid
      * parent becomes the child of the root node. Only the root node has a
@@ -606,7 +609,7 @@ data_lock_and_write:
             ret = TREE_ERROR;
             goto unlock;
         }
-        
+
         if (global_tree->root > NODE_INVALID) {
             parent_id = global_tree->root;
             tree_unlock();
@@ -624,7 +627,7 @@ data_lock_and_write:
         goto unlock;
 
     case NODE_ERROR:
-        /* 
+        /*
          * the parent was bad but we can keep the data.  it will be cleaned up
          * automatically if we simply mark it as garbage.
          */
@@ -651,7 +654,7 @@ exit:
 
 /*
  * Unlink a Node and all of its descendents from the tree. If is_delete is 1,
- * this will mark all the nodes unlinked as garbage so they can be cleaned-up 
+ * this will mark all the nodes unlinked as garbage so they can be cleaned-up
  * and used by the system.
  *
  * If is_delete is 0 then the nodes are benched and aren't attached to the tree
@@ -743,7 +746,7 @@ exit:
 }
 
 /*
- * Get the data (pointer) referenced by the id. 
+ * Get the data (pointer) referenced by the id.
  *
  * Returns NULL if the id is invalid, the node of the id is garbage, or the
  * data itself is NULL. Calling `tree_deref` isn't necessary (and is undefined)
@@ -807,10 +810,10 @@ tree_deref (const int id)
  * function is always passed the current Node's id.
  */
 void
-tree_map_subtree (const int root, 
-        const map_callback_t function, 
-        void *data, 
-        const int is_read, 
+tree_map_subtree (const int root,
+        const map_callback_t function,
+        void *data,
+        const int is_read,
         const int is_recurse)
 {
     int (*lock_func)(int);
