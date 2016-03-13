@@ -161,7 +161,7 @@ company_push_actor (lua_State *L, int actor_id)
  * Push all the ids to the table on top of the stack.
  */
 void
-company_audience_callback (void* data, int id)
+company_audience_callback (void* data, const int id)
 {
     lua_State *L = data;
     lua_pushinteger(L, id);
@@ -181,7 +181,7 @@ struct company_callback_data {
  * Push all the ids to the table on top of the stack except the parent's.
  */
 void
-company_children_callback (void *data, int id)
+company_children_callback (void *data, const int id)
 {
     struct company_callback_data *c = data;
     lua_State *L = c->L;
@@ -640,7 +640,7 @@ lua_actor_async (lua_State *L)
     const int self_arg = 1;
     const int args = lua_gettop(L);
     const int id = company_actor_id(L, self_arg);
-    const int thread_id = tree_reference_thread(id);
+    const int thread_id = tree_node_thread(id);
     int i, call_args = 1;
 
     if (thread_id == NODE_ERROR)

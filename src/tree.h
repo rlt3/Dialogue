@@ -58,7 +58,7 @@
 
 typedef void (*data_set_id_func_t) (void *, int);
 typedef void (*data_cleanup_func_t) (void *);
-typedef void (*map_callback_t) (void *, int);
+typedef void (*map_callback_t) (void *, const int);
 
 #define TREE_WRITE       0
 #define TREE_READ        1
@@ -109,7 +109,7 @@ tree_init (
  *      - write-lock fails while setting the root node
  */
 int
-tree_add_reference (void *data, int parent_id, int thread_id);
+tree_add_reference (void *data, int parent_id, const int thread_id);
 
 /*
  * Unlink a Node and all of its descendents from the tree. If is_delete is 1,
@@ -120,7 +120,7 @@ tree_add_reference (void *data, int parent_id, int thread_id);
  * but are otherwise still around and are not marked as garbage.
  */
 int
-tree_unlink_reference (int id, int is_delete);
+tree_unlink_reference (const int id, const int is_delete);
 
 /*
  * Re-link a (benched) reference back into the tree. If parent is > -1 the
@@ -144,21 +144,14 @@ tree_link_reference (const int id, const int parent);
  * `tree_deref` is required if this function returns non-NULL data.
  */
 void *
-tree_ref (int id);
+tree_ref (const int id);
 
 /*
  * Free up the data for some other process. If `tree_ref' returned NULL,
  * calling this function produces undefined behavior.
  */
 int
-tree_deref (int id);
-
-/*
- * Returns the thread id for the node of the given id.
- * Returns NODE_ERROR if an error occurs (bad node, etc)
- */
-int
-tree_reference_thread (int id);
+tree_deref (const int id);
 
 /*
  * Map the given callback function to the subtree starting at the given root
@@ -176,23 +169,30 @@ tree_reference_thread (int id);
  * function is always passed the current Node's id.
  */
 void
-tree_map_subtree (int root, 
-        map_callback_t function, 
+tree_map_subtree (const int root, 
+        const map_callback_t function, 
         void *data, 
-        int is_read, 
-        int is_recurse);
+        const int is_read, 
+        const int is_recurse);
+
+/*
+ * Returns the thread id for the node of the given id.
+ * Returns NODE_ERROR if an error occurs (bad node, etc)
+ */
+int
+tree_node_thread (const int id);
+
+/*
+ * Returns the parent id of the Node. Returns NODE_ERROR if an error occurs.
+ */
+int
+tree_node_parent (const int id);
 
 /*
  * Returns the id of the root node. Returns NODE_ERROR if an error occurs.
  */
 int
 tree_root ();
-
-/*
- * Returns the parent id of the Node. Returns NODE_ERROR if an error occurs.
- */
-int
-tree_node_parent (int id);
 
 /*
  * Mark all active Nodes as garbage and clean them up. Then free the memory for
