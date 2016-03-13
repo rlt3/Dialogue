@@ -294,13 +294,15 @@ node_destroy_fullwr (int id)
 
 /*
  * Acquire the write lock on the given Node to add the given child. Doesn't 
- * check the child id. If it successfully adds the child, returns 0. Returns 1 
- * otherwise.
+ * check the child id. If it successfully adds the child, returns 0. 
+ * Returns NODE_INVALID if the parent node isn't being used.
+ * Returns TREE_ERROR if realloc failed.
  */
 int
 node_add_child (int id, int child)
 {
-    int cid, max_id, ret = 1;
+    void *memory = NULL;
+    int child_id, max, ret = NODE_INVALID;
 
     if (node_write(id) != 0)
         goto exit;
@@ -308,13 +310,14 @@ node_add_child (int id, int child)
     if (!node_is_used_rd(id))
         goto unlock;
 
-    max_id = global_tree->list[id].max_children;
+    max = global_tree->list[id].max_children;
 
-    for (cid = 0; cid < max_id; cid++) {
-        if (global_tree->list[id].children[cid] == NODE_INVALID) {
-            global_tree->list[id].children[cid] = child;
+find_open_slot:
+    for (child_id = 0; child_id < max; child_id++) {
+        if (global_tree->list[id].children[child_id] == NODE_INVALID) {
+            global_tree->list[id].children[child_id] = child;
 
-            if (cid == global_tree->list[id].last_child)
+            if (child_id == global_tree->list[id].last_child)
                 global_tree->list[id].last_child++;
 
             ret = 0;
@@ -322,8 +325,23 @@ node_add_child (int id, int child)
         }
     }
 
-    if (cid == max_id && ret == 1) {
-        /* TODO: Reallocate node memory */
+    /* if there's no more room for children and we haven't been here before */
+    if (ret == 1 && !memory && child_id == max) {
+        max *= 2;
+        memory = realloc(global_tree->list[id].children, max * sizeof(Node));
+
+        if (memory == NULL) {
+            ret = TREE_ERROR;
+            goto unlock;
+        }
+
+        global_tree->list[id].children = memory;
+        global_tree->list[id].max_children = max;
+
+        for (; child_id < max; child_id++)
+            global_tree->list[id].children[child_id] = NODE_INVALID;
+
+        goto find_open_slot;
     }
 
 unlock:
@@ -455,14 +473,12 @@ unlock:
  *
  * Returns the id of the Node inside the tree. 
  *
- * Returns NODE_INVALID if the tree was unable to allocate more memory for
- * Nodes to hold the reference.
+ * Returns NODE_INVALID if realloc failed when adding a child.
  *
- * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use (a
- * valid. 
+ * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use.
  * 
- * ReturnsTREE_ERROR
- *      - if data is NULL
+ * Returns TREE_ERROR
+ *      - realloc fails allocating more Nodes
  *      - write-lock fails while setting the root node
  */
 int
@@ -488,7 +504,7 @@ find_unused_node:
     if (tree_resize() == 0) {
         goto find_unused_node;
     } else {
-        ret = NODE_INVALID;
+        ret = TREE_ERROR;
         goto exit;
     }
 
@@ -538,14 +554,24 @@ data_lock_and_write:
         }
     }
 
-    if (node_add_child(parent_id, id) != 0) {
+    switch (node_add_child(parent_id, id)) {
+    case TREE_ERROR:
+        /* realloc failed */
+        ret = NODE_INVALID;
+        goto unlock;
+
+    case NODE_ERROR:
         /* 
-         * keep the allocated data but still return with an error. it will be
-         * cleaned up automatically if we simply mark it as garbage.
+         * the parent was bad but we can keep the data.  it will be cleaned up
+         * automatically if we simply mark it as garbage.
          */
         node_mark_unused_wr(NULL, id);
         ret = NODE_ERROR;
         goto unlock;
+
+    case 0:
+    default:
+        break;
     }
 
 success:

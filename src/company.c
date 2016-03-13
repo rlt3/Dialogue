@@ -40,13 +40,7 @@ company_add (lua_State *L, int parent, int thread_id)
 
     switch (id) {
     case TREE_ERROR:
-        /* 
-         * TREE_ERROR also catches if the actor data is NULL in
-         * `tree_add_reference`.  We throw a Lua error where ever we would
-         * return NULL in `actor_new` so techincally that error should never
-         * happen.
-         */
-        luaL_error(L, "Failed to create actor: write-lock failed!");
+        luaL_error(L, "Failed to create actor: realloc failed for Company!");
         break;
 
     case NODE_ERROR:
@@ -55,7 +49,8 @@ company_add (lua_State *L, int parent, int thread_id)
         break;
 
     case NODE_INVALID:
-        luaL_error(L, "Failed to create actor: no memory!");
+        luaL_error(L, "Failed to create actor: realloc failed for parent `%d`!", 
+                parent);
         break;
 
     default:

@@ -6,7 +6,7 @@
 #define DIALOGUE_META "Dialogue"
 
 static int opts[] = {
-    0, 4, 10, 20, 10, 
+    0, 4, 10, 100, 10, 
     0, 1
 };
 
