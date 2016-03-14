@@ -30,18 +30,10 @@
 #include "actor.h"
 
 /*
- * Create the Company tree with the following options.
- *
- * base_actors is the default number of actors that can be created before the
- * tree needs to resize for more.
- *
- * max_actors is the maximum size the actor list can be even after resizing.
- *
- * base_children is the default number of children an actor can have before
- * resizing.
+ * Create the Company tree with the number of actors.
  */
 int
-company_create (int base_actors, int max_actors, int base_children);
+company_create (int num_actors);
 
 /*
  * Set the Company's table inside the given Lua state.

@@ -24,47 +24,8 @@ describe("The Company", function()
     setup(create_tree)
 
     teardown(function()
-        --a0:remove()
+        a0:remove()
     end)
-
-    --it("will resize automatically as Actors are created", function()
-    --    local parent = a0:child{}
-    --    assert.is_equal(parent:id(), 6)
-
-    --    -- assuming the default of 10 base actors & 100 max actors
-
-    --    -- up until the first realloc
-    --    for i = 7, 13 do
-    --        assert.is_equal(parent:child{}:id(), i)
-    --    end
-
-    --    -- should realloc to 20
-    --    --for i = 11, 20 do
-    --    --    assert.is_equal(parent:child{}:id(), i)
-    --    --end
-
-    --    ---- should realloc to 40
-    --    --for i = 21, 40 do
-    --    --    assert.is_equal(parent:child{}:id(), i)
-    --    --end
-
-    --    ---- should realloc to 80
-    --    --for i = 41, 80 do
-    --    --    assert.is_equal(parent:child{}:id(), i)
-    --    --end
-
-    --    ---- should realloc to 100 
-    --    --for i = 81, 100 do
-    --    --    assert.is_equal(parent:child{}:id(), i)
-    --    --end
-
-    --    --assert.has_error(function() 
-    --    --    parent:child{}
-    --    --end, "Failed to create actor: realloc failed for Company!")
-    --    
-    --    parent:remove()
-    --    --assert.are_same(a0:children(), {1, 2, 5})
-    --end)
 
     it("is a tree of Actors", function()
         assert.are_same(a0:children(), {1, 2, 5})
@@ -98,21 +59,21 @@ describe("The Company", function()
         assert.are_same(a0:children(), {1})
     end)
 
-    it("doesn't cleanup removed actors right away but lets you force cleanup", function()
-        -- lock/unlock uses the same mechanism for getting the data which is
-        -- garbage collected.
-        a2:lock()
-        a2:unlock()
-        a2:cleanup()
+    --it("doesn't cleanup removed actors right away but lets you force cleanup", function()
+    --    -- lock/unlock uses the same mechanism for getting the data which is
+    --    -- garbage collected.
+    --    a2:lock()
+    --    a2:unlock()
+    --    a2:cleanup()
 
-        assert.has_error(function() 
-            a2:lock()
-        end, "Actor id `2` is an invalid reference!")
+    --    assert.has_error(function() 
+    --        a2:lock()
+    --    end, "Actor id `2` is an invalid reference!")
 
-        assert.has_error(function() 
-            a0:cleanup()
-        end, "Cleanup failed! Actor `0` is not garbage!")
-    end)
+    --    assert.has_error(function() 
+    --        a0:cleanup()
+    --    end, "Cleanup failed! Actor `0` is not garbage!")
+    --end)
 
     it("considers ids from removed (and non-existing) actors to be invalid", function()
         assert.has_error(function() 
@@ -185,6 +146,22 @@ describe("The Company", function()
 
         Actor(6):remove()
         Actor(7):remove()
+    end)
+
+    it("resizes the number of children an actor up to the max actors", function()
+        local parent = a0:child{}
+        assert.is_equal(parent:id(), 6)
+
+        -- assuming the default of 64 max actors
+        for i = 7, 63 do
+            assert.is_equal(parent:child{}:id(), i)
+        end
+
+        assert.has_error(function() 
+            assert.is_equal(parent:child{})
+        end, "Failed to create actor: max actors reached!")
+        
+        parent:remove()
     end)
 
     it("allows benching and joining of Actors from the Company tree", function()

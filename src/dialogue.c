@@ -6,7 +6,7 @@
 #define DIALOGUE_META "Dialogue"
 
 static int opts[] = {
-    0, 4, 10, 100, 10, 
+    0, 4, 64, 256, 10, 
     0, 1
 };
 
@@ -57,9 +57,7 @@ static const luaL_Reg dialogue_metamethods[] = {
 int
 luaopen_Dialogue (lua_State *L)
 {
-    if (company_create(opts[ACTOR_BASE], 
-                       opts[ACTOR_MAX],
-                       opts[ACTOR_CHILD_MAX]) != 0)
+    if (company_create(opts[ACTOR_BASE]) != 0)
         luaL_error(L, "Dialogue: Failed to create the Company of Actors!");
 
     if (director_create(opts[WORKER_IS_MAIN], 

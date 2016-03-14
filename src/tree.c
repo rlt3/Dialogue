@@ -50,12 +50,6 @@ struct Tree {
     /* the size of the tree's list right now */
     int list_size;
 
-    /* the ceiling of the tree's list after resizing */
-    int list_max_size;
-
-    /* resize by 2 times, 3 times, n times ... */
-    int list_resize_factor;
-
     /* id to the root of the tree (not always 0) */
     int root;
 
@@ -306,7 +300,6 @@ node_add_child (const int id, const int child)
     max = global_tree->list[id].max_children;
 
 find_open_slot:
-    printf("Adding child %d to parent %d, with max: %d\n", child, id, max);
     for (child_id = 0; child_id < max; child_id++) {
         if (global_tree->list[id].children[child_id] == NODE_INVALID) {
             global_tree->list[id].children[child_id] = child;
@@ -322,23 +315,20 @@ find_open_slot:
     /* if there's no more room for children and we haven't been here before */
     if (memory == NULL && child_id == max) {
         max *= 2;
-        printf("Reallocing actor `%d` with max %d to new max %d\n",
-                id, child_id, max);
         memory = realloc(global_tree->list[id].children, max * sizeof(Node));
 
         if (memory == NULL) {
             ret = TREE_ERROR;
-            printf("Reallocing actor `%d` failed!\n", id);
             goto unlock;
         }
 
         global_tree->list[id].children = memory;
         global_tree->list[id].max_children = max;
+        
+        /* TODO: clamp memory size so it can't go above max actors */
 
         for (; child_id < max; child_id++)
             global_tree->list[id].children[child_id] = NODE_INVALID;
-
-        printf("Reallocing actor `%d` was a success!\n", id);
 
         goto find_open_slot;
     }
@@ -420,77 +410,13 @@ exit:
 }
 
 /*
- * Acquires the write-lock for the tree. Resizes the list by the factor given
- * at tree_init -- 2 doubles its size, 3 triples, etc. Returns 0 if successful.
- */
-static int
-tree_resize ()
-{
-    Node *memory = NULL;
-    int id, old_max, new_max, ret = 1;
-
-    if (tree_write() != 0)
-        goto exit;
-
-    if (global_tree->list_size >= global_tree->list_max_size)
-        goto unlock;
-
-    old_max = global_tree->list_size;
-    new_max = global_tree->list_size * global_tree->list_resize_factor;
-
-    /* ceiling the size as the factor may cause it to overflow */
-    if (new_max > global_tree->list_max_size)
-        new_max = global_tree->list_max_size;
-
-    printf("Reallocing tree with max %d to new max %d\n", old_max, new_max);
-
-    memory = realloc(global_tree->list, new_max * sizeof(Node));
-
-    if (!memory)
-        goto unlock;
-
-    global_tree->list = memory;
-
-    /* if init_wr fails here we keep the old_max as the list_size */
-    /* TODO: figure out a more granular error ret here rather than binary */
-    for (id = old_max; id < new_max; id++)
-        if (node_init_wr(id) != 0)
-            goto unlock;
-
-    global_tree->list_size = new_max;
-
-    ret = 0;
-unlock:
-    tree_unlock();
-exit:
-    return ret;
-}
-
-/*
- * Initialze the tree.
- *
- * The tree's size will start as `length`. It will never exceed `max_length`.
- * It will resize itself by `scale_factor` (e.g. 2 doubles, 3 triples, etc).
- *
- * `cu` is the cleanup function called on all data given for reference. `lu` is
- * the lookup function on the data.
- *
- * and the cleanup function for the
- * references (pointers it owns) it holds.
- *
- * The `initial_length' also serves as
- * the base for resizing by a factor. So, if the length is 10, it is resized by
- * factors of 10.
- *
+ * Initialze the tree with the given length for its node array. `set_id` is for
+ * assigning the Node's id to the data that it holds. `cleanup` is what the
+ * tree uses for its garbage collection.
  * Returns 0 if no errors.
  */
 int
-tree_init (
-        int length,
-        int max_length,
-        int scale_factor,
-        data_set_id_func_t set_id,
-        data_cleanup_func_t cleanup)
+tree_init (int length, data_set_id_func_t set_id, data_cleanup_func_t cleanup)
 {
     int id, ret = 1;
 
@@ -507,8 +433,6 @@ tree_init (
     global_tree->cleanup_func = cleanup;
     global_tree->set_id_func = set_id;
     global_tree->list_size = length;
-    global_tree->list_max_size = max_length;
-    global_tree->list_resize_factor = scale_factor;
     global_tree->root = NODE_INVALID;
     pthread_rwlock_init(&global_tree->rw_lock, NULL);
 
@@ -524,7 +448,6 @@ tree_init (
 exit:
     return ret;
 }
-
 
 /*
  * Have the tree take ownship of the pointer. The tree will cleanup that
@@ -545,7 +468,7 @@ exit:
  * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use.
  *
  * Returns TREE_ERROR
- *      - realloc fails allocating more Nodes
+ *      - there are no more unused nodes
  *      - write-lock fails while setting the root node
  */
 int
@@ -568,15 +491,7 @@ find_unused_node:
             goto data_lock_and_write;
 
     /* if we're here, no unused node was found */
-    printf("Resizing!\n");
-    if (tree_resize() == 0) {
-        printf("Resize success!\n");
-        goto find_unused_node;
-    } else {
-        printf("Resize failed!\n");
-        ret = TREE_ERROR;
-        goto exit;
-    }
+    goto exit;
 
 data_lock_and_write:
     /*
@@ -847,7 +762,6 @@ tree_map_subtree (const int root,
         return;
 
     if (!node_is_used_rd(root)) {
-        //printf("subtree: root `%d` is not used\n", root);
     	node_unlock(root);
         return;
     }
@@ -880,7 +794,6 @@ tree_map_subtree (const int root,
     
     if (is_recurse) {
         for (id = 0; id < cid; id++) {
-            //printf("subtree: recursing from `%d` over `%d`\n", root, children[id]);
             tree_map_subtree(children[id], function, data, is_read, is_recurse);
         }
     } else {

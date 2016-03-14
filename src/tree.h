@@ -69,43 +69,34 @@ typedef void (*map_callback_t) (void *, const int);
 #define NODE_INVALID    -1
 
 /*
- * Initialze the tree with the given length and the cleanup function for the
- * references (pointers it owns) it holds. The `initial_length' also serves as
- * the base for resizing by a factor. So, if the length is 10, it is resized by
- * factors of 10.
- *
+ * Initialze the tree with the given length for its node array. `set_id` is for
+ * assigning the Node's id to the data that it holds. `cleanup` is what the
+ * tree uses for its garbage collection.
  * Returns 0 if no errors.
  */
 int
-tree_init (
-        int length, 
-        int max_length, 
-        int scale_factor, 
-        data_set_id_func_t set_id,
-        data_cleanup_func_t cleanup);
+tree_init (int length, data_set_id_func_t set_id, data_cleanup_func_t cleanup);
 
 /*
  * Have the tree take ownship of the pointer. The tree will cleanup that
- * pointer with the data_cleanup_func_t given in tree_init. 
+ * pointer with the data_cleanup_func_t given in tree_init.
  *
  * The tree attaches the pointer to a Node which is added as a child of
- * parent_id.  
+ * parent_id.
  *
  * If parent_id <= NODE_INVALID then the Tree -- the firs time -- assumes that
  * is supposed to be the root Node and saves it (the root node has no parent).
  * Every time after that if the parent_id <= NODE_INVALID then the Node created
  * as a child of the root node.
  *
- * Returns the id of the Node inside the tree. 
+ * Returns the id of the Node inside the tree.
  *
- * Returns NODE_INVALID if the tree was unable to allocate more memory for
- * Nodes to hold the reference.
+ * Returns NODE_INVALID if realloc failed when adding a child.
  *
- * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use (a
- * valid. 
- * 
- * Returns ERROR
- *      - if data is NULL
+ * Returns NODE_ERROR if parent_id > -1 *and* the parent_id isn't in use.
+ *
+ * Returns TREE_ERROR
+ *      - there are no more unused nodes
  *      - write-lock fails while setting the root node
  */
 int

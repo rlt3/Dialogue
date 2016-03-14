@@ -10,21 +10,12 @@
 #define ACTOR_META "Dialogue.Company.Actor"
 
 /*
- * Create the Company tree with the following options.
- *
- * base_actors is the default number of actors that can be created before the
- * tree needs to resize for more.
- *
- * max_actors is the maximum size the actor list can be even after resizing.
- *
- * base_children is the default number of children an actor can have before
- * resizing.
+ * Create the Company tree with the number of actors.
  */
 int
-company_create (int base_actors, int max_actors, int base_children)
+company_create (int num_actors)
 {
-    return tree_init(base_actors, max_actors, 2, 
-            actor_assign_id, actor_destroy);
+    return tree_init(num_actors, actor_assign_id, actor_destroy);
 }
 
 /*
@@ -40,7 +31,7 @@ company_add (lua_State *L, int parent, int thread_id)
 
     switch (id) {
     case TREE_ERROR:
-        luaL_error(L, "Failed to create actor: resize failed for Company!");
+        luaL_error(L, "Failed to create actor: max actors reached!");
         break;
 
     case NODE_ERROR:
