@@ -285,15 +285,16 @@ node_is_used_rd (const int id)
 
 /*
  * Acquire the write lock on the given Node to add the given child. Doesn't
- * check the child id. If it successfully adds the child, returns 0.
- * Returns NODE_INVALID if the parent node isn't being used.
+ * check the child id. 
+ * If it successfully adds the child, returns 0.
+ * Returns NODE_ERROR if the parent node isn't being used.
  * Returns TREE_ERROR if realloc failed.
  */
 static int
 node_add_child (const int id, const int child)
 {
     void *memory = NULL;
-    int child_id, max, ret = NODE_INVALID;
+    int child_id, max, ret = NODE_ERROR;
 
     if (node_write(id) != 0)
         goto exit;
@@ -687,9 +688,9 @@ tree_unlink_reference (const int id, const int is_delete)
         goto unlock;
     }
 
-    /* if the node isn't benched and has a valid parent id */
-    if (!global_tree->list[id].benched &&
-        node_remove_child(global_tree->list[id].parent, id) != 0) {
+    /* if the node isn't benched and has an invalid parent id */
+    if (!global_tree->list[id].benched
+        && node_remove_child(global_tree->list[id].parent, id) != 0) {
         goto unlock;
     }
 
@@ -699,6 +700,7 @@ unlock:
 
     if (ret == 0)
         tree_map_subtree(id, unlink_func, NULL, TREE_WRITE, TREE_RECURSE);
+
 exit:
     return ret;
 }
@@ -817,7 +819,7 @@ tree_map_subtree (const int root,
         const int is_recurse)
 {
     int (*lock_func)(int);
-    int max_children, id, cid;
+    int id, cid;
 
     if (is_read)
         lock_func = node_read;
@@ -828,16 +830,18 @@ tree_map_subtree (const int root,
         return;
 
     if (!node_is_used_rd(root)) {
+        //printf("subtree: root `%d` is not used\n", root);
     	node_unlock(root);
         return;
     }
 
-    max_children = global_tree->list[root].last_child;
     /* 
      * use c99's VLA and `in-function` stack variable declaration because a 
      * node's children count is not equal across all nodes.
      */
+    const int max_children = global_tree->list[root].last_child;
     int children[max_children];
+
     memset(&children, -1, sizeof(int) * max_children);
     function(data, root);
 
@@ -849,18 +853,28 @@ tree_map_subtree (const int root,
         cid++;
     }
 
+    /* 
+     * we've got the list of children & did the function, no compelling reason
+     * to hold this lock. this means the ids in `children` *could* become 
+     * invalid by the time they are used, but the system is built to handle 
+     * invalid ids, so its worth it for the extra time without a lock held.
+     */
     node_unlock(root);
     
     if (is_recurse) {
-        for (id = 0; id < cid; id++)
+        for (id = 0; id < cid; id++) {
+            //printf("subtree: recursing from `%d` over `%d`\n", root, children[id]);
             tree_map_subtree(children[id], function, data, is_read, is_recurse);
+        }
     } else {
         for (id = 0; id < cid; id++) {
             if (lock_func(children[id]) != 0)
                 continue;
 
-            if (!node_is_used_rd(id))
+            if (!node_is_used_rd(id)) {
+                node_unlock(children[id]);
                 continue;
+            }
 
             function(data, children[id]);
             node_unlock(children[id]);

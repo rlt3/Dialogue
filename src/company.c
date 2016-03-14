@@ -431,27 +431,29 @@ lua_actor_load (lua_State *L)
 }
 
 /*
- * Call lua_actor_new with the actor (owner of the child method) as the parent.
- * actor:child{ definition_table }
+ * Create a child actor with this object as the parent.
+ * actor:child({ definition_table } [, thread])
  */
 int
 lua_actor_child (lua_State *L)
 {
-    /* expects actor @ 1 and definition table @ 2 */
-    const int expected_args = 2;
-    const int args = lua_gettop(L);
+    const int self_arg = 1;
+    const int table_arg = 2;
+    const int thread_opt_arg = 3;
+    const int thread = luaL_optinteger(L, thread_opt_arg, NODE_INVALID);
+    int args = 3;
 
-    if (args != expected_args)
-        luaL_error(L, 
-                "Invalid # of args to `actor:child`. Expected %d got %d\n",
-                expected_args, args);
+    lua_pushcfunction(L, lua_actor_new);
+    lua_pushnil(L); /* a leroy special */
+    lua_pushvalue(L, table_arg);
+    lua_pushvalue(L, self_arg); /* parent */
 
-    /* shift the arguments around: actor @ 3, table @ 2, nothing at bottom */
-    lua_pushnil(L);
-    lua_insert(L, 1);
-    lua_insert(L, 2);
-    lua_actor_new(L);
+    if (thread != NODE_INVALID) {
+        lua_pushinteger(L, thread);
+        args++;
+    }
 
+    lua_call(L, args, 1);
     return 1;
 }
 
