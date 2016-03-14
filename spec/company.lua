@@ -98,6 +98,22 @@ describe("The Company", function()
         assert.are_same(a0:children(), {1})
     end)
 
+    it("doesn't cleanup removed actors right away but lets you force cleanup", function()
+        -- lock/unlock uses the same mechanism for getting the data which is
+        -- garbage collected.
+        a2:lock()
+        a2:unlock()
+        a2:cleanup()
+
+        assert.has_error(function() 
+            a2:lock()
+        end, "Actor id `2` is an invalid reference!")
+
+        assert.has_error(function() 
+            a0:cleanup()
+        end, "Cleanup failed! Actor `0` is not garbage!")
+    end)
+
     it("considers ids from removed (and non-existing) actors to be invalid", function()
         assert.has_error(function() 
             a3:parent()
@@ -155,7 +171,7 @@ describe("The Company", function()
         assert.is_equal(actor:id(), 6)
 
         -- lock is the same mechanism as reference
-        assert.is_true(actor:lock())
+        actor:lock()
         a5:remove()
 
         -- id is `5` because a1 was deleted above and `5` became free
@@ -164,7 +180,7 @@ describe("The Company", function()
         -- but id here is `7`. skips `6` because it is still ref'd
         assert.is_equal(a0:child{}:id(), 7)
 
-        assert.is_true(actor:unlock())
+        actor:unlock()
         assert.is_equal(a0:child{}:id(), 6)
 
         Actor(6):remove()

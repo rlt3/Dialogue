@@ -110,6 +110,13 @@ int
 company_actor_parent (lua_State *L, const int id);
 
 /*
+ * Cleanups a garbage (removed) Actor. Errors through L if the Actor isn't 
+ * garbage.
+ */
+void
+company_actor_cleanup (lua_State *L, const int id);
+
+/*
  * Get the actor associated with the id. Will error out on L if the id isn't a
  * valid reference. Requires called `company_deref` is the return was *not*
  * NULL.

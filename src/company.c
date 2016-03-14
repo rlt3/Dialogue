@@ -116,10 +116,8 @@ Actor *
 company_ref (lua_State *L, int id)
 {
     Actor *actor = tree_ref(id);
-
     if (!actor)
         luaL_error(L, "Actor id `%d` is an invalid reference!", id);
-
     return actor;
 }
 
@@ -306,6 +304,25 @@ company_actor_parent (lua_State *L, const int id)
         break;
     }
     return ret;
+}
+
+/*
+ * Cleanups a garbage (removed) Actor. Errors through L if the Actor isn't 
+ * garbage.
+ */
+void
+company_actor_cleanup (lua_State *L, const int id)
+{
+    switch (tree_node_cleanup(id)) {
+    case TREE_ERROR:
+        luaL_error(L, 
+            "Cleanup failed! Locks for garbage Actor `%d` failed!", id);
+        break;
+
+    case NODE_ERROR:
+        luaL_error(L, "Cleanup failed! Actor `%d` is not garbage!", id);
+        break;
+    }
 }
 
 typedef int (*ActorFunc) (Actor*, lua_State*);
@@ -527,12 +544,9 @@ lua_actor_remove (lua_State *L)
 int
 lua_actor_cleanup (lua_State *L)
 {
-    /*
-     * TODO:
-     * Because deleted Nodes only have their memory freed when the Tree needs
-     * the Node again, we need to be able to free a deleted Node's memory on
-     * command. This should error-out on *used* nodes.
-     */
+    const int actor_arg = 1;
+    const int id = company_actor_id(L, actor_arg);
+    company_actor_cleanup(L, id);
     return 0;
 }
 
@@ -542,31 +556,29 @@ lua_actor_cleanup (lua_State *L)
  * Locks the specific actor. This will cause all threads that *need* (and can't
  * skip) the reference to block and wait. This will also cause memory leaks if
  * the actor isn't unlocked before the system quits.
- *
- * Returns true/false if the actor locked or not.
+ * Errors on L if the id was bad somehow.
  */
 int
 lua_actor_lock (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    lua_pushboolean(L, (company_ref(L, id) != NULL));
-    return 1;
+    company_ref(L, id);
+    return 0;
 }
 
 /*
  * actor:unlock()
  *
  * Unlocks a previously locked actor. Unlocking a not-locked actor is undefined.
- * Returns true/false if the actor was unlocked or not.
  */
 int
 lua_actor_unlock (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    lua_pushboolean(L, (company_deref(id) == 0));
-    return 1;
+    company_deref(id);
+    return 0;
 }
 
 /*

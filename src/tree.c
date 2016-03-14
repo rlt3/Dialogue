@@ -104,9 +104,9 @@ tree_index_is_valid (const int id)
 
     if (tree_read() != 0)
         goto exit;
+
     ret = !(id > global_tree->list_size);
     tree_unlock();
-
 exit:
     return ret;
 }
@@ -115,10 +115,11 @@ static inline int
 tree_list_size ()
 {
     int ret = 0;
-    if (tree_read() == 0) {
-        ret = global_tree->list_size;
-        tree_unlock();
-    }
+    if (tree_read() != 0)
+        goto exit;
+    ret = global_tree->list_size;
+    tree_unlock();
+exit:
     return ret;
 }
 
@@ -428,7 +429,8 @@ tree_resize ()
     Node *memory = NULL;
     int id, old_max, new_max, ret = 1;
 
-    tree_write();
+    if (tree_write() != 0)
+        goto exit;
 
     if (global_tree->list_size >= global_tree->list_max_size)
         goto unlock;
@@ -460,6 +462,7 @@ tree_resize ()
     ret = 0;
 unlock:
     tree_unlock();
+exit:
     return ret;
 }
 
@@ -622,17 +625,13 @@ data_lock_and_write:
     }
 
     switch (node_add_child(parent_id, id)) {
-    case TREE_ERROR:
-        /* realloc failed */
+    case TREE_ERROR: /* realloc failed */
         ret = NODE_INVALID;
         goto unlock;
 
-    case NODE_ERROR:
-        /*
-         * the parent was bad but we can keep the data.  it will be cleaned up
-         * automatically if we simply mark it as garbage.
-         */
+    case NODE_ERROR: /* bad parent */
         node_mark_unused_wr(NULL, id);
+        node_cleanup_fullwr(id);
         ret = NODE_ERROR;
         goto unlock;
 
@@ -750,32 +749,19 @@ exit:
 /*
  * Get the data (pointer) referenced by the id.
  *
- * Returns NULL if the id is invalid, the node of the id is garbage, or the
- * data itself is NULL. Calling `tree_deref` isn't necessary (and is undefined)
- * if this function returns NULL.
+ * Returns NULL if the id is invalid.  Calling `tree_deref` isn't necessary
+ * (and is undefined) if this function returns NULL.
  *
- * Returns the pointer to the data if the node is valid and has data. Calling
- * `tree_deref` is required if this function returns non-NULL data.
  */
 void *
 tree_ref (const int id)
 {
-    int used;
     void *data = NULL;
-
-    if (node_read(id) != 0)
-        goto exit;
-
-    used = node_is_used_rd(id);
-    node_unlock(id);
-
-    if (!used)
-        goto exit;
 
     if (node_data_lock(id) != 0)
         goto exit;
 
-    if (!global_tree->list[id].data) {
+    if (global_tree->list[id].data == NULL) {
         node_data_unlock(id);
         goto exit;
     }
@@ -785,7 +771,6 @@ exit:
     return data;
 }
 
-
 /*
  * Free up the data for some other process. If `tree_ref' returned NULL,
  * calling this function produces undefined behavior.
@@ -794,6 +779,38 @@ int
 tree_deref (const int id)
 {
     return node_data_unlock(id);
+}
+
+/* 
+ * Explicitly garbage collect the node at id. 
+ * Returns NODE_ERROR if the node *isn't* garbage!
+ * Returns TREE_ERROR if any locks fail to acquire.
+ * Returns 0 if successful.
+ */
+int
+tree_node_cleanup (const int id)
+{
+    int ret = TREE_ERROR;
+
+    if (node_data_lock(id) != 0)
+        goto exit;
+
+    if (node_write(id) != 0)
+        goto unlock_data;
+
+    if (node_is_used_rd(id)) {
+        ret = NODE_ERROR;
+        goto unlock;
+    }
+
+    node_cleanup_fullwr(id);
+    ret = 0;
+unlock:
+    node_unlock(id);
+unlock_data:
+    node_data_unlock(id);
+exit:
+    return ret;
 }
 
 /*

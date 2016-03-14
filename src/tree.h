@@ -188,6 +188,15 @@ tree_node_thread (const int id);
 int
 tree_node_parent (const int id);
 
+/* 
+ * Explicitly garbage collect the node at id. 
+ * Returns NODE_ERROR if the node *isn't* garbage!
+ * Returns TREE_ERROR if any locks fail to acquire.
+ * Returns 0 if successful.
+ */
+int
+tree_node_cleanup (const int id);
+
 /*
  * Returns the id of the root node. Returns NODE_ERROR if an error occurs.
  */
