@@ -817,8 +817,7 @@ tree_map_subtree (const int root,
         const int is_recurse)
 {
     int (*lock_func)(int);
-    int children[MAP_MAX_STACK];
-    int max_id, id, cid = 0;
+    int max_children, id, cid;
 
     if (is_read)
         lock_func = node_read;
@@ -833,28 +832,38 @@ tree_map_subtree (const int root,
         return;
     }
 
-    memset(&children, -1, sizeof(int) * MAP_MAX_STACK);
-    max_id = global_tree->list[root].last_child;
+    max_children = global_tree->list[root].last_child;
+    /* 
+     * use c99's VLA and `in-function` stack variable declaration because a 
+     * node's children count is not equal across all nodes.
+     */
+    int children[max_children];
+    memset(&children, -1, sizeof(int) * max_children);
     function(data, root);
 
-    for (id = 0; id < max_id; id++) {
-        if (global_tree->list[root].children[id] > NODE_INVALID) {
-            children[cid] = global_tree->list[root].children[id];
-            cid++;
-        }
+    for (cid = 0, id = 0; id < max_children; id++) {
+        if (global_tree->list[root].children[id] == NODE_INVALID)
+            continue;
+
+        children[cid] = global_tree->list[root].children[id];
+        cid++;
     }
 
     node_unlock(root);
-
-    for (id = 0; id < cid; id++) {
-        if (is_recurse) {
+    
+    if (is_recurse) {
+        for (id = 0; id < cid; id++)
             tree_map_subtree(children[id], function, data, is_read, is_recurse);
-        } else {
-            if (lock_func(children[id]) == 0) {
-                if (node_is_used_rd(id))
-                    function(data, children[id]);
-                node_unlock(children[id]);
-            }
+    } else {
+        for (id = 0; id < cid; id++) {
+            if (lock_func(children[id]) != 0)
+                continue;
+
+            if (!node_is_used_rd(id))
+                continue;
+
+            function(data, children[id]);
+            node_unlock(children[id]);
         }
     }
 }

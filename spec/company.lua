@@ -34,14 +34,14 @@ describe("The Company", function()
         -- assuming the default of 10 base actors & 100 max actors
 
         -- up until the first realloc
-        for i = 7, 10 do
+        for i = 7, 13 do
             assert.is_equal(parent:child{}:id(), i)
         end
 
         -- should realloc to 20
-        for i = 11, 20 do
-            assert.is_equal(parent:child{}:id(), i)
-        end
+        --for i = 11, 20 do
+        --    assert.is_equal(parent:child{}:id(), i)
+        --end
 
         ---- should realloc to 40
         --for i = 21, 40 do
