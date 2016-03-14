@@ -59,23 +59,38 @@ describe("The Company", function()
         assert.are_same(a0:children(), {1})
     end)
 
-    --it("doesn't cleanup removed actors right away but lets you force cleanup", function()
-    --    -- lock/unlock uses the same mechanism for getting the data which is
-    --    -- garbage collected.
-    --    a2:lock()
-    --    a2:unlock()
-    --    a2:cleanup()
+    it("lets actors' data be accessed if it's removed but not gc'd", function()
+        -- NOTE: the reason for this functionality is that when Nodes are 
+        -- removed, its id is removed from any audience or children list, so it
+        -- becomes unaccessable. This functionality lets us remove an Actor 
+        -- from the tree while it is processing a message.
+        
+        -- lock/unlock uses the same mechanism for getting the data which is
+        -- garbage collected.
+        a2:lock()
+        a2:unlock()
 
-    --    assert.has_error(function() 
-    --        a2:lock()
-    --    end, "Actor id `2` is an invalid reference!")
+        -- it's valid but we just haven't given it any scripts
+        assert.has_error(function() 
+            a2:send{}
+        end, "Actor `2' has no loaded Scripts!")
 
-    --    assert.has_error(function() 
-    --        a0:cleanup()
-    --    end, "Cleanup failed! Actor `0` is not garbage!")
-    --end)
+        assert.has_error(function() 
+            a2:probe(1, "field")
+        end, "Couldn't find Script @ 1 inside Actor `2`!")
 
-    it("considers ids from removed (and non-existing) actors to be invalid", function()
+        a2:load()
+    end)
+
+    it("has a cleanup function to forcefully gc an Actor", function()
+        a2:cleanup()
+
+        assert.has_error(function() 
+            a0:cleanup()
+        end, "Cleanup failed! Actor `0` is not garbage!")
+    end)
+
+    it("considers ids from removed actors to be invalid", function()
         assert.has_error(function() 
             a3:parent()
         end, "Cannot get parent of invalid Actor `3`!")
@@ -148,7 +163,7 @@ describe("The Company", function()
         Actor(7):remove()
     end)
 
-    it("resizes the number of children an actor up to the max actors", function()
+    it("allows actors to have any number of children up to max actors", function()
         local parent = a0:child{}
         assert.is_equal(parent:id(), 6)
 

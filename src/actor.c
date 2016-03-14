@@ -236,7 +236,7 @@ actor_probe (Actor *actor, lua_State *L)
     }
 
     if (script == NULL || i > script_index) {
-        lua_pushfstring(A, "Couldn't find Script @ %d inside Actor %d", 
+        lua_pushfstring(A, "Couldn't find Script @ %d inside Actor `%d`!", 
                 script_index, actor->id);
         goto exit;
     }
