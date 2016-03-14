@@ -487,7 +487,7 @@ find_unused_node:
 
     /* find first unused node and clean it up if needed */
     for (id = 0; id < max_id; id++)
-        if (node_cleanup(id) == 0)
+        if (id != parent_id && node_cleanup(id) == 0)
             goto data_lock_and_write;
 
     /* if we're here, no unused node was found */
