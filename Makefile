@@ -31,10 +31,10 @@ test:
 #   cd spec/ && ../$(MODULE) -s director.lua
 
 mem:
-	valgrind --leak-check=full -v ./$(MODULE) stage.lua
+	valgrind --leak-check=full --show-reachable=yes -v ./$(MODULE) -s spec/company.lua
 
 hel:
-	valgrind --tool=helgrind -v ./$(MODULE) -s stage.lua
+	valgrind --tool=helgrind -v ./$(MODULE) -s spec/company.lua
 
 tags:
 	ctags -R -f tags .

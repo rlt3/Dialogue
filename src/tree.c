@@ -474,13 +474,10 @@ exit:
 int
 tree_add_reference (void *data, int parent_id, const int thread_id)
 {
-    int max_id, id, invalid_parent = 0, ret = TREE_ERROR;
+    int max_id, id, ret = TREE_ERROR;
 
     if (data == NULL)
         goto exit;
-
-    if (parent_id <= NODE_INVALID)
-        invalid_parent = 1;
 
 find_unused_node:
     max_id = tree_list_size();
@@ -491,6 +488,7 @@ find_unused_node:
             goto data_lock_and_write;
 
     /* if we're here, no unused node was found */
+    global_tree->cleanup_func(data);
     goto exit;
 
 data_lock_and_write:
@@ -515,54 +513,47 @@ data_lock_and_write:
     }
 
     node_mark_attached_fullwr(id, data, thread_id);
-
-    /*
-     * The first time invalid_parent is true, the id found becomes the root
-     * node for the tree. Everytime after that, the node which has an invalid
-     * parent becomes the child of the root node. Only the root node has a
-     * parent of NODE_INVALID. All other parents will be valid indices except
-     * benched nodes.
-     */
-    if (invalid_parent) {
-        if (tree_write() != 0) {
-            ret = TREE_ERROR;
-            goto unlock;
-        }
-
-        if (global_tree->root > NODE_INVALID) {
-            parent_id = global_tree->root;
-            tree_unlock();
-        } else {
-            global_tree->root = id;
-            tree_unlock();
-            goto success;
-        }
-    }
-
-    switch (node_add_child(parent_id, id)) {
-    case TREE_ERROR: /* realloc failed */
-        ret = NODE_INVALID;
-        goto unlock;
-
-    case NODE_ERROR: /* bad parent */
-        node_mark_unused_wr(NULL, id);
-        node_cleanup_fullwr(id);
-        ret = NODE_ERROR;
-        goto unlock;
-
-    case 0:
-    default:
-        break;
-    }
-
-success:
     global_tree->list[id].parent = parent_id;
-    ret = id;
 
-unlock:
     node_unlock(id);
     node_data_unlock(id);
+    /*
+     * NOTE: `id` could potentially be invalid at the time we add it to the 
+     * parent. Invalid ids are checked, thus it won't be a problem if a node
+     * has an invalid id as one of its children. When the system encounters
+     * (in tree_map_subtree) an invalid id, it should remove it.
+     */
 
+    /*
+     * The first time no valid parent_id is passed, the node becomes the root
+     * of the tree. After that, the node is created as the child of the root.
+     */
+    if (parent_id <= NODE_INVALID) {
+        if (tree_write() != 0) {
+            ret = TREE_ERROR;
+            goto delete_node;
+        }
+
+        if (global_tree->root == NODE_INVALID) {
+            global_tree->root = id;
+            tree_unlock();
+            ret = id;
+            goto exit;
+        }
+
+        parent_id = global_tree->root;
+        tree_unlock();
+    }
+
+    if (node_add_child(parent_id, id) != 0) {
+        printf("bad parent %d for node %d\n", parent_id, id);
+        ret = NODE_ERROR;
+delete_node:
+        tree_unlink_reference(id, 1);
+        goto exit;
+    }
+
+    ret = id;
 exit:
     return ret;
 }

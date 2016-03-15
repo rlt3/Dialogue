@@ -377,10 +377,10 @@ lua_actor_new (lua_State *L)
 
     company_push_actor(L, company_add(L, parent, thread));
     /* actor:async('load') */
-    lua_getfield(L, -1, "async");
-    lua_pushvalue(L, -2);
-    lua_pushliteral(L, "load");
-    lua_call(L, 2, 0);
+    //lua_getfield(L, -1, "async");
+    //lua_pushvalue(L, -2);
+    //lua_pushliteral(L, "load");
+    //lua_call(L, 2, 0);
 
     return 1;
 }
