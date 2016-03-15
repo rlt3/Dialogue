@@ -517,12 +517,6 @@ data_lock_and_write:
 
     node_unlock(id);
     node_data_unlock(id);
-    /*
-     * NOTE: `id` could potentially be invalid at the time we add it to the 
-     * parent. Invalid ids are checked, thus it won't be a problem if a node
-     * has an invalid id as one of its children. When the system encounters
-     * (in tree_map_subtree) an invalid id, it should remove it.
-     */
 
     /*
      * The first time no valid parent_id is passed, the node becomes the root
@@ -545,11 +539,32 @@ data_lock_and_write:
         tree_unlock();
     }
 
+    /*
+     * `id` could potentially be invalid at the time we add it to the parent
+     * because we have unlocked it. Invalid ids are checked, thus it won't be a
+     * problem if a node has an invalid id as one of its children.  When the
+     * system encounters (in tree_map_subtree) an invalid id, it should remove
+     * it.
+     */
     if (node_add_child(parent_id, id) != 0) {
-        printf("bad parent %d for node %d\n", parent_id, id);
         ret = NODE_ERROR;
+
 delete_node:
-        tree_unlink_reference(id, 1);
+        if (node_data_lock(id) != 0) {
+            ret = TREE_ERROR;
+            goto exit;
+        }
+
+        if (node_write(id) != 0) {
+            node_data_unlock(id);
+            ret = TREE_ERROR;
+            goto exit;
+        }
+
+        node_mark_unused_wr(NULL, id);
+        node_cleanup_fullwr(id);
+        node_unlock(id);
+        node_data_unlock(id);
         goto exit;
     }
 

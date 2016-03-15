@@ -146,92 +146,92 @@ describe("The Company", function()
         assert.are_same(a0:children(), {1, 2, 5})
     end)
 
-    --it("it doesn't recycle ids which are still being referenced", function()
-    --    local actor = Actor({}, 5)
-    --    assert.is_equal(actor:id(), 6)
+    it("it doesn't recycle ids which are still being referenced", function()
+        local actor = Actor({}, 5)
+        assert.is_equal(actor:id(), 6)
 
-    --    -- lock is the same mechanism as reference
-    --    actor:lock()
-    --    a5:remove()
+        -- lock is the same mechanism as reference
+        actor:lock()
+        a5:remove()
 
-    --    -- id is `5` because a1 was deleted above and `5` became free
-    --    assert.is_equal(a0:child{}:id(), 5)
+        -- id is `5` because a1 was deleted above and `5` became free
+        assert.is_equal(a0:child{}:id(), 5)
 
-    --    -- but id here is `7`. skips `6` because it is still ref'd
-    --    assert.is_equal(a0:child{}:id(), 7)
+        -- but id here is `7`. skips `6` because it is still ref'd
+        assert.is_equal(a0:child{}:id(), 7)
 
-    --    actor:unlock()
-    --    assert.is_equal(a0:child{}:id(), 6)
+        actor:unlock()
+        assert.is_equal(a0:child{}:id(), 6)
 
-    --    Actor(6):remove()
-    --    Actor(7):remove()
-    --end)
+        Actor(6):remove()
+        Actor(7):remove()
+    end)
 
-    --it("allows actors to have any number of children up to max actors", function()
-    --    local parent = a0:child{}
-    --    assert.is_equal(parent:id(), 6)
+    it("allows actors to have any number of children up to max actors", function()
+        local parent = a0:child{}
+        assert.is_equal(parent:id(), 6)
 
-    --    -- assuming the default of 64 max actors
-    --    for i = 7, 63 do
-    --        assert.is_equal(parent:child{}:id(), i)
-    --    end
+        -- assuming the default of 64 max actors
+        for i = 7, 63 do
+            assert.is_equal(parent:child{}:id(), i)
+        end
 
-    --    assert.has_error(function() 
-    --        assert.is_equal(parent:child{})
-    --    end, "Failed to create actor: max actors reached!")
-    --    
-    --    parent:remove()
-    --end)
+        assert.has_error(function() 
+            assert.is_equal(parent:child{})
+        end, "Failed to create actor: max actors reached!")
+        
+        parent:remove()
+    end)
 
-    --it("allows benching and joining of Actors from the Company tree", function()
-    --    a1:bench()
-    --    assert.are_same(a0:children(), {2, 5})
-    --    a1:join()
-    --    assert.are_same(a0:children(), {1, 2, 5})
-    --end)
+    it("allows benching and joining of Actors from the Company tree", function()
+        a1:bench()
+        assert.are_same(a0:children(), {2, 5})
+        a1:join()
+        assert.are_same(a0:children(), {1, 2, 5})
+    end)
 
-    --it("doesn't allow joining of non-benched actors", function()
-    --    assert.has_error(function() 
-    --        a5:join()
-    --    end, "Cannot join `5`: not benched!")
-    --end)
+    it("doesn't allow joining of non-benched actors", function()
+        assert.has_error(function() 
+            a5:join()
+        end, "Cannot join `5`: not benched!")
+    end)
 
-    --it("doesn't allow joining of benched actors with bad parents", function()
-    --    local actor = a5:child{}
-    --    assert.is_equal(actor:id(), 6)
-    --    actor:bench()
-    --    a5:remove()
-    --    assert.has_error(function() 
-    --        actor:join()
-    --    end, "Cannot join `6`: bad parent!")
-    --    actor:remove()
-    --    assert.is_equal(a0:child{}:id(), 5)
-    --end)
+    it("doesn't allow joining of benched actors with bad parents", function()
+        local actor = a5:child{}
+        assert.is_equal(actor:id(), 6)
+        actor:bench()
+        a5:remove()
+        assert.has_error(function() 
+            actor:join()
+        end, "Cannot join `6`: bad parent!")
+        actor:remove()
+        assert.is_equal(a0:child{}:id(), 5)
+    end)
 
-    --it("allows for a benched actor to join as a child of any parent", function()
-    --    -- testing if an actor can be the child of an parent with a greater
-    --    -- id than it
-    --    --a1:bench()
-    --    --a1:join(5)
-    --    --assert.are_same(a0:children(), {2, 5})
-    --    --assert.are_same(a5:children(), {1})
-    --    --a1:bench()
-    --    --a1:join(0)
-    --    --assert.are_same(a0:children(), {1, 2, 5})
+    it("allows for a benched actor to join as a child of any parent", function()
+        -- testing if an actor can be the child of an parent with a greater
+        -- id than it
+        --a1:bench()
+        --a1:join(5)
+        --assert.are_same(a0:children(), {2, 5})
+        --assert.are_same(a5:children(), {1})
+        --a1:bench()
+        --a1:join(0)
+        --assert.are_same(a0:children(), {1, 2, 5})
 
-    --    -- and now the conventional parent is less than the child's id
-    --    a5:bench()
-    --    a5:join(1)
-    --    assert.are_same(a0:children(), {1, 2})
-    --    assert.are_same(a1:children(), {5})
-    --    a5:bench()
-    --    a5:join(0)
-    --    assert.are_same(a0:children(), {1, 2, 5})
-    --end)
+        -- and now the conventional parent is less than the child's id
+        a5:bench()
+        a5:join(1)
+        assert.are_same(a0:children(), {1, 2})
+        assert.are_same(a1:children(), {5})
+        a5:bench()
+        a5:join(0)
+        assert.are_same(a0:children(), {1, 2, 5})
+    end)
 
-    --it("handles the audience for each Actor", function()
-    --    assert.are_same(a2:audience("yell"), {0, 1, 2, 3, 4, 5})
-    --    assert.are_same(a2:audience("say"), {0, 1, 2, 5})
-    --    assert.are_same(a2:audience("command"), {2, 3, 4})
-    --end)
+    it("handles the audience for each Actor", function()
+        assert.are_same(a2:audience("yell"), {0, 1, 2, 3, 4, 5})
+        assert.are_same(a2:audience("say"), {0, 1, 2, 5})
+        assert.are_same(a2:audience("command"), {2, 3, 4})
+    end)
 end)
