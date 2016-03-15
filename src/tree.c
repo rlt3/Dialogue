@@ -594,47 +594,55 @@ exit:
  *
  * If is_delete is 0 then the nodes are benched and aren't attached to the tree
  * but are otherwise still around and are not marked as garbage.
+ *
+ * Returns 0 if successful.
+ * Returns TREE_ERROR if any write lock fails.
+ * Returns NODE_ERROR if the parent fails to remove the id.
  */
 int
 tree_unlink_reference (const int id, const int is_delete)
 {
-    int ret = 1;
     void (*unlink_func)(void*, int);
-
-    if (node_write(id) != 0)
-        goto exit;
-
-    if (!node_is_used_rd(id))
-        goto unlock;
+    int is_benched = 0;
+    int parent_id = NODE_INVALID;
+    int ret = TREE_ERROR;
 
     if (is_delete)
         unlink_func = node_mark_unused_wr;
     else
         unlink_func = node_mark_benched_wr;
 
+    if (node_write(id) != 0)
+        goto exit;
+
+    if (!node_is_used_rd(id)) {
+        ret = NODE_INVALID;
+        node_unlock(id);
+        goto exit;
+    }
+
+    parent_id = global_tree->list[id].parent;
+    is_benched = global_tree->list[id].benched;
+    node_unlock(id);
+
     /* if we're deleting the root node, set the root node to invalid */
-    if (global_tree->list[id].parent == NODE_INVALID && tree_root() == id) {
-        if (tree_write() == 0) {
-            global_tree->root = NODE_INVALID;
-            tree_unlock();
-            ret = 0;
-        }
-        goto unlock;
+    if (parent_id == NODE_INVALID && tree_root() == id) {
+        if (tree_write() != 0)
+            goto exit;
+        global_tree->root = NODE_INVALID;
+        tree_unlock();
+        goto map;
     }
 
     /* if the node isn't benched and has an invalid parent id */
-    if (!global_tree->list[id].benched
-        && node_remove_child(global_tree->list[id].parent, id) != 0) {
-        goto unlock;
+    if (!is_benched && node_remove_child(parent_id, id) != 0) {
+        ret = NODE_ERROR;
+        goto exit;
     }
 
+map:
+    tree_map_subtree(id, unlink_func, NULL, TREE_WRITE, TREE_RECURSE);
     ret = 0;
-unlock:
-    node_unlock(id);
-
-    if (ret == 0)
-        tree_map_subtree(id, unlink_func, NULL, TREE_WRITE, TREE_RECURSE);
-
 exit:
     return ret;
 }
