@@ -90,16 +90,15 @@ describe("The Company", function()
         end, "Cleanup failed! Actor `0` is not garbage!")
     end)
 
+    pending("garbage collects actors when they are created")
+
     it("considers ids from removed actors to be invalid", function()
         assert.has_error(function() 
-            a3:parent()
-        end, "Cannot get parent of invalid Actor `3`!")
+            a2:parent()
+        end, "Cannot get parent of invalid Actor `2`!")
 
         assert.has_error(function() 
             a2:child{}
-            --a3:cleanup()
-            --a4:child{}
-            --Actor(16):child{}
         end, "Failed to create actor: invalid parent id `2`!")
 
         assert.has_error(function() 
@@ -135,7 +134,7 @@ describe("The Company", function()
         a2:audience("foo")
     end)
 
-    it("it recycles garbage ids when creating assigning new ones", function()
+    it("recycles garbage ids when creating assigning new ones", function()
         a2 = a0:child{}
         assert.is_equal(a2:id(), 2)
         assert.are_same(a0:children(), {1, 2})
@@ -146,7 +145,27 @@ describe("The Company", function()
         assert.are_same(a0:children(), {1, 2, 5})
     end)
 
-    it("it doesn't recycle ids which are still being referenced", function()
+    it("lets a node have a children whose id is less than its own", function()
+        -- This requires a Tree setup with a group of low-id active nodes, a
+        -- group of mid-id inactive nodes, and high-id active nodes so that
+        -- when a high-id nodes creates a new child, the new child has an id
+        -- less than its own (it uses a mid-id inactive node).  This tests lock
+        -- order violations that may happen because the tree was designed so
+        -- that any node can be moved to any other.
+        a2:remove()
+        assert.are_same(a0:children(), {1, 5})
+
+        assert.is_equal(a5:child{}:id(), 2)
+        assert.are_same(a5:children(), {2})
+        a2:remove()
+
+        assert.are_same(a0:child{}:id(), 2)
+        assert.is_equal(a2:child{}:id(), 3)
+        assert.is_equal(a2:child{}:id(), 4)
+        assert.are_same(a0:children(), {1, 2, 5})
+    end)
+
+    it("doesn't recycle ids which are still being referenced", function()
         local actor = Actor({}, 5)
         assert.is_equal(actor:id(), 6)
 
