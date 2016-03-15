@@ -279,6 +279,34 @@ node_is_used_rd (const int id)
 }
 
 /*
+ * Delete a node. This doesn't unlink the node from the tree nor does it check
+ * if the node is used or has data.
+ * Returns 0 if successful, !0 if there was an error with either of the locks.
+ */
+static inline int
+node_delete (const int id)
+{
+    int ret = TREE_ERROR;
+
+    if (node_data_lock(id) != 0)
+        goto exit;
+
+    if (node_write(id) != 0) {
+        node_data_unlock(id);
+        goto exit;
+    }
+
+    node_mark_unused_wr(NULL, id);
+    node_cleanup_fullwr(id);
+    node_unlock(id);
+    node_data_unlock(id);
+
+    ret = 0;
+exit:
+    return ret;
+}
+
+/*
  * Acquire the write lock on the given Node to add the given child. Doesn't
  * check the child id. 
  * If it successfully adds the child, returns 0.
@@ -548,23 +576,9 @@ data_lock_and_write:
      */
     if (node_add_child(parent_id, id) != 0) {
         ret = NODE_ERROR;
-
 delete_node:
-        if (node_data_lock(id) != 0) {
+        if (node_delete(id) != 0)
             ret = TREE_ERROR;
-            goto exit;
-        }
-
-        if (node_write(id) != 0) {
-            node_data_unlock(id);
-            ret = TREE_ERROR;
-            goto exit;
-        }
-
-        node_mark_unused_wr(NULL, id);
-        node_cleanup_fullwr(id);
-        node_unlock(id);
-        node_data_unlock(id);
         goto exit;
     }
 
@@ -636,33 +650,43 @@ exit:
 int
 tree_link_reference (const int id, const int parent)
 {
+    int parent_id = NODE_INVALID;
     int ret = NODE_INVALID;
 
     if (node_write(id) != 0)
         goto exit;
 
-    if (!node_is_used_rd(id))
-        goto unlock;
+    if (!node_is_used_rd(id)) {
+        node_unlock(id);
+        goto exit;
+    }
 
     if (global_tree->list[id].attached) {
         ret = NODE_ERROR;
-        goto unlock;
+        node_unlock(id);
+        goto exit;
     }
 
     if (parent > NODE_INVALID)
         global_tree->list[id].parent = parent;
 
-    if (node_add_child(global_tree->list[id].parent, id) != 0) {
-        ret = TREE_ERROR;
-        goto unlock;
-    }
-
+    parent_id = global_tree->list[id].parent;
     global_tree->list[id].attached = 1;
     global_tree->list[id].benched = 0;
 
-    ret = 0;
-unlock:
     node_unlock(id);
+
+    if (node_add_child(parent_id, id) != 0) {
+        ret = TREE_ERROR;
+
+        if (node_write(id) != 0)
+            goto exit;
+        node_mark_benched_wr(NULL, id);
+        node_unlock(id);
+        goto exit;
+    }
+
+    ret = 0;
 exit:
     return ret;
 }
@@ -749,7 +773,7 @@ exit:
  * The data is any data that needs to be passed into the callback. The callback
  * function is always passed the current Node's id.
  */
-void
+int
 tree_map_subtree (const int root,
         const map_callback_t function,
         void *data,
@@ -765,11 +789,11 @@ tree_map_subtree (const int root,
         lock_func = node_write;
 
     if (lock_func(root) != 0)
-        return;
+        return NODE_INVALID;
 
     if (!node_is_used_rd(root)) {
     	node_unlock(root);
-        return;
+        return NODE_INVALID;
     }
 
     /* 
@@ -800,15 +824,19 @@ tree_map_subtree (const int root,
     
     if (is_recurse) {
         for (id = 0; id < cid; id++) {
-            tree_map_subtree(children[id], function, data, is_read, is_recurse);
+            if (tree_map_subtree(children[id], function, 
+                        data, is_read, is_recurse) != 0) {
+                // unlink children[id] from root
+            }
         }
     } else {
         for (id = 0; id < cid; id++) {
             if (lock_func(children[id]) != 0)
                 continue;
 
-            if (!node_is_used_rd(id)) {
+            if (!node_is_used_rd(children[id])) {
                 node_unlock(children[id]);
+                // unlink children[id] from root
                 continue;
             }
 
@@ -816,6 +844,8 @@ tree_map_subtree (const int root,
             node_unlock(children[id]);
         }
     }
+
+    return 0;
 }
 
 /*

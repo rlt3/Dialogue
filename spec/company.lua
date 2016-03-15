@@ -211,13 +211,13 @@ describe("The Company", function()
     it("allows for a benched actor to join as a child of any parent", function()
         -- testing if an actor can be the child of an parent with a greater
         -- id than it
-        --a1:bench()
-        --a1:join(5)
-        --assert.are_same(a0:children(), {2, 5})
-        --assert.are_same(a5:children(), {1})
-        --a1:bench()
-        --a1:join(0)
-        --assert.are_same(a0:children(), {1, 2, 5})
+        a1:bench()
+        a1:join(5)
+        assert.are_same(a0:children(), {2, 5})
+        assert.are_same(a5:children(), {1})
+        a1:bench()
+        a1:join(0)
+        assert.are_same(a0:children(), {1, 2, 5})
 
         -- and now the conventional parent is less than the child's id
         a5:bench()

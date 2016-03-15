@@ -159,7 +159,7 @@ tree_deref (const int id);
  * The data is any data that needs to be passed into the callback. The callback
  * function is always passed the current Node's id.
  */
-void
+int
 tree_map_subtree (const int root, 
         const map_callback_t function, 
         void *data, 
