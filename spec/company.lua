@@ -1,10 +1,16 @@
 _G.arg = {}
 require 'busted.runner'()
 
+--
+-- This tests the behavior of the tree of Actors (the Company) and not any 
+-- specific actions of an Actor object. See `actor.lua` for tests on the Actor
+-- objects produced from the Company
+--
+
 describe("The Company", function()
     local a0, a1, a2, a3, a4, a5
 
-    local create_tree = function()
+    setup(function()
         a0 = Actor{}
         a1 = a0:child{}
 
@@ -19,15 +25,20 @@ describe("The Company", function()
         --  1  2  5
         --    / \
         --   3   4
-    end
-
-    setup(create_tree)
+    end)
 
     teardown(function()
         a0:remove()
     end)
 
     it("is a tree of Actors", function()
+        assert.is_equal(a0:id(), 0)
+        assert.is_equal(a1:id(), 1)
+        assert.is_equal(a2:id(), 2)
+        assert.is_equal(a3:id(), 3)
+        assert.is_equal(a4:id(), 4)
+        assert.is_equal(a5:id(), 5)
+
         assert.are_same(a0:children(), {1, 2, 5})
         assert.are_same(a1:children(), {})
         assert.are_same(a2:children(), {3, 4})
@@ -148,7 +159,7 @@ describe("The Company", function()
     it("lets a node have a children whose id is less than its own", function()
         -- This requires a Tree setup with a group of low-id active nodes, a
         -- group of mid-id inactive nodes, and high-id active nodes so that
-        -- when a high-id nodes creates a new child, the new child has an id
+        -- when a high-id node creates a new child, the new child has an id
         -- less than its own (it uses a mid-id inactive node).  This tests lock
         -- order violations that may happen because the tree was designed so
         -- that any node can be moved to any other.

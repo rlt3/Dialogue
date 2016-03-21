@@ -2,15 +2,15 @@ _G.arg = {}
 require 'busted.runner'()
 
 describe("An Actor object", function()
-    it("will error on creation if not given correct Script definitions", function()
-        assert.has_error(function() 
-            Actor{ {"good"}, "bad" }
-        end, "Failed to create script: `bad` isn't a table!")
+    --it("will error on creation if not given correct Script definitions", function()
+    --    assert.has_error(function() 
+    --        Actor{ {"good"}, "bad" }
+    --    end, "Failed to create script: `bad` isn't a table!")
 
-        assert.has_error(function() 
-            Actor{ {"good"}, {}, {"another good"} }
-        end, "Failed to create script: invalid definition!")
-    end)
+    --    assert.has_error(function() 
+    --        Actor{ {"good"}, {}, {"another good"} }
+    --    end, "Failed to create script: invalid definition!")
+    --end)
 
     it("can be created by providing the id of an existing Actor", function()
         local a0 = Actor{}
