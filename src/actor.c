@@ -86,8 +86,9 @@ actor_create (lua_State *L)
         if (!script) {
             for (script = actor->script_head; 
                  script != NULL; 
-                 script = script->next)
+                 script = script->next) {
                 script_destroy(script, A);
+            }
 
             utils_copy_top(L, A);
 

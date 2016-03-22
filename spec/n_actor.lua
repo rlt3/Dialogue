@@ -10,15 +10,23 @@ describe("An Actor object", function()
     local actor
 
     after_each(function()
-        Actor(0):remove()
+        if actor then
+            actor:remove() 
+            actor = nil
+        end
     end)
 
     it("can be created with a definition table of Script definitions", function()
+        -- A Script definition is defined:
+        --     { "module name" [, data0 [, data1 [, ... [, dataN]]]] }
+        -- An Actor's definition table is a table of Script definitions.
         actor = Actor{ {"test-script"} }
+        assert.is_equal(actor:id(), 0)
     end)
 
     it("can be created without any Script definitions", function()
         actor = Actor{}
+        assert.is_equal(actor:id(), 0)
     end)
 
     it("will error if definition table isn't a table of tables", function()
@@ -33,6 +41,12 @@ describe("An Actor object", function()
         end, "Failed to create script: invalid definition!")
     end)
 
-    -- an actor with bad scripts does not get automatically gc
-    pending("keeps a bad Actor's lifetime 'alive'")
+    it("does not create an Actor instance if it has an invalid definition table", function()
+        assert.has_error(function() 
+            Actor{ {} }
+        end, "Failed to create script: invalid definition!")
+
+        actor = Actor{}
+        assert.is_equal(actor:id(), 0)
+    end)
 end)
