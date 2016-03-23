@@ -49,4 +49,25 @@ describe("An Actor object", function()
         actor = Actor{}
         assert.is_equal(actor:id(), 0)
     end)
+
+    --it("does not keep the Actor's instance attached to the object", function()
+    --    actor = Actor{}
+    --    assert.is_equal(actor:id(), 0)
+    --    actor = nil
+
+    --    -- the next created Actor will have an id of 1
+    --    actor = Actor{}
+    --    assert.is_equal(actor:id(), 1)
+    --    actor:remove()
+
+    --    actor = Actor(0)
+    --end)
+
+    it("doesn't allow sending or probing if it isn't loaded", function()
+        actor = Actor{ {"test-script"} }
+
+        assert.has_error(function() 
+            actor:probe(1, "private-member")
+        end, "Cannot probe `private-member': not loaded!")
+    end)
 end)
