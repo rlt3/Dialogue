@@ -526,8 +526,13 @@ data_lock_and_write:
      * do a trylock on the data without wasting time acquiring the write lock
      * on the Node to then do a trylock.
      */
-    node_data_lock(id);
-    node_write(id);
+    if (node_data_lock(id) != 0)
+        goto exit;
+
+    if (node_write(id) != 0) {
+        node_data_unlock(id);
+        goto exit;
+    }
 
     /*
      * The id we found could theoretically be `found' by another thread, so
