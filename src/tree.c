@@ -502,7 +502,7 @@ exit:
 int
 tree_add_reference (void *data, int parent_id, const int thread_id)
 {
-    int max_id, id, ret = TREE_ERROR;
+    int max_id, id, set_root = 0, ret = TREE_ERROR;
 
     if (data == NULL)
         goto exit;
@@ -545,31 +545,39 @@ data_lock_and_write:
         goto find_unused_node;
     }
 
+    /*
+     * The first time no valid parent_id is passed, the node becomes the root
+     * of the tree. After that, the node is created as the child of the root.
+     */
+    if (parent_id <= NODE_INVALID) {
+        parent_id = tree_root();
+        if (parent_id == NODE_INVALID)
+            set_root = 1;
+    }
+
     node_mark_attached_fullwr(id, data, thread_id);
     global_tree->list[id].parent = parent_id;
 
     node_unlock(id);
     node_data_unlock(id);
 
-    /*
-     * The first time no valid parent_id is passed, the node becomes the root
-     * of the tree. After that, the node is created as the child of the root.
-     */
-    if (parent_id <= NODE_INVALID) {
+    if (set_root) {
         if (tree_write() != 0) {
             ret = TREE_ERROR;
             goto delete_node;
         }
 
-        if (global_tree->root == NODE_INVALID) {
-            global_tree->root = id;
+        /* if we've been told to set the root but it's already set! */
+        if (global_tree->root != NODE_INVALID) {
+            ret = TREE_ERROR;
             tree_unlock();
-            ret = id;
             goto exit;
         }
 
-        parent_id = global_tree->root;
+        global_tree->root = id;
         tree_unlock();
+        ret = id;
+        goto exit;
     }
 
     /*
