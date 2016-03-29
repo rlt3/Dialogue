@@ -6,6 +6,9 @@ require 'busted.runner'()
 -- Company (tree). See `company.lua` for the tests on the Company.
 --
 
+
+-- TODO: these tests require that auto-loading be off
+
 describe("An Actor object", function()
     local actor
 
@@ -66,11 +69,61 @@ describe("An Actor object", function()
         actor = Actor(0)
     end)
 
-    --it("doesn't allow sending or probing if it isn't loaded", function()
-    --    actor = Actor{ {"test-script"} }
+    it("doesn't allow sending or probing if it isn't loaded", function()
+        actor = Actor{ {"test-script"} }
 
-    --    assert.has_error(function() 
-    --        actor:probe(1, "private-member")
-    --    end, "Cannot probe `private-member': not loaded!")
-    --end)
+        assert.has_error(function() 
+            actor:probe(1, "private-member")
+        end, "Cannot probe `private-member': not loaded!")
+
+        assert.has_error(function() 
+            actor:send{"increment", 4}
+        end, "Actor `0' has no loaded Scripts!")
+    end)
+
+    it("unloads the first Script which handles an erroneous message", function()
+        actor = Actor{ {"test-script", "foo", 10, {}}, {"test-script", "bar", 5, {}} }
+        actor:load()
+
+        assert.has_error(function() 
+            actor:send{"increment_by"}
+        end, "attempt to perform arithmetic on local 'x' (a nil value)")
+
+        assert.has_error(function() 
+            actor:probe(1, "numeral")
+        end, "Cannot probe `numeral': not loaded!")
+
+        assert.is_equal(actor:probe(2, "numeral"), 5)
+    end)
+
+    it("can reload specific Scripts by id", function()
+        actor = Actor{ {"test-script", "foo", 10, {}}, {"test-script", "bar", 5, {}} }
+        actor:load()
+
+        assert.has_error(function() 
+            actor:send{"increment_by"}
+        end, "attempt to perform arithmetic on local 'x' (a nil value)")
+
+        assert.has_error(function() 
+            actor:probe(1, "numeral")
+        end, "Cannot probe `numeral': not loaded!")
+
+        actor:load(1)
+        assert.is_equal(actor:probe(1, "numeral"), 10)
+        assert.is_equal(actor:probe(2, "numeral"), 5)
+    end)
+
+    it("uses the definition table given on creation for reloading", function()
+        actor = Actor{ {"test-script", "foo", 10, {}} }
+        actor:load()
+
+        actor:send{"increment_by", 20}
+        actor:send{"name_is", "jim"}
+
+        assert.is_equal(actor:probe(1, "numeral"), 30)
+        assert.is_equal(actor:probe(1, "string"), "jim")
+        actor:load(1)
+        assert.is_equal(actor:probe(1, "numeral"), 10)
+        assert.is_equal(actor:probe(1, "string"), "foo")
+    end)
 end)
