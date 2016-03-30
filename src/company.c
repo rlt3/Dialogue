@@ -94,6 +94,13 @@ company_join (lua_State *L, const int id, const int parent)
 void
 company_delete (lua_State *L, int id)
 {
+    /*
+     * TODO: since we can operate on the tree's structure while also 
+     * manipulating any given Actor, we can asynchronously send a "destroy"
+     * call to the Actor so its Scripts can be cleaned-up.
+     * Not sure yet how this applies to the system shutting down (cleaning up
+     * all Actor, then destroying the Workers, then destroying the Actors).
+     */
     if (tree_unlink_reference(id, 1) != 0)
         luaL_error(L, "Cannot delete invalid reference `%d`!", id);
 }
@@ -120,6 +127,15 @@ int
 company_deref (int id)
 {
     return tree_deref(id);
+}
+
+/*
+ * Aynchronously call the `destructor' method for each Script of an Actor.
+ * This is typically done at the end of the Actor's lifetime.
+ */
+int
+company_cleanup ()
+{
 }
 
 /*
@@ -532,6 +548,10 @@ lua_actor_remove (lua_State *L)
     return 0;
 }
 
+/*
+ * Cleanup an Actor after it has been deleted but before it has been garbage 
+ * collected. This effectively "garbage collects" the Actor.
+ */
 int
 lua_actor_cleanup (lua_State *L)
 {
