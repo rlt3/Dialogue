@@ -87,6 +87,12 @@ company_join (lua_State *L, const int id, const int parent)
     }
 }
 
+void
+company_destruct_actor (lua_State *L, int id)
+{
+    /* actor:async('send', {"destroy"}) */
+}
+
 /*
  * Remove an Actor from the Company's Tree and mark it as garbage. Will error
  * through L if the id is invalid.
@@ -95,14 +101,32 @@ void
 company_delete (lua_State *L, int id)
 {
     /*
-     * TODO: since we can operate on the tree's structure while also 
-     * manipulating any given Actor, we can asynchronously send a "destroy"
-     * call to the Actor so its Scripts can be cleaned-up.
-     * Not sure yet how this applies to the system shutting down (cleaning up
-     * all Actor, then destroying the Workers, then destroying the Actors).
+     * the following `async' call goes through the Director which waits until a 
+     * Worker has taken the 'destroy' message. This locks the Actor's data, but
+     * not the structure which holds the Actor inside the tree. This enables us
+     * to then unlink the Actor while the destructor is handled.
      */
-    if (tree_unlink_reference(id, 1) != 0)
+    company_push_actor(L, id);
+    lua_getfield(L, -1, "async");
+
+    lua_pushvalue(L, -2); /* self */
+
+    lua_pushliteral(L, "send");
+
+    lua_newtable(L);
+    lua_pushliteral(L, "destroy");
+    lua_rawseti(L, -2, 1);
+
+    if (lua_pcall(L, 3, 0, 0)) {
+        lua_pop(L, 1); /* actor */
+        goto bad_actor;
+    }
+    lua_pop(L, 1); /* actor */
+
+    if (tree_unlink_reference(id, 1) != 0) {
+bad_actor:
         luaL_error(L, "Cannot delete invalid reference `%d`!", id);
+    }
 }
 
 /*
@@ -136,6 +160,7 @@ company_deref (int id)
 int
 company_cleanup ()
 {
+    return 0;
 }
 
 /*
@@ -197,6 +222,15 @@ company_children_callback (void *data, const int id)
 
     lua_pushinteger(L, id);
     lua_rawseti(L, -2, luaL_len(L, -2) + 1);
+}
+
+/*
+ * Asynchronously call the destructor for every Actor in the tree.
+ */
+void
+company_destructor_callback (void *data, const int id)
+{
+    company_destruct_actor((lua_State *)data, id);
 }
 
 /*
