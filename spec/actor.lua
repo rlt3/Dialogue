@@ -1,138 +1,130 @@
 _G.arg = {}
 require 'busted.runner'()
 
+--
+-- This tests specific Actor object behavior and not behavior dealing with the
+-- Company (tree). See `company.lua` for the tests on the Company.
+--
+
+-- NOTE: these tests require that auto-loading be off (`-l` flag to be passed)
+-- so that we may test Actors in a loaded/unloaded state more easily than 
+-- forcing Scripts to become unloaded by sending erroneous messages.
+
 describe("An Actor object", function()
-    --it("will error on creation if not given correct Script definitions", function()
-    --    assert.has_error(function() 
-    --        Actor{ {"good"}, "bad" }
-    --    end, "Failed to create script: `bad` isn't a table!")
+    local actor
 
-    --    assert.has_error(function() 
-    --        Actor{ {"good"}, {}, {"another good"} }
-    --    end, "Failed to create script: invalid definition!")
-    --end)
-
-    it("can be created by providing the id of an existing Actor", function()
-        local a0 = Actor{}
-        assert.is_equal(a0:id(), 0)
-        a0 = nil
-        a0 = Actor(0)
-        assert.is_equal(a0:id(), 0)
-        a0:remove()
+    after_each(function()
+        if actor then
+            actor:remove() 
+            actor = nil
+        end
     end)
 
-    it("will error on load if the actor id is invalid", function()
-        assert.has_error(function() 
-            Actor(20):load()
-        end, "Actor id `20` is an invalid reference!")
+    it("can be created with a definition table of Script definitions", function()
+        -- A Script definition is defined:
+        --     { "module name" [, data0 [, data1 [, ... [, dataN]]]] }
+        -- An Actor's definition table is a table of Script definitions.
+        actor = Actor{ {"test-script"} }
+        assert.is_equal(actor:id(), 0)
     end)
 
-    it("will error on load if the any Script has an invalid module", function()
-        local a0 = Actor{ {"invalid-module"} }
-        assert.is_equal(a0:id(), 0)
-        assert.has_error(function() 
-            a0:load()
-        end, "Cannot load module `invalid-module': require failed")
-        a0:remove()
+    it("can be created without any Script definitions", function()
+        actor = Actor{}
+        assert.is_equal(actor:id(), 0)
     end)
 
-    it("will error on load if the any Script has a module with no new function", function()
-        local a0 = Actor{ {"module-no-new"} }
-        assert.is_equal(a0:id(), 0)
+    it("will error if definition table isn't a table of tables", function()
         assert.has_error(function() 
-            a0:load()
-        end, "Cannot load module `module-no-new': `new' is not a function!")
-        a0:remove()
+            Actor{ {"valid"}, "bad" }
+        end, "Failed to create script: `bad` isn't a table!")
     end)
 
-    it("cannot be probed if not loaded", function()
-        local a0 = Actor{ {"module-no-new"} }
-        assert.is_equal(a0:id(), 0)
+    it("will error if a Script definition names no Script", function()
         assert.has_error(function() 
-            a0:probe(1, "coordinates")
-        end, "Cannot probe `coordinates': not loaded!")
-        a0:remove()
+            Actor{ {} }
+        end, "Failed to create script: invalid definition!")
     end)
 
-    it("cannot be sent a message if there are zero loaded Scripts", function()
-        local a0 = Actor{ {"module-no-new"} }
-        assert.is_equal(a0:id(), 0)
-        -- Will only throw this error if there are no loaded Scripts -- as in
-        -- if there's 1 out of 50 loaded Scripts, it won't throw an error.
+    it("does not create an Actor instance if it has an invalid definition table", function()
         assert.has_error(function() 
-            a0:send{"move", 2, 2}
+            Actor{ {} }
+        end, "Failed to create script: invalid definition!")
+
+        actor = Actor{}
+        assert.is_equal(actor:id(), 0)
+    end)
+
+    it("does not keep the Actor's instance attached to the object", function()
+        -- Tests that these objects are merely controllers for data which is
+        -- contained inside the Company (Tree).
+        actor = Actor{}
+        assert.is_equal(actor:id(), 0)
+        assert.is_equal(actor:parent():id(), -1)
+        actor = nil
+
+        actor = Actor{}
+        assert.is_equal(actor:id(), 1)
+        assert.is_equal(actor:parent():id(), 0)
+        actor:remove()
+
+        actor = Actor(0)
+    end)
+
+    it("doesn't allow sending or probing if it isn't loaded", function()
+        actor = Actor{ {"test-script"} }
+
+        assert.has_error(function() 
+            actor:probe(1, "private-member")
+        end, "Cannot probe `private-member': not loaded!")
+
+        assert.has_error(function() 
+            actor:send{"increment", 4}
         end, "Actor `0' has no loaded Scripts!")
-        a0:remove()
     end)
 
-    it("will error on any function with a bad message format", function()
-        local a0 = Actor{ {"draw", 200, 400}, {"draw", 2, 4} }
-        a0:load()
+    it("unloads the first Script which handles an erroneous message", function()
+        actor = Actor{ {"test-script", "foo", 10, {}}, {"test-script", "bar", 5, {}} }
+        actor:load()
+
         assert.has_error(function() 
-            a0:send{"move"}
+            actor:send{"increment_by"}
         end, "attempt to perform arithmetic on local 'x' (a nil value)")
-        a0:remove()
+
+        assert.has_error(function() 
+            actor:probe(1, "numeral")
+        end, "Cannot probe `numeral': not loaded!")
+
+        assert.is_equal(actor:probe(2, "numeral"), 5)
     end)
 
-    it("can be sent messages which affects the real Actor's state", function()
-        local a0 = Actor{ {"draw", 200, 400} }
-        a0:load()
-        a0:send{"move", 2, 2}
-        assert.are_same({202, 402}, a0:probe(1, "coordinates"))
-        a0:remove()
-    end)
-    
-    it("will unload any Scripts that have errored", function()
-        local a0 = Actor{ {"draw", 200, 400} }
-        a0:load()
-
-        -- an invalid message call
-        assert.has_error(function() 
-            a0:send{"move", 2}
-        end, "attempt to perform arithmetic on local 'y' (a nil value)")
+    it("can reload specific Scripts by id", function()
+        actor = Actor{ {"test-script", "foo", 10, {}}, {"test-script", "bar", 5, {}} }
+        actor:load()
 
         assert.has_error(function() 
-            a0:probe(1, "coordinates")
-        end, "Cannot probe `coordinates': not loaded!")
-        a0:remove()
+            actor:send{"increment_by"}
+        end, "attempt to perform arithmetic on local 'x' (a nil value)")
+
+        assert.has_error(function() 
+            actor:probe(1, "numeral")
+        end, "Cannot probe `numeral': not loaded!")
+
+        actor:load(1)
+        assert.is_equal(actor:probe(1, "numeral"), 10)
+        assert.is_equal(actor:probe(2, "numeral"), 5)
     end)
 
-    it("can reload any unloaded Scripts", function()
-        local a0 = Actor{ {"draw", 200, 400} }
-        a0:load()
+    it("uses the definition table given on creation for reloading", function()
+        actor = Actor{ {"test-script", "foo", 10, {}} }
+        actor:load()
 
-        -- an invalid message call
-        assert.has_error(function() 
-            a0:send{"move", 2}
-        end, "attempt to perform arithmetic on local 'y' (a nil value)")
+        actor:send{"increment_by", 20}
+        actor:send{"name_is", "jim"}
 
-        assert.has_error(function() 
-            a0:probe(1, "coordinates")
-        end, "Cannot probe `coordinates': not loaded!")
-
-        a0:load(1)
-        assert.are_same(a0:probe(1, "coordinates"), {200, 400})
-        a0:remove()
-    end)
-
-    it("will unload first Script that errors from a message then stop processing message", function()
-        local a0 = Actor{ {"draw", 200, 400}, {"draw", 2, 4} }
-        assert.is_equal(a0:id(), 0)
-        a0:load()
-
-        -- an invalid message call
-        assert.has_error(function() 
-            a0:send{"move", 2}
-        end, "attempt to perform arithmetic on local 'y' (a nil value)")
-
-        -- now send a valid message, only the second script gets updated
-        a0:send{"move", 2, 2}
-        assert.has_error(function() 
-            a0:probe(1, "coordinates")
-        end, "Cannot probe `coordinates': not loaded!")
-
-        assert.are_same(a0:probe(2, "coordinates"), {4, 6})
-
-        a0:remove()
+        assert.is_equal(actor:probe(1, "numeral"), 30)
+        assert.is_equal(actor:probe(1, "string"), "jim")
+        actor:load(1)
+        assert.is_equal(actor:probe(1, "numeral"), 10)
+        assert.is_equal(actor:probe(1, "string"), "foo")
     end)
 end)
