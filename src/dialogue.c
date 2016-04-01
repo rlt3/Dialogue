@@ -7,13 +7,25 @@
 
 static int opts[] = {
     0, 4, 64, 256, 10, 
-    0, 1
+    0, 1, 0
 };
 
 void
 dialogue_option_set (enum DialogueOption option, int value)
 {
     opts[option] = value;
+}
+
+int
+dialogue_forced_synchronous ()
+{
+    return !opts[ACTOR_FORCE_SYNC];
+}
+
+int
+dialogue_actor_manual_load ()
+{
+    return opts[ACTOR_MANUAL_LOAD];
 }
 
 void

@@ -17,7 +17,7 @@ usage (const char *program)
         "   -w <number>\n"
         "       The number of Workers (threads) to spawn. Default is 4.\n\n"
         "   -s\n"
-        "       Run the <STAGE-FILE> as a script, spawning no interpreter.\n"
+        "       Run the <STAGE-FILE> as a script, spawning no console.\n"
         "       The program will exit when the script finishes. This disables\n"
         "       the `-m' main thread feature.\n\n"
         "   -m\n"
@@ -25,10 +25,22 @@ usage (const char *program)
         "       towards the `-w` Worker count. If a Lead Actor is set with\n"
         "       thread_id equal to 1, that Actor will be limited to the main\n"
         "       thread.\n\n"
-        "   -a\n"
-        "       When this flag is set the Actors are loaded asynchronously. \n"
-        "       By default they are loaded synchronously when they are\n"
-        "       created.\n\n"
+        "   -l\n"
+        "       Loading the Actors manually by calling the method `load' is\n"
+        "       required when this flag is set. Normally the `load' method\n"
+        "       is called asynchronously when an Actor is created. Note that\n"
+        "       you must manually make an asynchronous `load' call via the\n"
+        "       method `async' for Actors which require specific threads.\n\n"
+        /*
+        "   -f\n"
+        "       When this flag is set the Actors are forced to be loaded\n"
+        "       and destroyed synchronously (rather than asynchronously) and\n"
+        "       that the `async' method becomes a redundant synchronous\n"
+        "       function. This means Actors will be loaded and destroyed in\n"
+        "       whichever thread calls the loading/destruction functions.\n"
+        "       This will break Actors which require being loaded/destroyed\n"
+        "       in specific threads.\n\n"
+        */
         "   -h\n"
         "       Display this help menu and exit the program.\n\n"
         , program);
@@ -58,7 +70,10 @@ handle_args (int argc, char *argv[])
 
     ARGBEGIN {
         case 'w': workers = atoi(ARGF()); break;
-        case 'a': dialogue_option_set(ACTOR_ASYNC_LOAD, 1); break;
+    /*
+        case 'f': dialogue_option_set(ACTOR_FORCE_SYNC, 1); break;
+    */
+        case 'l': dialogue_option_set(ACTOR_MANUAL_LOAD, 1); break;
         case 's': is_script = 1; break;
         case 'm': is_worker = 1; break;
         case 'h': usage(argv[0]); break;

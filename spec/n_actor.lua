@@ -6,7 +6,6 @@ require 'busted.runner'()
 -- Company (tree). See `company.lua` for the tests on the Company.
 --
 
-
 -- TODO: these tests require that auto-loading be off
 
 describe("An Actor object", function()

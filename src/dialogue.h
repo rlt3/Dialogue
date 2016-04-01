@@ -10,7 +10,7 @@
 
 enum DialogueOption {
     WORKER_IS_MAIN, WORKER_COUNT, ACTOR_BASE, ACTOR_MAX, ACTOR_CHILD_MAX,
-    ACTOR_ASYNC_LOAD, ACTOR_CONSOLE_WRITE
+    ACTOR_FORCE_SYNC, ACTOR_CONSOLE_WRITE, ACTOR_MANUAL_LOAD
 };
 
 /*
@@ -19,6 +19,19 @@ enum DialogueOption {
  */
 void
 dialogue_set_io_write (lua_State *L);
+
+/*
+ * A truth function for whether or not we are forcing asynchronous calls to be
+ * ran synchronously.
+ */
+int
+dialogue_forced_synchronous ();
+
+/*
+ * A truth function for whether or not the Actors are loaded manually or not.
+ */
+int
+dialogue_actor_manual_load ();
 
 void
 dialogue_option_set (enum DialogueOption option, int value);
