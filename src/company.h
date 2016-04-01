@@ -124,6 +124,14 @@ int
 company_deref (int id);
 
 /*
+ * Call the 'destroy' method for the Scripts of the company's Actors starting
+ * from the root of the tree. This function is meant to be called before 
+ * closing the Company and the Workers.
+ */
+void
+company_cleanup (lua_State *L);
+
+/*
  * Destroy the Company and all the Actors.
  */
 void

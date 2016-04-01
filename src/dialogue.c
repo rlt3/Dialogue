@@ -38,6 +38,7 @@ dialogue_set_io_write (lua_State *L)
 int 
 dialogue_cleanup (lua_State *L)
 {
+    company_cleanup(L);
     director_close();
     company_close();
     return 0;

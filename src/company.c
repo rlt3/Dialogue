@@ -87,12 +87,6 @@ company_join (lua_State *L, const int id, const int parent)
     }
 }
 
-void
-company_destruct_actor (lua_State *L, int id)
-{
-    /* actor:async('send', {"destroy"}) */
-}
-
 /*
  * Remove an Actor from the Company's Tree and mark it as garbage. Will error
  * through L if the id is invalid.
@@ -154,13 +148,40 @@ company_deref (int id)
 }
 
 /*
- * Aynchronously call the `destructor' method for each Script of an Actor.
- * This is typically done at the end of the Actor's lifetime.
+ * Callback for calling the 'destroy' Script method asynchronously.
  */
-int
-company_cleanup ()
+void
+company_destruct_actor_callback (void *data, int id)
 {
-    return 0;
+    lua_State *L = data;
+
+    /* actor:async('send', {"destroy"}) */
+    company_push_actor(L, id);
+    lua_getfield(L, -1, "async");
+
+    lua_pushvalue(L, -2); /* self */
+
+    lua_pushliteral(L, "send");
+
+    lua_newtable(L);
+    lua_pushliteral(L, "destroy");
+    lua_rawseti(L, -2, 1);
+
+    /* protected call just to catch errors. */
+    lua_pcall(L, 3, 0, 0);
+    lua_pop(L, 1); /* actor */
+}
+
+/*
+ * Call the 'destroy' method for the Scripts of the Company's Actors starting
+ * from the root of the tree. This function is meant to be called before 
+ * closing the Company and the Workers.
+ */
+void
+company_cleanup (lua_State *L)
+{
+    tree_map_subtree(tree_root(), company_destruct_actor_callback, L, 
+            TREE_READ, TREE_RECURSE);
 }
 
 /*
@@ -222,15 +243,6 @@ company_children_callback (void *data, const int id)
 
     lua_pushinteger(L, id);
     lua_rawseti(L, -2, luaL_len(L, -2) + 1);
-}
-
-/*
- * Asynchronously call the destructor for every Actor in the tree.
- */
-void
-company_destructor_callback (void *data, const int id)
-{
-    company_destruct_actor((lua_State *)data, id);
 }
 
 /*
