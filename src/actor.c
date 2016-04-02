@@ -43,7 +43,6 @@ actor_create (lua_State *L)
 {
     const int definition_index = lua_gettop(L);
     Script *script = NULL;
-    Script *next = NULL;
     Actor *actor = NULL;
     lua_State *A = NULL;
     int i, len;
