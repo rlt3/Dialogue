@@ -75,7 +75,7 @@ exit:
 }
 
 void
-script_destroy (Script *script, lua_State *A)
+script_destroy (Script *script)
 {
     script->prev = NULL;
     script->next = NULL;

@@ -43,6 +43,7 @@ actor_create (lua_State *L)
 {
     const int definition_index = lua_gettop(L);
     Script *script = NULL;
+    Script *next = NULL;
     Actor *actor = NULL;
     lua_State *A = NULL;
     int i, len;
@@ -80,22 +81,13 @@ actor_create (lua_State *L)
 
         /* 
          * script_new pushes any errors onto A if !script. Fail on creating the
-         * Actor if any of its scripts also fail. Note this occurs before any 
+         * Actor if *any* of its scripts also fail. Note this occurs before any 
          * scripts are loaded because this is the foundation for loading.
          */
         if (!script) {
-            for (script = actor->script_head; 
-                 script != NULL; 
-                 script = script->next) {
-                script_destroy(script, A);
-            }
-
             utils_copy_top(L, A);
-
-            lua_close(A);
-            free(actor);
+            actor_destroy(actor);
             actor = NULL;
-
             lua_error(L);
         }
 
@@ -292,7 +284,7 @@ actor_destroy (void *a)
 
     for (script = actor->script_head; script != NULL; script = next) {
         next = script->next;
-        script_destroy(script, actor->L);
+        script_destroy(script);
     }
 
     actor->script_head = NULL;

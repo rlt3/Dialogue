@@ -69,6 +69,6 @@ int
 script_probe (Script *script, lua_State *A, const char *field);
 
 void
-script_destroy (Script *script, lua_State *A);
+script_destroy (Script *script);
 
 #endif
