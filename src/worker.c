@@ -8,10 +8,11 @@
 #include "utils.h"
 
 struct Worker {
-    lua_State *L;
+    lua_State *L; /* worker state */
+    lua_State *M; /* mailbox stack */
     pthread_t thread;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
+    pthread_mutex_t state_mutex;
+    pthread_mutex_t mail_mutex;
 };
 
 /*
@@ -84,23 +85,28 @@ worker_process_action (lua_State *W)
 }
 
 /*
- * The Worker thread was designed to handle a single message at a time but can
- * handle more if somehow the Worker is faced with >1 Action on its stack.
- *
- * The Worker will loop forever until it finds `nil` as an Action, which is how
- * `worker_stop` is implemented.
+ * The Worker check its mailbox every loop. If no actions have been sent, it 
+ * sleeps for a period and then checks again. It checks for a `nil' action as a
+ * sentinel to quit.
  */
 void *
 worker_thread (void *arg)
 {
     Worker *worker = arg;
     lua_State *W = worker->L;
+    lua_State *M = worker->M;
 
-    pthread_mutex_lock(&worker->mutex);
+    pthread_mutex_lock(&worker->state_mutex);
 
     while (1) {
-        while (lua_gettop(W) == 0)
-            pthread_cond_wait(&worker->cond, &worker->mutex);
+        pthread_mutex_lock(&worker->mail_mutex);
+        utils_transfer(W, M, lua_gettop(M));
+        pthread_mutex_unlock(&worker->mail_mutex);
+
+        if (lua_gettop(W) == 0) {
+            usleep(1000);
+            continue;
+        }
 
         if (lua_isnil(W, -1))
             break;
@@ -108,7 +114,7 @@ worker_thread (void *arg)
         worker_process_action(W);
     }
 
-    pthread_mutex_unlock(&worker->mutex);
+    pthread_mutex_unlock(&worker->state_mutex);
 
     return NULL;
 }
@@ -133,10 +139,19 @@ worker_create ()
         goto exit;
     }
 
+    worker->M = luaL_newstate();
+
+    if (!worker->M) {
+        lua_close(worker->L);
+        free(worker);
+        worker = NULL;
+        goto exit;
+    }
+
     luaL_openlibs(worker->L);
     company_set(worker->L);
-    pthread_mutex_init(&worker->mutex, NULL);
-    pthread_cond_init(&worker->cond, NULL);
+    pthread_mutex_init(&worker->state_mutex, NULL);
+    pthread_mutex_init(&worker->mail_mutex, NULL);
 
 exit:
     return worker;
@@ -161,34 +176,32 @@ exit:
 }
 
 /*
- * A non-blocking function which checks the state of the Worker. If the Worker
- * needs work, the action on top of L is popped onto the Worker's state and 0
- * is returned. If the Worker is busy, 0 is returned.
+ * With an Action on top of L, check to see if the Worker's mailbox is ready 
+ * to accept Actions. If it is, the Action is popped off L into the mailbox
+ * and return 0. If it isn't, the Action isn't popped and returns 1.
  */
 int
 worker_take_action (Worker *worker, lua_State *L)
 {
-    int rc = pthread_mutex_trylock(&worker->mutex);
+    int rc = pthread_mutex_trylock(&worker->mail_mutex);
     if (rc == EBUSY)
         return 1;
-    utils_transfer(worker->L, L, 1);
-    pthread_cond_signal(&worker->cond);
-    pthread_mutex_unlock(&worker->mutex);
+    utils_transfer(worker->M, L, 1);
+    pthread_mutex_unlock(&worker->mail_mutex);
     return 0;
 }
 
 /*
- * Block and wait for the Worker to become free and pop the Action off L onto
- * the Worker's state. Returns 0 if successful.
+ * Block and wait for the Worker's mailbox. Pop the Action off L onto the 
+ * Worker's mailbox state. Returns 0 if successful.
  */
 int
 worker_give_action (Worker *worker, lua_State *L)
 {
-    if (pthread_mutex_lock(&worker->mutex) != 0)
+    if (pthread_mutex_lock(&worker->mail_mutex) != 0)
         return 1;
-    utils_transfer(worker->L, L, 1);
-    pthread_cond_signal(&worker->cond);
-    pthread_mutex_unlock(&worker->mutex);
+    utils_transfer(worker->M, L, 1);
+    pthread_mutex_unlock(&worker->mail_mutex);
     return 0;
 }
 
@@ -203,7 +216,7 @@ worker_request_state (Worker *worker)
 {
     lua_State *L = NULL;
 
-    if (pthread_mutex_lock(&worker->mutex) != 0)
+    if (pthread_mutex_lock(&worker->state_mutex) != 0)
         goto exit;
 
     L = worker->L;
@@ -218,7 +231,7 @@ exit:
 void
 worker_return_state (Worker *worker)
 {
-    pthread_mutex_unlock(&worker->mutex);
+    pthread_mutex_unlock(&worker->state_mutex);
 }
 
 /*
@@ -227,10 +240,9 @@ worker_return_state (Worker *worker)
 void
 worker_stop (Worker *worker)
 {
-    pthread_mutex_lock(&worker->mutex);
-    lua_pushnil(worker->L); /* it checks for nil as a sentinel to stop */
-    pthread_cond_signal(&worker->cond);
-    pthread_mutex_unlock(&worker->mutex);
+    pthread_mutex_lock(&worker->mail_mutex);
+    lua_pushnil(worker->M); /* it checks for nil as a sentinel to stop */
+    pthread_mutex_unlock(&worker->mail_mutex);
     pthread_join(worker->thread, NULL);
 }
 
@@ -240,6 +252,13 @@ worker_stop (Worker *worker)
 void
 worker_cleanup (Worker *worker)
 {
+    pthread_mutex_lock(&worker->mail_mutex);
+    lua_close(worker->M);
+    pthread_mutex_unlock(&worker->mail_mutex);
+
+    pthread_mutex_lock(&worker->state_mutex);
     lua_close(worker->L);
+    pthread_mutex_unlock(&worker->state_mutex);
+
     free(worker);
 }

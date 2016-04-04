@@ -29,16 +29,16 @@ void
 worker_process_action (lua_State *W);
 
 /*
- * A non-blocking function which checks the state of the Worker. If the Worker
- * needs work, the action on top of L is popped onto the Worker's state and 0
- * is returned. If the Worker is busy, 0 is returned.
+ * With an Action on top of L, check to see if the Worker's mailbox is ready 
+ * to accept Actions. If it is, the Action is popped off L into the mailbox
+ * and return 0. If it isn't, the Action isn't popped and returns 1.
  */
 int
 worker_take_action (Worker *worker, lua_State *L);
 
 /*
- * Block and wait for the Worker to become free and pop the Action off L onto
- * the Worker's state. Returns 0 if successful.
+ * Block and wait for the Worker's mailbox. Pop the Action off L onto the 
+ * Worker's mailbox state. Returns 0 if successful.
  */
 int
 worker_give_action (Worker *worker, lua_State *L);
@@ -61,7 +61,6 @@ worker_return_state (Worker *worker);
 
 /*
  * Wait for the Worker to wait for work, then join it back to the main thread.
- * Frees the worker and releases its reference.
  */
 void
 worker_stop (Worker *worker);
