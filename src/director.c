@@ -126,13 +126,9 @@ director_take_action (lua_State *L)
     start = rand() % count;
 
     /* loop forever until a Worker is available to take an Action */
-    for (i = start; i < count; i = (i + 1) % count) {
-        if (worker_take_action(global_director->workers[i], L) == 0) {
-            //console_log("Worker %d took work!\n", i);
+    for (i = start; i < count; i = (i + 1) % count)
+        if (worker_take_action(global_director->workers[i], L) == 0)
             break;
-        }
-        //console_log("Worker %d busy\n", i);
-    }
 
 exit:
     ret = 0;

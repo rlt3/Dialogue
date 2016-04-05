@@ -763,26 +763,21 @@ lua_actor_audience (lua_State *L)
 int
 company_actor_tone (lua_State *L, const char *tone)
 {
-    const int self_arg = 1;
-    const int args = lua_gettop(L);
-    const int audience_index = args + 2;
-    const int id = company_actor_id(L, self_arg);
+    const int actor_arg = 1;
+    const int message_arg = 2;
+    const int audience_index = 3;
+    const int id = company_actor_id(L, actor_arg);
     int i;
-
-    /* insert "send" so it will get `fed up` correctly below */
-    lua_pushliteral(L, "send");
-    lua_insert(L, 2);
 
     company_push_audience(L, id, tone);
 
     /* foreach (actor : audience) { actor:async("send", {msg}) } */
-    while (lua_next(L, audience_index)) {
+    for (i = 1; i <= luaL_len(L, audience_index); i++) {
         lua_pushcfunction(L, lua_actor_async);
-        lua_pushvalue(L, -2); /* self arg */
-        for (i = 2; i < args; i++)
-            lua_pushvalue(L, i);
-        lua_call(L, args, 0);
-        lua_pop(L, -1);
+        lua_rawgeti(L, audience_index, i);
+        lua_pushliteral(L, "send");
+        lua_pushvalue(L, message_arg);
+        lua_call(L, 3, 0);
     }
 
     return 0;
@@ -818,6 +813,46 @@ lua_actor_say (lua_State *L)
     return company_actor_tone(L, "say");
 }
 
+/*
+ * Send a message to one other Actor.
+ * actor:whisper(other, {"attack", dmg})
+ */
+int
+lua_actor_whisper (lua_State *L)
+{
+    const int actor_arg = 1;
+    const int recipient_arg = 2;
+    const int message_arg = 3;
+    company_actor_id(L, actor_arg);
+    company_actor_id(L, recipient_arg);
+
+    lua_pushcfunction(L, lua_actor_async);
+    lua_pushvalue(L, recipient_arg);
+    lua_pushliteral(L, "send");
+    lua_pushvalue(L, message_arg);
+    lua_call(L, 3, 0);
+    return 0;
+}
+
+/*
+ * Send a message to itself.
+ * actor:think{"update", dt}
+ */
+int
+lua_actor_think (lua_State *L)
+{
+    const int actor_arg = 1;
+    const int message_arg = 2;
+    company_actor_id(L, actor_arg);
+
+    lua_pushcfunction(L, lua_actor_async);
+    lua_pushvalue(L, actor_arg);
+    lua_pushliteral(L, "send");
+    lua_pushvalue(L, message_arg);
+    lua_call(L, 3, 0);
+    return 0;
+}
+
 static const luaL_Reg actor_metamethods[] = {
     {"load",     lua_actor_load},
     {"child",    lua_actor_child},
@@ -837,10 +872,8 @@ static const luaL_Reg actor_metamethods[] = {
     {"yell",     lua_actor_yell},
     {"command",  lua_actor_command},
     {"say",      lua_actor_say},
-    /*
     {"whisper",  lua_actor_whisper},
     {"think",    lua_actor_think},
-    */
     { NULL, NULL }
 };
 

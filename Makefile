@@ -26,15 +26,15 @@ build: $(SOURCES)
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
 test:
-	cd spec/ && ../$(MODULE) -s company.lua
-	cd spec/ && ../$(MODULE) -s -l actor.lua
-#   cd spec/ && ../$(MODULE) -s director.lua
+#	cd spec/ && ../$(MODULE) -s company.lua
+#	cd spec/ && ../$(MODULE) -s -l actor.lua
+	cd spec/ && ../$(MODULE) -s director.lua
 
 mem:
-	valgrind --leak-check=full -v ./$(MODULE) -s -l spec/actor.lua
+	valgrind --leak-check=full -v ./$(MODULE) -s spec/director.lua
 
 hel:
-	valgrind --tool=helgrind -v ./$(MODULE) -s -l spec/actor.lua
+	valgrind --tool=helgrind -v ./$(MODULE) -s spec/director.lua
 
 tags:
 	ctags -R -f tags .
