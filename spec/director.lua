@@ -55,19 +55,29 @@ describe("The Director", function()
         Director{a0, "bad"}
     end)
 
+    after_each(function()
+        -- reset the tree
+        a0:load("all")
+        a1:load("all")
+        a2:load("all")
+        a3:load("all")
+        a4:load("all")
+        a5:load("all")
+    end)
+
     it("accepts Actions, which are serialized method calls to an Actor", function()
         assert.is_equal(a0:probe(1, "string"), "root")
         -- a0:send{"name_is", "tim"}
-        Director{a0, "send", {"name_is", "tim"}}
+        Director{a0, "send", {"name_is", "head"}}
         wait(0.25)
-        assert.is_equal(a0:probe(1, "string"), "tim")
+        assert.is_equal(a0:probe(1, "string"), "head")
     end)
 
     it("is the handler the `async' method", function()
-        assert.is_equal(a0:probe(1, "string"), "tim")
-        a0:async("send", {"name_is", "root"})
-        wait(0.25)
         assert.is_equal(a0:probe(1, "string"), "root")
+        a0:async("send", {"name_is", "head"})
+        wait(0.25)
+        assert.is_equal(a0:probe(1, "string"), "head")
     end)
 
     it("is what the Tones use to send messages", function()
@@ -76,6 +86,12 @@ describe("The Director", function()
         a0:think{"name_is", "head"}
         wait(0.25)
         assert.is_equal(a0:probe(1, "string"), "head")
+
+        -- whisper
+        assert.is_equal(a0:probe(1, "string"), "head")
+        a1:whisper(a0, {"name_is", "root"})
+        wait(0.25)
+        assert.is_equal(a0:probe(1, "string"), "root")
 
         -- yell
         assert.is_equal(a0:probe(1, "numeral"), 0)
@@ -92,5 +108,44 @@ describe("The Director", function()
         assert.is_equal(a3:probe(1, "numeral"), 13)
         assert.is_equal(a4:probe(1, "numeral"), 14)
         assert.is_equal(a5:probe(1, "numeral"), 15)
+        
+        -- command
+        assert.is_equal(a2:probe(1, "numeral"), 12)
+        assert.is_equal(a3:probe(1, "numeral"), 13)
+        assert.is_equal(a4:probe(1, "numeral"), 14)
+        a2:command{"increment_by", 10}
+        wait(0.50)
+        assert.is_equal(a2:probe(1, "numeral"), 22)
+        assert.is_equal(a3:probe(1, "numeral"), 23)
+        assert.is_equal(a4:probe(1, "numeral"), 24)
+
+        -- say
+        assert.is_equal(a0:probe(1, "numeral"), 10)
+        assert.is_equal(a1:probe(1, "numeral"), 11)
+        assert.is_equal(a2:probe(1, "numeral"), 22)
+        assert.is_equal(a5:probe(1, "numeral"), 15)
+        a2:say{"increment_by", 10}
+        wait(0.50)
+        assert.is_equal(a0:probe(1, "numeral"), 20)
+        assert.is_equal(a1:probe(1, "numeral"), 21)
+        assert.is_equal(a2:probe(1, "numeral"), 32)
+        assert.is_equal(a5:probe(1, "numeral"), 25)
+    end)
+
+    it("allows for actions which send actions", function()
+        assert.is_equal(a0:probe(1, "numeral"), 0)
+        assert.is_equal(a1:probe(1, "numeral"), 1)
+        assert.is_equal(a2:probe(1, "numeral"), 2)
+        assert.is_equal(a3:probe(1, "numeral"), 3)
+        assert.is_equal(a4:probe(1, "numeral"), 4)
+        assert.is_equal(a5:probe(1, "numeral"), 5)
+        a2:think{"proxy", "yell", {"increment_by", 5}}
+        wait(0.50)
+        assert.is_equal(a0:probe(1, "numeral"), 5)
+        assert.is_equal(a1:probe(1, "numeral"), 6)
+        assert.is_equal(a2:probe(1, "numeral"), 7)
+        assert.is_equal(a3:probe(1, "numeral"), 8)
+        assert.is_equal(a4:probe(1, "numeral"), 9)
+        assert.is_equal(a5:probe(1, "numeral"), 10)
     end)
 end)

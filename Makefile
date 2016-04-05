@@ -26,8 +26,8 @@ build: $(SOURCES)
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $(MODULE) $^ $(LDFLAGS)
 
 test:
-#	cd spec/ && ../$(MODULE) -s company.lua
-#	cd spec/ && ../$(MODULE) -s -l actor.lua
+	cd spec/ && ../$(MODULE) -s company.lua
+	cd spec/ && ../$(MODULE) -s -l actor.lua
 	cd spec/ && ../$(MODULE) -s director.lua
 
 mem:
