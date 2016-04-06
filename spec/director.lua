@@ -44,7 +44,7 @@ describe("The Director", function()
         -- normal workflow, but it is still caught and printed to the console
         --
         -- a valid Action is defined:
-        --  { actor, method [, arg1 [, arg2 [, ... [, argN]]]] }
+        --  { actor, method [, arg1 [, arg2 [, ... [, argN]]]] [, author] }
         --
         -- An invalid action is defined by a bad actor or invalid method or
         -- either the actor or method missing.
@@ -80,17 +80,27 @@ describe("The Director", function()
         assert.is_equal(a0:probe(1, "string"), "head")
     end)
 
+    it("does not supply author information on its own through `async'", function()
+        assert.is_equal(a5:probe(1, "string"), "five")
+        a5:async("send", {"name_is", "leaf"})
+        wait(0.25)
+        assert.is_equal(a5:probe(1, "string"), "leaf")
+        assert.is_equal(a5:probe(1, "last_author"), nil)
+    end)
+
     it("is what the Tones use to send messages", function()
         -- think
         assert.is_equal(a0:probe(1, "string"), "root")
         a0:think{"name_is", "head"}
         wait(0.25)
+        assert.is_equal(a0:probe(1, "last_author"), 0)
         assert.is_equal(a0:probe(1, "string"), "head")
 
         -- whisper
         assert.is_equal(a0:probe(1, "string"), "head")
         a1:whisper(a0, {"name_is", "root"})
         wait(0.25)
+        assert.is_equal(a0:probe(1, "last_author"), 1)
         assert.is_equal(a0:probe(1, "string"), "root")
 
         -- yell
@@ -102,6 +112,12 @@ describe("The Director", function()
         assert.is_equal(a5:probe(1, "numeral"), 5)
         a0:yell{"increment_by", 10}
         wait(0.50)
+        assert.is_equal(a0:probe(1, "last_author"), 0)
+        assert.is_equal(a1:probe(1, "last_author"), 0)
+        assert.is_equal(a2:probe(1, "last_author"), 0)
+        assert.is_equal(a3:probe(1, "last_author"), 0)
+        assert.is_equal(a4:probe(1, "last_author"), 0)
+        assert.is_equal(a5:probe(1, "last_author"), 0)
         assert.is_equal(a0:probe(1, "numeral"), 10)
         assert.is_equal(a1:probe(1, "numeral"), 11)
         assert.is_equal(a2:probe(1, "numeral"), 12)
@@ -115,6 +131,9 @@ describe("The Director", function()
         assert.is_equal(a4:probe(1, "numeral"), 14)
         a2:command{"increment_by", 10}
         wait(0.50)
+        assert.is_equal(a2:probe(1, "last_author"), 2)
+        assert.is_equal(a3:probe(1, "last_author"), 2)
+        assert.is_equal(a4:probe(1, "last_author"), 2)
         assert.is_equal(a2:probe(1, "numeral"), 22)
         assert.is_equal(a3:probe(1, "numeral"), 23)
         assert.is_equal(a4:probe(1, "numeral"), 24)
@@ -126,6 +145,9 @@ describe("The Director", function()
         assert.is_equal(a5:probe(1, "numeral"), 15)
         a2:say{"increment_by", 10}
         wait(0.50)
+        assert.is_equal(a2:probe(1, "last_author"), 2)
+        assert.is_equal(a3:probe(1, "last_author"), 2)
+        assert.is_equal(a4:probe(1, "last_author"), 2)
         assert.is_equal(a0:probe(1, "numeral"), 20)
         assert.is_equal(a1:probe(1, "numeral"), 21)
         assert.is_equal(a2:probe(1, "numeral"), 32)
@@ -141,11 +163,27 @@ describe("The Director", function()
         assert.is_equal(a5:probe(1, "numeral"), 5)
         a2:think{"proxy", "yell", {"increment_by", 5}}
         wait(0.50)
+        assert.is_equal(a0:probe(1, "last_author"), 2)
+        assert.is_equal(a1:probe(1, "last_author"), 2)
+        assert.is_equal(a2:probe(1, "last_author"), 2)
+        assert.is_equal(a3:probe(1, "last_author"), 2)
+        assert.is_equal(a4:probe(1, "last_author"), 2)
+        assert.is_equal(a5:probe(1, "last_author"), 2)
         assert.is_equal(a0:probe(1, "numeral"), 5)
         assert.is_equal(a1:probe(1, "numeral"), 6)
         assert.is_equal(a2:probe(1, "numeral"), 7)
         assert.is_equal(a3:probe(1, "numeral"), 8)
         assert.is_equal(a4:probe(1, "numeral"), 9)
         assert.is_equal(a5:probe(1, "numeral"), 10)
+
+        -- relay
+        a0:whisper(a2, {"proxy", "command", {"increment_by", 5}})
+        wait(0.50)
+        assert.is_equal(a2:probe(1, "last_author"), 2)
+        assert.is_equal(a3:probe(1, "last_author"), 2)
+        assert.is_equal(a4:probe(1, "last_author"), 2)
+        assert.is_equal(a2:probe(1, "numeral"), 12)
+        assert.is_equal(a3:probe(1, "numeral"), 13)
+        assert.is_equal(a4:probe(1, "numeral"), 14)
     end)
 end)
