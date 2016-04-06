@@ -11,8 +11,8 @@ struct Worker {
     lua_State *L; /* worker state */
     lua_State *M; /* mailbox stack */
     pthread_t thread;
-    pthread_mutex_t state_mutex;
     pthread_mutex_t mail_mutex;
+    pthread_mutex_t state_mutex;
 };
 
 /*
@@ -150,8 +150,8 @@ worker_create ()
 
     luaL_openlibs(worker->L);
     company_set(worker->L);
-    pthread_mutex_init(&worker->state_mutex, NULL);
     pthread_mutex_init(&worker->mail_mutex, NULL);
+    pthread_mutex_init(&worker->state_mutex, NULL);
 
 exit:
     return worker;
@@ -184,7 +184,7 @@ int
 worker_take_action (Worker *worker, lua_State *L)
 {
     int rc = pthread_mutex_trylock(&worker->mail_mutex);
-    if (rc == EBUSY)
+    if (rc == EBUSY || rc != 0)
         return 1;
     utils_transfer(worker->M, L, 1);
     pthread_mutex_unlock(&worker->mail_mutex);
@@ -206,35 +206,6 @@ worker_give_action (Worker *worker, lua_State *L)
 }
 
 /*
- * Block and wait for the Worker to be free. Get the Worker's Lua state. This
- * causes the Worker to wait until `worker_return_state` has been called. 
- * Returns NULL if an error occurred. `worker_return_state` doesn't need to be
- * called if this returns NULL.
- */
-lua_State *
-worker_request_state (Worker *worker)
-{
-    lua_State *L = NULL;
-
-    if (pthread_mutex_lock(&worker->state_mutex) != 0)
-        goto exit;
-
-    L = worker->L;
-exit:
-    return L;
-}
-
-/*
- * Return the state to the Worker so it an resume working. Produces undefined
- * behavior is this function is called when `worker_request_state` returns NULL.
- */
-void
-worker_return_state (Worker *worker)
-{
-    pthread_mutex_unlock(&worker->state_mutex);
-}
-
-/*
  * Wait for the Worker to wait for work, then join it back to the main thread.
  */
 void
@@ -252,13 +223,18 @@ worker_stop (Worker *worker)
 void
 worker_cleanup (Worker *worker)
 {
-    pthread_mutex_lock(&worker->mail_mutex);
-    lua_close(worker->M);
-    pthread_mutex_unlock(&worker->mail_mutex);
-
+    /* 
+     * Wait for the state first because it will only become unlocked after the
+     * thread is done. this makes it safe for us to then destroy the mailbox
+     * state afterwards.
+     */
     pthread_mutex_lock(&worker->state_mutex);
     lua_close(worker->L);
     pthread_mutex_unlock(&worker->state_mutex);
+
+    pthread_mutex_lock(&worker->mail_mutex);
+    lua_close(worker->M);
+    pthread_mutex_unlock(&worker->mail_mutex);
 
     free(worker);
 }

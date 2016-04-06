@@ -36,12 +36,16 @@ function Graphics:handle_event ()
         if data.key == "quit" then exit() end
         
         if data.key == "w" then
+            io.write("up\n")
             actor:yell{"input", "up"}
         elseif data.key == "a" then
+            io.write("left\n")
             actor:yell{"input", "left"}
         elseif data.key == "s" then
+            io.write("down\n")
             actor:yell{"input", "down"}
         elseif data.key == "d" then
+            io.write("right\n")
             actor:yell{"input", "right"}
         end
     end
@@ -55,9 +59,13 @@ function Graphics:main ()
     if self.window:per_second(30) then
         actor:yell{"update"}
     end
+
     self:handle_event()
     actor:command{"draw"}
     self:render()
+    
+    -- recursive :^)
+    actor:think{"main"}
 end
 
 return Graphics

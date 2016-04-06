@@ -44,22 +44,6 @@ int
 worker_give_action (Worker *worker, lua_State *L);
 
 /*
- * Block and wait for the Worker to be free. Get the Worker's Lua state. This
- * causes the Worker to wait until `worker_return_state` has been called. 
- * Returns NULL if an error occurred. `worker_return_state` doesn't need to be
- * called if this returns NULL.
- */
-lua_State *
-worker_request_state (Worker *worker);
-
-/*
- * Return the state to the Worker so it an resume working. Produces undefined
- * behavior is this function is called when `worker_request_state` returns NULL.
- */
-void
-worker_return_state (Worker *worker);
-
-/*
  * Wait for the Worker to wait for work, then join it back to the main thread.
  */
 void
