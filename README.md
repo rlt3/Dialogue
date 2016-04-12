@@ -16,7 +16,7 @@ Dialogue hasn't been released yet but is almost ready. Take a look at
 Dialogue is a message-driven asynchronous framework. It was designed for a
 great amount of composition. Actors, this program's 'object' and 'entity', are
 blank containers which have scripts. Scripts are the typical 'component' and
-define what messages they can handle and how they handle them. 
+define what messages actors can handle.
 
 But Dialogue got its name from more than a simple actor analogy -- at
 Dialogue's core is the ability for each actor to implicitly scope their
