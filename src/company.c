@@ -769,6 +769,10 @@ company_actor_tone (lua_State *L, const char *tone)
     const int id = company_actor_id(L, actor_arg);
     int i;
 
+    /* append the actor's id to the message (set the author) */
+    lua_pushinteger(L, id);
+    lua_rawseti(L, message_arg, luaL_len(L, message_arg) + 1);
+
     company_push_audience(L, id, tone);
 
     /* foreach (actor : audience) { actor:async("send", {msg}) } */
@@ -823,8 +827,12 @@ lua_actor_whisper (lua_State *L)
     const int actor_arg = 1;
     const int recipient_arg = 2;
     const int message_arg = 3;
-    company_actor_id(L, actor_arg);
+    const int author_id = company_actor_id(L, actor_arg);
     company_actor_id(L, recipient_arg);
+
+    /* append the actor's id to the message (set the author) */
+    lua_pushinteger(L, author_id);
+    lua_rawseti(L, message_arg, luaL_len(L, message_arg) + 1);
 
     lua_pushcfunction(L, lua_actor_async);
     lua_pushvalue(L, recipient_arg);
@@ -843,7 +851,11 @@ lua_actor_think (lua_State *L)
 {
     const int actor_arg = 1;
     const int message_arg = 2;
-    company_actor_id(L, actor_arg);
+    const int author_id = company_actor_id(L, actor_arg);
+
+    /* append the actor's id to the message (set the author) */
+    lua_pushinteger(L, author_id);
+    lua_rawseti(L, message_arg, luaL_len(L, message_arg) + 1);
 
     lua_pushcfunction(L, lua_actor_async);
     lua_pushvalue(L, actor_arg);
