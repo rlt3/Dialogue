@@ -16,7 +16,7 @@ end
 
 -- Register a definition to draw
 function Graphics:register (definition, author)
-    self.to_draw[author:__tostring()] = definition
+    self.to_draw[author] = definition
 end
 
 -- Actually draw the definitions given

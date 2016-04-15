@@ -32,8 +32,9 @@ script_unload (Script *script, lua_State *A)
         goto unload;
     }
 
+    lua_pushvalue(A, -2); /* self */
     /* TODO: catch error here */
-    lua_pcall(A, 0, 0, 0);
+    lua_pcall(A, 1, 0, 0);
     lua_pop(A, 1); /* object */
 
 unload:
