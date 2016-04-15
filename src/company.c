@@ -398,15 +398,12 @@ company_call_actor_func (lua_State *L, int id, ActorFunc func)
     Actor *actor = NULL;
     const int thread_id = tree_node_thread(id);
 
-    if (thread_id == NODE_ERROR)
-        luaL_error(L, "Actor id `%d` is an invalid reference!", id);
-
     if (thread_id > NODE_INVALID) {
-        /* a bit of a `magic number` value set in worker_create */
+        /* __worker_id global is set in each worker state */
         lua_getglobal(L, "__worker_id");
 
         if (lua_isnil(L, -1) || lua_tointeger(L, -1) != thread_id)
-            luaL_error(L, "Actor `%d` has a thread requirement not met!", id);
+            luaL_error(L, "Actor `%d` has a worker requirement not met!", id);
 
         lua_pop(L, 1);
     }

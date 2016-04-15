@@ -128,5 +128,22 @@ describe("An Actor object", function()
         assert.is_equal(actor:probe(1, "string"), "foo")
     end)
 
-    pending("prevents synchronous load, send, and probe if thread req")
+    it("prevents synchronous load, send, and probe if actor has worker requirement", function()
+        -- create an actor with no parent where it needs to be handled by thread 1
+        actor = Actor({ {"test-script", "foo", 10, {}} }, -1, 1)
+
+        -- calling these methods through `async` will satisfy the worker requirement
+
+        assert.has_error(function() 
+            actor:send{"increment_by", 20}
+        end, "Actor `0` has a worker requirement not met!")
+
+        assert.has_error(function() 
+            actor:probe(1, "string")
+        end, "Actor `0` has a worker requirement not met!")
+
+        assert.has_error(function() 
+            actor:load("all")
+        end, "Actor `0` has a worker requirement not met!")
+    end)
 end)
