@@ -127,4 +127,6 @@ describe("An Actor object", function()
         assert.is_equal(actor:probe(1, "numeral"), 10)
         assert.is_equal(actor:probe(1, "string"), "foo")
     end)
+
+    pending("prevents synchronous load, send, and probe if thread req")
 end)

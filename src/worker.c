@@ -13,6 +13,7 @@ struct Worker {
     pthread_t thread;
     pthread_mutex_t mail_mutex;
     pthread_mutex_t state_mutex;
+    int id;
 };
 
 /*
@@ -73,8 +74,8 @@ worker_catch (lua_State *W)
     return 0;
 }
 
-void
-worker_process_action (lua_State *W)
+static inline void
+worker_process_action (lua_State *W, Worker *worker)
 {
     lua_pushcfunction(W, worker_catch);
     lua_insert(W, -2);
@@ -111,7 +112,7 @@ worker_thread (void *arg)
         if (lua_isnil(W, -1))
             break;
 
-        worker_process_action(W);
+        worker_process_action(W, worker);
     }
 
     pthread_mutex_unlock(&worker->state_mutex);
@@ -124,7 +125,7 @@ worker_thread (void *arg)
  * Returns NULL on failure.
  */
 Worker *
-worker_create ()
+worker_create (const int id)
 {
     Worker *worker = malloc(sizeof(*worker));
     
@@ -148,6 +149,11 @@ worker_create ()
         goto exit;
     }
 
+    worker->id = id;
+    /* thread ids are not 0 offset */
+    lua_pushinteger(worker->L, worker->id + 1);
+    lua_setglobal(worker->L, "__worker_id");
+
     luaL_openlibs(worker->L);
     company_set(worker->L);
     pthread_mutex_init(&worker->mail_mutex, NULL);
@@ -162,9 +168,9 @@ exit:
  * Returns NULL on failure.
  */
 Worker *
-worker_start ()
+worker_start (const int id)
 {
-    Worker *worker = worker_create();
+    Worker *worker = worker_create(id);
     
     if (!worker)
         goto exit;
