@@ -381,17 +381,37 @@ company_actor_cleanup (lua_State *L, const int id)
 typedef int (*ActorFunc) (Actor*, lua_State*);
 
 /*
- * Call the Actor function with an Actor from the id, erroring out over L if
- * the id is bad or if `func` fails.
+ * Call the Actor function with the instance from the id. 
+ *
+ * Errors out if that actor has a specific thread requirement and we aren't in
+ * that specific thread. 
+ * Errors out if `func` fails.
+ * Errors out if the actor id is invalid.
+ *
+ * TODO: pass string to function so we can have more descriptive errors
+ * from this function to the user about which actor function caused the
+ * error and why
  */
 void
 company_call_actor_func (lua_State *L, int id, ActorFunc func)
 {
-    Actor *actor = company_ref(L, id);
+    Actor *actor = NULL;
+    const int thread_id = tree_node_thread(id);
 
-    /*
-     * TODO: Pass string which tells which function the error happened.
-     */
+    if (thread_id == NODE_ERROR)
+        luaL_error(L, "Actor id `%d` is an invalid reference!", id);
+
+    if (thread_id > NODE_INVALID) {
+        /* a bit of a `magic number` value set in worker_create */
+        lua_getglobal(L, "__worker_id");
+
+        if (lua_isnil(L, -1) || lua_tointeger(L, -1) != thread_id)
+            luaL_error(L, "Actor `%d` has a thread requirement not met!", id);
+
+        lua_pop(L, 1);
+    }
+
+    actor = company_ref(L, id);
 
     /* if actor_send doesn't return 0, it puts an error string on top of A */
     if (func(actor, L) != 0) {

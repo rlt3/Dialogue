@@ -43,7 +43,7 @@ director_create (const int has_main, const int num_workers)
     /* Setup a Lua state just used for its stack which acts like a mailbox */
     if (has_main) {
         /* the main thread doesn't need a thread `started`, so skip it */
-        global_director->workers[0] = worker_create();
+        global_director->workers[0] = worker_create(0);
         start = 1;
     }
 
@@ -54,7 +54,7 @@ director_create (const int has_main, const int num_workers)
         global_director->workers[i] = NULL;
 
     for (i = start; i < global_director->worker_count; i++) {
-        global_director->workers[i] = worker_start();
+        global_director->workers[i] = worker_start(i);
 
         if (!global_director->workers[i]) {
             director_close();

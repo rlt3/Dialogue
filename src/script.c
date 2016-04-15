@@ -19,8 +19,25 @@ script_table_status (lua_State *A, int index)
 }
 
 void
-script_unload (Script *script)
+script_unload (Script *script, lua_State *A)
 {
+    if (!script->is_loaded)
+        return;
+
+    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
+    lua_getfield(A, -1, "destroy");
+
+    if (!lua_isfunction(A, -1)) {
+        lua_pop(A, 2); /* `destroy` field & object */
+        goto unload;
+    }
+
+    /* TODO: catch error here */
+    lua_pcall(A, 0, 0, 0);
+    lua_pop(A, 1); /* object */
+
+unload:
+    luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
     script->is_loaded = 0;
     script->be_loaded = 0;
 }
@@ -102,10 +119,8 @@ script_load (Script *script, lua_State *A)
     const int table_index = lua_gettop(A) + 1; /* we push it onto the stack */
     int args, ret = 1;
 
-    if (script->is_loaded) {
-        luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
-        script->is_loaded = 0;
-    }
+    if (script->is_loaded)
+        script_unload(script, A);
 
     lua_rawgeti(A, LUA_REGISTRYINDEX, script->table_ref);
 
@@ -195,7 +210,8 @@ script_send (Script *script, lua_State *A)
     args = utils_push_table_data(A, message_index);
 
     if (lua_pcall(A, args + 1, 0, 0)) {
-        script_unload(script);
+        script_unload(script, A);
+
         /* TODO: Figure out why the 'Cannot send message' isn't appearing */
         lua_pushfstring(A, "Cannot send message `%s': %s", 
                 message, lua_tostring(A, -1));

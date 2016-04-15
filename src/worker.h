@@ -10,23 +10,17 @@ typedef struct Worker Worker;
  * null. Returns NULL on failure.
  */
 Worker *
-worker_create ();
+worker_create (const int id);
 
 /*
  * Create a Worker and start it, which spawns a thread.
  * Returns NULL on failure.
  */
 Worker *
-worker_start ();
+worker_start (const int id);
 
 void*
 worker_thread (void *arg);
-
-/* 
- * Process the next Action.
- */
-void
-worker_process_action (lua_State *W);
 
 /*
  * With an Action on top of L, check to see if the Worker's mailbox is ready 
