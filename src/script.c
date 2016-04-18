@@ -186,17 +186,15 @@ script_send (Script *script, lua_State *A)
     args = utils_push_table_data(A, message_index);
 
     if (lua_pcall(A, args + 1, 0, 0)) {
-        script_unload(script, A);
-        /* TODO: reconfigure the stack here to pop the object ref so 
-         * `script_unload` can actually garbage collect the object.
-         */
-
         /* TODO: Figure out why the 'Cannot send message' isn't appearing */
         lua_pushfstring(A, "Cannot send message `%s': %s", 
                 message, lua_tostring(A, -1));
         /* push error message beneath pcall error and object_ref */
         lua_insert(A, lua_gettop(A) - 2);
         lua_pop(A, 2); /* pcall error and object_ref */
+        
+        /* unload after the object has been popped or it won't gc */
+        script_unload(script, A);
         goto exit;
     }
     
