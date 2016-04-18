@@ -128,11 +128,12 @@ describe("An Actor object", function()
         assert.is_equal(actor:probe(1, "string"), "foo")
     end)
 
-    it("prevents synchronous load, unload, send if actor has worker requirement", function()
+    it("prevents synchronous load, unload, send, and probe if actor has worker requirement", function()
         -- create an actor with no parent where it needs to be handled by thread 1
         actor = Actor({ {"test-script", "foo", 10, {}} }, -1, 1)
 
         -- calling these methods through `async` will satisfy the worker requirement
+        -- all tones are built on `async` thus will satisfy the requirement too
 
         assert.has_error(function() 
             actor:send{"increment_by", 20}
@@ -150,6 +151,4 @@ describe("An Actor object", function()
             actor:unload()
         end, "Actor `0` has a worker requirement not met!")
     end)
-
-    pending("a benched actor cannot send or receive messages via tones")
 end)
