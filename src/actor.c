@@ -246,6 +246,24 @@ exit:
     return ret;
 }
 
+/*
+ * Unload all the scripts of an actor. This is effectively the 'destructor' of
+ * Dialogue's actors. `actor_destroy` actually frees the memory of the actor
+ * and its scripts.
+ */
+int
+actor_unload (Actor *actor, lua_State *L)
+{
+    lua_State *A = actor->L;
+    Script *script = NULL;
+
+    for (script = actor->script_head; script != NULL; script = script->next)
+        script_unload(script, A);
+
+    assert(lua_gettop(A) == 0);
+    return 0;
+}
+
 void
 actor_add_script (Actor *actor, Script *script)
 {

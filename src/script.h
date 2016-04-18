@@ -68,6 +68,14 @@ script_send (Script *script, lua_State *A);
 int
 script_probe (Script *script, lua_State *A, const char *field);
 
+/*
+ * Unload a loaded script. This calls the garbage collection on A. If the 
+ * actor has a thread requirement, this function must be called in the correct
+ * thread.
+ */
+void
+script_unload (Script *script, lua_State *A);
+
 void
 script_destroy (Script *script);
 

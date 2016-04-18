@@ -10,10 +10,6 @@ function Graphics.new ()
    return table
 end
 
-function Graphics:destroy ()
-    self.window:quit()
-end
-
 -- Register a definition to draw
 function Graphics:register (definition, author)
     self.to_draw[author] = definition

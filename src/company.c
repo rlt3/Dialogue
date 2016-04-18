@@ -94,33 +94,8 @@ company_join (lua_State *L, const int id, const int parent)
 void
 company_delete (lua_State *L, int id)
 {
-    /*
-     * the following `async' call goes through the Director which waits until a 
-     * Worker has taken the 'destroy' message. This locks the Actor's data, but
-     * not the structure which holds the Actor inside the tree. This enables us
-     * to then unlink the Actor while the destructor is handled.
-     */
-    company_push_actor(L, id);
-    lua_getfield(L, -1, "async");
-
-    lua_pushvalue(L, -2); /* self */
-
-    lua_pushliteral(L, "send");
-
-    lua_newtable(L);
-    lua_pushliteral(L, "destroy");
-    lua_rawseti(L, -2, 1);
-
-    if (lua_pcall(L, 3, 0, 0)) {
-        lua_pop(L, 1); /* actor */
-        goto bad_actor;
-    }
-    lua_pop(L, 1); /* actor */
-
-    if (tree_unlink_reference(id, 1) != 0) {
-bad_actor:
+    if (tree_unlink_reference(id, 1) != 0)
         luaL_error(L, "Cannot delete invalid reference `%d`!", id);
-    }
 }
 
 /*
@@ -148,27 +123,20 @@ company_deref (int id)
 }
 
 /*
- * Callback for calling the 'destroy' Script method asynchronously.
+ * Callback for calling 'unload' on each actor in the company.
  */
 void
-company_destruct_actor_callback (void *data, int id)
+company_unload_actor_callback (void *data, int id)
 {
     lua_State *L = data;
 
-    /* actor:async('send', {"destroy"}) */
+    /* actor:async("unload") */
     company_push_actor(L, id);
     lua_getfield(L, -1, "async");
-
     lua_pushvalue(L, -2); /* self */
-
-    lua_pushliteral(L, "send");
-
-    lua_newtable(L);
-    lua_pushliteral(L, "destroy");
-    lua_rawseti(L, -2, 1);
-
+    lua_pushliteral(L, "unload");
     /* protected call just to catch errors. */
-    lua_pcall(L, 3, 0, 0);
+    lua_pcall(L, 2, 0, 0);
     lua_pop(L, 1); /* actor */
 }
 
@@ -180,7 +148,7 @@ company_destruct_actor_callback (void *data, int id)
 void
 company_cleanup (lua_State *L)
 {
-    tree_map_subtree(tree_root(), company_destruct_actor_callback, L, 
+    tree_map_subtree(tree_root(), company_unload_actor_callback, L, 
             TREE_READ, TREE_RECURSE);
 }
 
@@ -378,6 +346,26 @@ company_actor_cleanup (lua_State *L, const int id)
     }
 }
 
+/*
+ * Check if the current thread is invalid for the actor at id. Returns 1 if so,
+ * 0 otherwise.
+ */
+static inline int
+company_actor_invalid_thread (lua_State *L, const int id)
+{
+    int ret = 0;
+    const int thread_id = tree_node_thread(id);
+
+    if (thread_id > NODE_INVALID) {
+        /* __worker_id global is set in each worker state */
+        lua_getglobal(L, "__worker_id");
+        ret = (lua_isnil(L, -1) || lua_tointeger(L, -1) != thread_id);
+        lua_pop(L, 1);
+    }
+
+    return ret;
+}
+
 typedef int (*ActorFunc) (Actor*, lua_State*);
 
 /*
@@ -396,17 +384,9 @@ void
 company_call_actor_func (lua_State *L, int id, ActorFunc func)
 {
     Actor *actor = NULL;
-    const int thread_id = tree_node_thread(id);
 
-    if (thread_id > NODE_INVALID) {
-        /* __worker_id global is set in each worker state */
-        lua_getglobal(L, "__worker_id");
-
-        if (lua_isnil(L, -1) || lua_tointeger(L, -1) != thread_id)
-            luaL_error(L, "Actor `%d` has a worker requirement not met!", id);
-
-        lua_pop(L, 1);
-    }
+    if (company_actor_invalid_thread(L, id))
+        luaL_error(L, "Actor `%d` has a worker requirement not met!", id);
 
     actor = company_ref(L, id);
 
@@ -523,6 +503,25 @@ lua_actor_load (lua_State *L)
 }
 
 /*
+ * Unload the scripts of an actor. If the integer `1` is passed, this function
+ * will delete the actor as well as unload it.
+ *
+ * actor:unload([1])
+ */
+int
+lua_actor_unload (lua_State *L)
+{
+    const int actor_arg = 1;
+    const int delete_opt_arg = 2;
+    const int is_delete = luaL_optinteger(L, delete_opt_arg, 0);
+    const int id = company_actor_id(L, actor_arg);
+    company_call_actor_func(L, id, actor_unload);
+    if (is_delete)
+        company_delete(L, id);
+    return 0;
+}
+
+/*
  * Create a child actor with this object as the parent.
  * actor:child({ definition_table } [, thread])
  */
@@ -601,8 +600,12 @@ lua_actor_join (lua_State *L)
 }
 
 /*
- * Delete an Actor from the tree, marking it as garbage. This is a permanent
- * action and cannot be undone. Please see `actor:bench()` to temporarily 
+ * This is a convenience method for removing an actor that checks for
+ * thread requirements of the actor. This calls actor:unload with the delete
+ * option, asynchronously if it doesn't meet the thread reqs.
+ *
+ * Unload and remove an actor from the company, marking it as garbage. This is
+ * permanent and cannot be undone. Please see `actor:bench()` to temporarily 
  * remove an Actor from the tree.
  *
  * actor:remove()
@@ -612,7 +615,19 @@ lua_actor_remove (lua_State *L)
 {
     const int actor_arg = 1;
     const int id = company_actor_id(L, actor_arg);
-    company_delete(L, id);
+
+    if (company_actor_invalid_thread(L, id)) {
+        lua_getfield(L, actor_arg, "async");
+        lua_pushvalue(L, actor_arg); /* self */
+        lua_pushliteral(L, "unload");
+        lua_pushinteger(L, 1);
+        lua_call(L, 3, 0);
+        goto exit;
+    }
+
+    lua_pushinteger(L, 1);
+    lua_actor_unload(L);
+exit:
     return 0;
 }
 
@@ -884,6 +899,7 @@ lua_actor_think (lua_State *L)
 
 static const luaL_Reg actor_metamethods[] = {
     {"load",     lua_actor_load},
+    {"unload",   lua_actor_unload},
     {"child",    lua_actor_child},
     {"children", lua_actor_children},
     {"remove",   lua_actor_remove},

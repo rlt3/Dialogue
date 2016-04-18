@@ -126,7 +126,7 @@ describe("The Company", function()
 
         assert.has_error(function() 
             a2:remove()
-        end, "Cannot delete invalid reference `2`!")
+        end, "Actor id `2` is an invalid reference!")
 
         assert.has_error(function() 
             a2:bench()

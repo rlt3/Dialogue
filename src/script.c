@@ -18,31 +18,6 @@ script_table_status (lua_State *A, int index)
     return !(luaL_len(A, index) > 0);
 }
 
-void
-script_unload (Script *script, lua_State *A)
-{
-    if (!script->is_loaded)
-        return;
-
-    lua_rawgeti(A, LUA_REGISTRYINDEX, script->object_ref);
-    lua_getfield(A, -1, "destroy");
-
-    if (!lua_isfunction(A, -1)) {
-        lua_pop(A, 2); /* `destroy` field & object */
-        goto unload;
-    }
-
-    lua_pushvalue(A, -2); /* self */
-    /* TODO: catch error here */
-    lua_pcall(A, 1, 0, 0);
-    lua_pop(A, 1); /* object */
-
-unload:
-    luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
-    script->is_loaded = 0;
-    script->be_loaded = 0;
-}
-
 /*
  * Expects a Script definition on top of the Lua stack A.  Returns a pointer to
  * the Script.
@@ -212,6 +187,9 @@ script_send (Script *script, lua_State *A)
 
     if (lua_pcall(A, args + 1, 0, 0)) {
         script_unload(script, A);
+        /* TODO: reconfigure the stack here to pop the object ref so 
+         * `script_unload` can actually garbage collect the object.
+         */
 
         /* TODO: Figure out why the 'Cannot send message' isn't appearing */
         lua_pushfstring(A, "Cannot send message `%s': %s", 
@@ -256,6 +234,25 @@ script_probe (Script *script, lua_State *A, const char *field)
 exit:
     return ret;
 }
+
+/*
+ * Unload a loaded script. This manually calls garbage collection on A. If the 
+ * actor has a thread requirement, this function must be called in the correct
+ * thread.
+ */
+void
+script_unload (Script *script, lua_State *A)
+{
+    if (!script->is_loaded)
+        return;
+
+    luaL_unref(A, LUA_REGISTRYINDEX, script->object_ref);
+    lua_gc(A, LUA_GCCOLLECT, 0);
+
+    script->is_loaded = 0;
+    script->be_loaded = 0;
+}
+
 
 /*
  * Remove a script from the Actor's state.

@@ -71,6 +71,14 @@ int
 actor_send (Actor *actor, lua_State *L);
 
 /*
+ * Unload all the scripts of an actor. This is effectively the 'destructor' of
+ * Dialogue's actors. `actor_destroy` actually frees the memory of the actor
+ * and its scripts.
+ */
+int
+actor_unload (Actor *actor, lua_State *L);
+
+/*
  * Required for the Tree.h. Sets the id for the Actor. We take this opportunity
  * to push a Lua Actor object for the Scripts to use.
  */
