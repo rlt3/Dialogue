@@ -5,11 +5,15 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
+#ifdef DIALOGUE_MODULE
+#define console_log printf
+#endif
+
 #define DIALOGUE_VERSION     "0.0"
 #define DIALOGUE_LUA_VERSION "5.2"
 
 enum DialogueOption {
-    WORKER_IS_MAIN, WORKER_COUNT, ACTOR_BASE, ACTOR_MAX, ACTOR_CHILD_MAX,
+    WORKER_IS_MAIN, WORKER_COUNT, ACTOR_COUNT, ACTOR_CHILD_MAX,
     ACTOR_FORCE_SYNC, ACTOR_CONSOLE_WRITE, ACTOR_MANUAL_LOAD
 };
 

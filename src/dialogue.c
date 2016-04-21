@@ -6,8 +6,8 @@
 #define DIALOGUE_META "Dialogue"
 
 static int opts[] = {
-    0, 4, 64, 256, 10, 
-    0, 1, 0
+    0, 4, 64, 10, 
+    0, 0, 0
 };
 
 void
@@ -31,8 +31,10 @@ dialogue_actor_manual_load ()
 void
 dialogue_set_io_write (lua_State *L)
 {
+#ifndef DIALOGUE_MODULE
     if (opts[ACTOR_CONSOLE_WRITE])
         console_set_write(L);
+#endif
 }
 
 int 
@@ -70,24 +72,28 @@ static const luaL_Reg dialogue_metamethods[] = {
 int
 luaopen_Dialogue (lua_State *L)
 {
-    if (company_create(opts[ACTOR_BASE]) != 0)
-        luaL_error(L, "Dialogue: Failed to create the Company of Actors!");
+    printf("top: %d\n", lua_gettop(L));
 
-    if (director_create(opts[WORKER_IS_MAIN], 
-                        opts[WORKER_COUNT]) != 0)
-        luaL_error(L, "Dialogue: Failed to create the Director and Workers!");
+    return 0;
 
-    company_set(L);
-    director_set(L);
+    //if (company_create(opts[ACTOR_COUNT]) != 0)
+    //    luaL_error(L, "Dialogue: Failed to create the Company of Actors!");
 
-    lua_newtable(L);
+    //if (director_create(opts[WORKER_IS_MAIN], 
+    //                    opts[WORKER_COUNT]) != 0)
+    //    luaL_error(L, "Dialogue: Failed to create the Director and Workers!");
 
-    luaL_newmetatable(L, DIALOGUE_META);
-    lua_pushvalue(L, -1);
-    lua_setfield(L, -1, "__index");
-    luaL_setfuncs(L, dialogue_metamethods, 0);
+    //company_set(L);
+    //director_set(L);
 
-    lua_setmetatable(L, -2);
+    //lua_newtable(L);
 
-    return 1;
+    //luaL_newmetatable(L, DIALOGUE_META);
+    //lua_pushvalue(L, -1);
+    //lua_setfield(L, -1, "__index");
+    //luaL_setfuncs(L, dialogue_metamethods, 0);
+
+    //lua_setmetatable(L, -2);
+
+    //return 0;
 }

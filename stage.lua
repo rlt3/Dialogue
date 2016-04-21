@@ -1,5 +1,5 @@
-a0 = Actor({ {"draw", 200, 400} }, -1, 1)
-
+require("Dialogue")
+--a0 = Actor({ {"draw", 200, 400} }, -1, 1)
 --Director{a0, "send", {"output", "foobar", 3}}
 --Director{a1, "send", {"output", "bar", 2}}
 --Director{a2, "send", {"output", "foo", 1}}

@@ -14,6 +14,8 @@ usage (const char *program)
     fprintf(stderr,
         "Usage: %s [OPTIONS] <STAGE-FILE>\n\n"
         "OPTIONS:\n"
+        "   -a <number>\n"
+        "       Set the max number of actors. Default is 64.\n\n"
         "   -w <number>\n"
         "       The number of Workers (threads) to spawn. Default is 4.\n\n"
         "   -s\n"
@@ -64,12 +66,14 @@ handle_args (int argc, char *argv[])
     int is_script = 0;
     int is_worker = 0;
     int workers = 0;
+    int actors = 0;
 
     if (argc == 1)
         usage(argv[0]);
 
     ARGBEGIN {
         case 'w': workers = atoi(ARGF()); break;
+        case 'a': actors = atoi(ARGF()); break;
     /*
         case 'f': dialogue_option_set(ACTOR_FORCE_SYNC, 1); break;
     */
@@ -80,8 +84,14 @@ handle_args (int argc, char *argv[])
         default: break;
     } ARGEND
 
+    /* set this here because we're running this from not in a module */
+    dialogue_option_set(ACTOR_CONSOLE_WRITE, 1);
+
     if (workers > 0) /* atoi errors return 0 */
         dialogue_option_set(WORKER_COUNT, workers);
+
+    if (actors > 0) /* atoi errors return 0 */
+        dialogue_option_set(ACTOR_COUNT, actors);
 
     if (is_script) {
         dialogue_option_set(WORKER_IS_MAIN, 0);

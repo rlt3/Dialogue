@@ -3,11 +3,23 @@ MODULE:=dialogue
 CFLAGS+=-Wall -std=c99 -pedantic -D _BSD_SOURCE -fPIC -Isrc/ -I./
 LDFLAGS+=-L./ -L/usr/local/lib -lpthread -lreadline
 
-SOURCES:=src/main.o src/console.o\
-       src/dialogue.o \
+SOURCES:=src/dialogue.o \
        src/company.o src/tree.o \
        src/actor.o src/script.o \
        src/director.o src/worker.o
+
+ifndef DIALOGUE_MODULE
+	SOURCES+=src/main.o src/console.o
+else
+	MODULE:=Dialogue.so
+	CFLAGS+=-D DIALOGUE_MODULE
+	ifeq ($(UNAME), Linux)
+		SOFLAGS:=-shared
+	endif
+	ifeq ($(UNAME), Darwin)
+		SOFLAGS:=-bundle -undefined dynamic_lookup
+	endif
+endif
 
 ifeq ($(UNAME), Linux)
 	CFLAGS+=-I/usr/include/lua5.2/
