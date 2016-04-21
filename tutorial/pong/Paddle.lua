@@ -1,4 +1,3 @@
-Coordinate = require ("Coordinate")
 Paddle = {}
 Paddle.__index = Paddle
 
@@ -10,10 +9,12 @@ function Paddle.new (x, y)
    return table
 end
 
+-- Register our coordinates when we get the draw message
 function Paddle:draw (author)
     actor:whisper(author, {"register", {self.x, self.y, 25, 125}})
 end
 
+-- Update our coordinates when our position changes
 function Paddle:position (x, y)
     self.x = x
     self.y = y
