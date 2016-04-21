@@ -106,9 +106,11 @@ script_load (Script *script, lua_State *A)
     module_name = lua_tostring(A, -1);
 
     if (lua_pcall(A, 1, 1, 0)) {
+        lua_pushfstring(A, "Cannot load module `%s': %s", 
+                module_name, lua_tostring(A, -1));
+        /* push error message beneath pcall error and table */
+        lua_insert(A, lua_gettop(A) - 2);
         lua_pop(A, 2); /* pcall error and table */
-        lua_pushfstring(A, "Cannot load module `%s': require failed", 
-                module_name);
         goto exit;
     }
 
@@ -259,4 +261,75 @@ int
 lua_script_remove (lua_State *L)
 {
     return 0;
+}
+
+int
+lua_script_new (lua_State *L)
+{
+    const int args = lua_gettop(L);
+    const char *meta_string = lua_tostring(L, lua_upvalueindex(1));
+
+    lua_pushvalue(L, lua_upvalueindex(2));
+
+    if (lua_isnil(L, -1) || !lua_isfunction(L, -1)) {
+        lua_newtable(L);
+        goto set_meta;
+    }
+
+    lua_insert(L, 1);
+    lua_call(L, args, 1);
+    luaL_checktype(L, -1, LUA_TTABLE);
+
+set_meta:
+    luaL_getmetatable(L, meta_string);
+    lua_setmetatable(L, -2);
+
+    return 1;
+}
+
+/*
+ * `Script` affects the global state. It looks at the first argument to know 
+ * which table & metatable to use. Here it creates a global table named 
+ * Graphics. It then creates a `new` function as a field for that table.
+ * 
+ * The `new` function accepts any number of arguments and passes them to the 
+ * anonymous function which is the second argument of `Script`. `new` then
+ * accepts the table output of the anonymous function, attaches the correct
+ * metatable to it and returns it.
+ */
+int
+lua_script (lua_State *L)
+{
+    const char *script_name = NULL;
+    const int script_arg = 1;
+    const int func_arg = 2;
+
+    luaL_checktype(L, script_arg, LUA_TSTRING);
+    luaL_checktype(L, func_arg, LUA_TFUNCTION);
+
+    script_name = lua_tostring(L, script_arg);
+
+    luaL_newmetatable(L, script_name);
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -1, "__index");
+
+    lua_pushvalue(L, script_arg);
+    lua_pushvalue(L, func_arg);
+    lua_pushcclosure(L, lua_script_new, 2);
+    lua_setfield(L, -2, "new");
+
+    lua_setglobal(L, script_name);
+
+    return 1;
+}
+
+/*
+ * Set the `Script` Lua function in the Actor's state, which is the constructor
+ * for all of the Scripts in Dialogue.
+ */
+void
+script_set (lua_State *A)
+{
+    lua_pushcfunction(A, lua_script);
+    lua_setglobal(A, "Script");
 }

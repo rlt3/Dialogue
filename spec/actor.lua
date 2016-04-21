@@ -54,6 +54,8 @@ describe("An Actor object", function()
         assert.is_equal(actor:id(), 0)
     end)
 
+    pending("errors out on bad script args to constructor")
+
     it("does not keep the Actor's instance attached to the object", function()
         -- Tests that these objects are merely controllers for data which is
         -- contained inside the Company (Tree).

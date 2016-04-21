@@ -65,6 +65,7 @@ actor_create (lua_State *L)
 
     luaL_openlibs(A);
     company_set(A);
+    script_set(A);
     dialogue_set_io_write(A);
 
     actor->L = A;

@@ -79,4 +79,11 @@ script_unload (Script *script, lua_State *A);
 void
 script_destroy (Script *script);
 
+/*
+ * Set the `Script` Lua function in the Actor's state, which is the constructor
+ * for all of the Scripts in Dialogue.
+ */
+void
+script_set (lua_State *A);
+
 #endif

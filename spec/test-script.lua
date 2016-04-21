@@ -1,15 +1,11 @@
-Test = {}
-Test.__index = Test
-
-function Test.new(string, numeral, table)
-   local t = {}
-   setmetatable(t, Test)
-   t.string = string
-   t.numeral = numeral
-   t.table = table
-   t.last_author = nil
-   return t
-end
+Script("Test", function(s, n, t)
+    return { 
+        string = s, 
+        numeral = n, 
+        table = t, 
+        last_author = nil 
+    }
+end)
 
 function Test:increment_by (x, author)
     self.numeral = self.numeral + x
