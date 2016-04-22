@@ -1,14 +1,6 @@
 Window = require("Window")
 
--- `Script` affects the global state. It looks at the first argument to know 
--- which table & metatable to use. Here it creates a global table named 
--- Graphics. It then creates a `new` function as a field for that table.
---
--- The `new` function accepts any number of arguments and passes them to the 
--- anonymous function which is the second argument of `Script`. `new` then
--- accepts the table output of the anonymous function, attaches the correct
--- metatable to it and return its.
-Script("Graphics", function(w, h)
+Graphics = Script("Graphics", function(w, h)
     return { window = Window.new(w, h), to_draw = {} }
 end)
 

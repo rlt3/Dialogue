@@ -1,4 +1,4 @@
-Script("Test", function(s, n, t)
+Test = Script("Test", function(s, n, t)
     return { 
         string = s, 
         numeral = n, 

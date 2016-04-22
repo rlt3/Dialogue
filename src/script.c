@@ -288,10 +288,11 @@ set_meta:
 }
 
 /*
- * `Script` affects the global state. It looks at the first argument to know 
- * which table & metatable to use. Here it creates a global table named 
- * Graphics. It then creates a `new` function as a field for that table.
- * 
+ * Script(script_name, script_init)
+ *
+ * Script looks at the first argument to use as a metatable name and creates a
+ * new metatable. It attaches the function `new` to that metatable.
+ *
  * The `new` function accepts any number of arguments and passes them to the 
  * anonymous function which is the second argument of `Script`. `new` then
  * accepts the table output of the anonymous function, attaches the correct
@@ -317,8 +318,6 @@ lua_script (lua_State *L)
     lua_pushvalue(L, func_arg);
     lua_pushcclosure(L, lua_script_new, 2);
     lua_setfield(L, -2, "new");
-
-    lua_setglobal(L, script_name);
 
     return 1;
 }
