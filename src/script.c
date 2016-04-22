@@ -288,7 +288,7 @@ set_meta:
 }
 
 /*
- * Script(script_name, script_init)
+ * Script(script_name [, script_init])
  *
  * Script looks at the first argument to use as a metatable name and creates a
  * new metatable. It attaches the function `new` to that metatable.
@@ -301,12 +301,15 @@ set_meta:
 int
 lua_script (lua_State *L)
 {
+    const int args = lua_gettop(L);
     const char *script_name = NULL;
     const int script_arg = 1;
     const int func_arg = 2;
 
     luaL_checktype(L, script_arg, LUA_TSTRING);
-    luaL_checktype(L, func_arg, LUA_TFUNCTION);
+
+    if (args >= func_arg)
+        luaL_checktype(L, func_arg, LUA_TFUNCTION);
 
     script_name = lua_tostring(L, script_arg);
 
@@ -314,6 +317,7 @@ lua_script (lua_State *L)
     lua_pushvalue(L, -1);
     lua_setfield(L, -1, "__index");
 
+    /* nil will be pushed if no function was passed */
     lua_pushvalue(L, script_arg);
     lua_pushvalue(L, func_arg);
     lua_pushcclosure(L, lua_script_new, 2);
