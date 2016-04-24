@@ -9,9 +9,57 @@
 #include <readline/history.h>
 #include "console.h"
 
+static const char *console_file = NULL;
+static const char *console_prompt = "> ";
 static pthread_t console_pthread;
-static const char *console_file;
-const char *console_prompt = "> ";
+static pthread_mutex_t exit_mutex = PTHREAD_MUTEX_INITIALIZER;
+static lua_State *C = NULL;
+static int running = 1;  
+
+void
+console_exit ()
+{
+    pthread_mutex_lock(&exit_mutex);
+    running = 0;
+    pthread_mutex_unlock(&exit_mutex);
+}
+
+int
+console_is_running ()
+{
+    int ret = 0;
+    pthread_mutex_lock(&exit_mutex);
+    ret = running;
+    pthread_mutex_unlock(&exit_mutex);
+    return ret;
+}
+
+void 
+input_rlhandler (char *line)
+{
+    if (line == NULL) {
+        /* readline returns NULL on a signal interrupt */
+        console_exit();
+    } else {
+        if (*line != 0) {
+            add_history(line);
+
+            if (luaL_loadstring(C, line) || lua_pcall(C, 0, 0, 0)) {
+                console_log("%s\n", lua_tostring(C, -1));
+                lua_pop(C, 1);
+            }
+        }
+
+        free(line);
+    }
+}
+
+int
+lua_console_exit (lua_State *L)
+{
+    console_exit();
+    return 0;
+}
 
 int
 lua_console_log (lua_State *L)
@@ -30,6 +78,9 @@ console_set_write (lua_State *L)
     lua_pushcfunction(L, lua_console_log);
     lua_setfield(L, -2, "write");
     lua_pop(L, 1);
+
+    //lua_pushcfunction(L, lua_console_exit);
+    //lua_setglobal(L, "exit");
 }
 
 /*
@@ -45,42 +96,52 @@ console_handle_interrupt (int arg)
 void*
 console_thread (void *arg)
 {
-    lua_State *L = arg;
-    char *input = NULL;
+    C = arg;
+    //char *input = NULL;
 
     printf("Dialogue v%s with Lua v%s\n"
            "↳  type `exit` to quit.\n", 
            DIALOGUE_VERSION, DIALOGUE_LUA_VERSION);
 
-    signal(SIGINT, console_handle_interrupt);
-    console_set_write(L);
+    //signal(SIGINT, console_handle_interrupt);
+    console_set_write(C);
 
-    if (luaL_loadfile(L, console_file) || lua_pcall(L, 0, 0, 0)) {
+    lua_pushcfunction(C, lua_console_exit);
+    lua_setglobal(C, "exit");
+
+    if (luaL_loadfile(C, console_file) || lua_pcall(C, 0, 0, 0)) {
         fprintf(stderr, "File: %s could not load: %s\n", 
-                console_file, lua_tostring(L, -1));
+                console_file, lua_tostring(C, -1));
         goto exit;
     }
 
-    while (1) {
-        input = readline(console_prompt);
+    rl_callback_handler_install(console_prompt, input_rlhandler);
 
-        if (strncmp("exit", input, 4) == 0)
-            goto exit;
+    while (console_is_running())
+        rl_callback_read_char();
 
-        if (strlen(input) > 0)
-            add_history(input);
+    //while (1) {
+    //    input = readline(console_prompt);
 
-        if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0)) {
-            console_log("%s\n", lua_tostring(L, -1));
-            lua_pop(L, 1);
-        }
+    //    if (strncmp("exit", input, 4) == 0)
+    //        goto exit;
 
-        free(input);
-    }
+    //    if (strlen(input) > 0)
+    //        add_history(input);
+
+    //    if (luaL_loadstring(L, input) || lua_pcall(L, 0, 0, 0)) {
+    //        console_log("%s\n", lua_tostring(L, -1));
+    //        lua_pop(L, 1);
+    //    }
+
+    //    free(input);
+    //}
+
+    rl_callback_handler_remove();
 
 exit:
-    free(input);
-    lua_close(L);
+    //free(input);
+    lua_close(C);
     console_file = NULL;
     puts("Goodbye.");
 
