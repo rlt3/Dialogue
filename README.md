@@ -9,7 +9,7 @@ communication between objects through messages.
 Dialogue hasn't been released yet but is almost ready. Take a look at 
 [Plans for the future?](#future) below.
 
-[Official documentation is here, but not yet complete.](https://bythehilt.com/dialogue)
+[Official documentation is here.](https://bythehilt.com/dialogue)
 
 ## What is Dialogue?
 
@@ -39,8 +39,8 @@ doesn't currently support Windows.
 
 Once you have it compiled, Dialogue expects a Lua file I typically call
 `stage.lua`.  Look into the pong tutorial in the source or in the
-[documentation](https://bythehilt.com/dialogue). While both are incomplete they
-still offer more than a few valid examples.
+[documentation](https://bythehilt.com/dialogue). While the pong tutorial
+isn't complete, it should offer more than a few valid examples.
 
     ./dialogue stage.lua
 
@@ -50,7 +50,6 @@ This will boot up the interpreter and spin up the Dialogue you've created.
 
 I plan to release v0.0 when:
 
-* [I have complete documentation up](https://bythehilt.com/dialogue)
 * There is at least one tutorial available
 
 This is all very soon (next week or three).
