@@ -49,10 +49,6 @@ function Graphics:_handle_input ()
             actor:yell{"input", "right"}
         end
     end
-
-    if event_type == "key_up" then
-        actor:yell{"input", "no_key"}
-    end
 end
 
 return Graphics
