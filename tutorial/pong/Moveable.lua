@@ -1,48 +1,38 @@
 Coordinate = require ("Coordinate")
-Moveable = {}
-Moveable.__index = Moveable
 
-function Moveable.new (max_speed, x, y)
-   local table = {}
-   setmetatable(table, Moveable)
-   table.body = Coordinate.new(x, y)
-   table.force = Coordinate.new(0, 0)
-   table.magnitude = Coordinate.new(0, 0)
-   table.max = max_speed
-   return table
+Moveable = Script("Moveable", function(max_speed, x, y)
+    return {
+        body = Coordinate.new(x, y),
+        force = Coordinate.new(0, 0),
+        magnitude = Coordinate.new(0, 0),
+        max = max_speed,
+        label_test = { x = x, y = y },
+        array_test = { x, y }
+    }
+end)
+
+--
+-- Helper functions
+-- 
+
+function oscilate (m)
+    local mag  = oscilate_magnitude(m.magnitude, m.force, m.max)
+    local body = Coordinate.add(m.body, mag)
+    return body, mag
 end
 
--- This is called 30 times per second. Since Moveable essentially controls the
--- position of the actor, we `think` to make sure to update the other scripts
-function Moveable:update (dt)
-    self:_oscilate()
-    actor:think{"position", self.body.x, self.body.y}
+function oscilate_magnitude (mag, force, max)
+    mag.x = oscilate_ordinate(mag.x, force.x, max)
+    mag.y = oscilate_ordinate(mag.y, force.y, max)
+    return mag
 end
 
--- Move "up", "down", etc
-function Moveable:move (state)
-    self.force = Coordinate.from_state(state)
-end
-
--- When the actor `thinks` in the update handler above, it triggers this 
--- message handler.
-function Moveable:position (dx, dy)
-    self.body.x = dx
-    self.body.y = dy
-end
-
-function Moveable:_oscilate ()
-    self.magnitude.x = self:_oscilate_ordinate(self.force.x, self.magnitude.x);
-    self.magnitude.y = self:_oscilate_ordinate(self.force.y, self.magnitude.y);
-    self.body = Coordinate.add(self.body, self.magnitude);
-end
-
-function Moveable:_oscilate_ordinate (force, current)
+function oscilate_ordinate (current, force, max)
     -- if there is a force and not max speed, add the force
-    if force ~= 0 and math.abs(current) <= self.max then
+    if force ~= 0 and math.abs(current) <= max then
         return current + force
     else
-    -- else bring current toward 0 from whatever direction (neg or pos)
+    -- else no force: bring current toward 0 from whichever dir (neg or pos)
         if current == 0 then
             return current
         else
@@ -54,6 +44,29 @@ function Moveable:_oscilate_ordinate (force, current)
             return current + force
         end
     end
+end
+
+--
+-- The message handlers
+-- 
+
+function Moveable:update (dt)
+    self.body, self.magnitude = oscilate(self)
+    -- `actor' is a global var which is the actor this script is attached to
+    actor:think{"position", self.body.x, self.body.y}
+end
+
+-- We `think' the position in the update handler above so that it triggers
+-- this specific 'position' handler and others which may be in scripts attached
+-- to this actor
+function Moveable:position (dx, dy)
+    self.body.x = dx
+    self.body.y = dy
+end
+
+-- Move "up", "down", "left", "right"
+function Moveable:move (state)
+    self.force = Coordinate.from_state(state)
 end
 
 return Moveable
