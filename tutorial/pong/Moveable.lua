@@ -64,6 +64,13 @@ function Moveable:position (dx, dy)
     self.body.y = dy
 end
 
+-- When key-value tables are working, we can set moveables like this so that.
+-- The body will have its associated magnitude & force. This will let collisions
+-- just set the body's magnitude and then `think' this info across
+function Moveable:body (body)
+    self.body
+end
+
 -- Move "up", "down", "left", "right"
 function Moveable:move (state)
     self.force = Coordinate.from_state(state)
