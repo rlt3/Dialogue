@@ -1,22 +1,31 @@
 Window = require("Window")
-Graphics = {}
-Graphics.__index = Graphics
 
-function Graphics.new ()
-   local table = {}
-   setmetatable(table, Graphics)
-   table.window = Window.new(400, 600)
-   table.to_draw = {}
-   return table
-end
+Graphics = Script("Graphics", function(w, h)
+    return { window = Window.new(w, h), to_draw = {} }
+end)
 
--- Register a definition to draw
+-- Register the definitions by the actor's id
 function Graphics:register (definition, author)
     self.to_draw[author] = definition
 end
 
--- Actually draw the definitions given
-function Graphics:render (r, g, b, a)
+-- The main `loop` of the game purely by recursive message
+function Graphics:main ()
+    if self.window:per_second(30) then
+        actor:command{"update"}
+    end
+
+    self:_handle_input()
+    actor:command{"draw"}
+    self:_render()
+    
+    -- recursive :^)
+    actor:think{"main"}
+end
+
+-- Actually draw the definitions registered
+function Graphics:_render (r, g, b, a)
+    -- rbga are optional
     self.window:clear(r, g, b, a)
     self.window:set_color(128, 128, 128, 255)
     for author, definition in pairs(self.to_draw) do
@@ -25,43 +34,21 @@ function Graphics:render (r, g, b, a)
     self.window:render()
 end
 
-function Graphics:handle_event ()
+-- Send the input messages to actors in the game
+function Graphics:_handle_input ()
     event_type, data = self.window:get_event()
 
     if event_type == "key_down" then
-        if data.key == "quit" then exit() end
-        
         if data.key == "w" then
-            io.write("up\n")
             actor:yell{"input", "up"}
         elseif data.key == "a" then
-            io.write("left\n")
             actor:yell{"input", "left"}
         elseif data.key == "s" then
-            io.write("down\n")
             actor:yell{"input", "down"}
         elseif data.key == "d" then
-            io.write("right\n")
             actor:yell{"input", "right"}
         end
     end
-
-    if event_type == "key_up" then
-        actor:yell{"input", "no_key"}
-    end
-end
-
-function Graphics:main ()
-    if self.window:per_second(30) then
-        actor:yell{"update"}
-    end
-
-    self:handle_event()
-    actor:command{"draw"}
-    self:render()
-    
-    -- recursive :^)
-    actor:think{"main"}
 end
 
 return Graphics
