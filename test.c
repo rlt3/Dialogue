@@ -6,19 +6,17 @@ int
 emit (lua_State *L)
 {
     const int table = 1;
-    //const int number = 2;
-    //const int index = luaL_optint(L, number, 1);
     luaL_checktype(L, table, LUA_TTABLE);
 
     lua_pushnil(L);
     while (lua_next(L, table)) {
-        printf("%s -> %s\n", 
-                lua_tostring(L, -2),
-                lua_tostring(L, -1));
+        printf("%s\n", lua_tostring(L, -1));
+        //printf("%s -> %s\n", 
+        //        lua_tostring(L, -2),
+        //        lua_tostring(L, -1));
         lua_pop(L, 1);
     }
     
-    //lua_rawgeti(L, 1, num);
     return 0;
 }
 
@@ -57,6 +55,7 @@ create (lua_State *L)
 }
 
 //clang -o Script.so -Wall -std=c99 -pedantic -fPIC -shared -I/usr/include/lua5.2/ test.c -llua5.2
+//cc -Wall -std=c99 -pedantic -D _BSD_SOURCE -fPIC -bundle -undefined dynamic_lookup -Isrc/ -I./ -I/usr/local/include/ -o Script.so test.c -L./ -L/usr/local/lib -llua
 
 int
 luaopen_Script (lua_State *L)
