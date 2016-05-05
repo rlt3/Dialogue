@@ -5,9 +5,7 @@ Moveable = Script("Moveable", function(max_speed, x, y)
         body = Coordinate.new(x, y),
         force = Coordinate.new(0, 0),
         magnitude = Coordinate.new(0, 0),
-        max = max_speed,
-        label_test = { x = x, y = y },
-        array_test = { x, y }
+        max = max_speed
     }
 end)
 
@@ -67,9 +65,9 @@ end
 -- When key-value tables are working, we can set moveables like this so that.
 -- The body will have its associated magnitude & force. This will let collisions
 -- just set the body's magnitude and then `think' this info across
-function Moveable:body (body)
-    self.body
-end
+--function Moveable:body (body)
+--    self.body = body
+--end
 
 -- Move "up", "down", "left", "right"
 function Moveable:move (state)

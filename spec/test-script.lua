@@ -17,6 +17,11 @@ function Test:name_is (str, author)
     self.last_author = author
 end
 
+function Test:set_table (tab, author)
+    self.table = tab
+    self.last_author = author
+end
+
 function Test:proxy (tone, msg)
     actor[tone](actor, msg)
 end

@@ -130,6 +130,25 @@ describe("An Actor object", function()
         assert.is_equal(actor:probe(1, "string"), "foo")
     end)
 
+    it("requires messages to be an array", function()
+        actor = Actor{ {"test-script", "foo", 10, {}} }
+        actor:load()
+
+        -- a hash table as a message table is treated as if the actor had no
+        -- message handler, i.e. it fails silently
+        actor:send{method = "increment_by", value = "20"}
+        assert.is_equal(actor:probe(1, "numeral"), 10)
+    end)
+
+    it("allows definitions, messages, and probing to use hash tables", function()
+        actor = Actor{ {"test-script", "hash", 44, {hash = "yup"}} }
+        actor:load()
+
+        assert.is_equal(actor:probe(1, "table").hash, "yup")
+        actor:send{"set_table", {new = "new hash"}}
+        assert.is_equal(actor:probe(1, "table").new, "new hash")
+    end)
+
     it("prevents synchronous load, unload, send, and probe if actor has worker requirement", function()
         -- create an actor with no parent where it needs to be handled by thread 1
         actor = Actor({ {"test-script", "foo", 10, {}} }, -1, 1)

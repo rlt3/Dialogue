@@ -12,31 +12,23 @@ static inline void utils_transfer (lua_State *to, lua_State *from, const int n);
 static inline void
 utils_copy_table (lua_State *T, lua_State *F, const int index)
 {
-    //int i, len = luaL_len(from, index);
-    //lua_newtable(to);
-
-    //for (i = 1; i <= len; i++) {
-    //    lua_rawgeti(from, index, i);
-    //    utils_copy_top(to, from);
-    //    lua_rawseti(to, -2, i);
-    //    lua_pop(from, 1);
-    //}
-
     const int table = lua_gettop(T) + 1;
+    int i = 0;
+
     lua_newtable(T);
 
-    int i = -1;
+    lua_pushnil(F);
     while (lua_next(F, index)) {
         i++;
 
         /* if there *is* a key for value at -1 */
-       // if (!lua_isnil(F, -2)) {
-       //     lua_pushvalue(F, -2); /* push the key */
-       //     /* pops pushvalue'd key & value. transfers in reverse order */
-       //     utils_transfer(T, F, 2); 
-       //     lua_settable(T, table);
-       //     continue;
-       // }
+        if (!lua_isnil(F, -2)) {
+            lua_pushvalue(F, -2); /* push the key */
+            /* pops pushvalue'd key & value. transfers in reverse order */
+            utils_transfer(T, F, 2); 
+            lua_settable(T, table);
+            continue;
+        }
 
         utils_copy_top(T, F);
         lua_rawseti(T, table, i);
