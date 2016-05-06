@@ -114,6 +114,14 @@ script_load (Script *script, lua_State *A)
         goto exit;
     }
 
+    /* require pushes a boolean value if it doesn't return anything */
+    if (lua_isboolean(A, -1)) {
+        lua_pop(A, 2); /* nil value and table */
+        lua_pushfstring(A, "Cannot load module `%s': did not return table!", 
+                module_name);
+        goto exit;
+    }
+
     /* object = module.new(...) */
     lua_getfield(A, -1, "new");
 

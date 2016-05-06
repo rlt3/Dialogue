@@ -1,11 +1,12 @@
 Coordinate = require ("Coordinate")
 
-Moveable = Script("Moveable", function(max_speed, x, y)
+Moveable = Script("Moveable", function(max_speed)
     return {
-        body = Coordinate.new(x, y),
-        force = Coordinate.new(0, 0),
-        magnitude = Coordinate.new(0, 0),
-        max = max_speed
+        body = {
+            force = Coordinate.new(0, 0),
+            magnitude = Coordinate.new(0, 0),
+            max = max_speed
+        }
     }
 end)
 
