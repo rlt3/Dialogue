@@ -5,4 +5,6 @@
 --root:child{ {"Ball", 300, 150}, {"Moveable", 300, 150} }
 
 --m = Actor{ {"Body", { w = 10, h = 10, x = 50, y = 50 }} }
+
+game = Actor({ {"Game"} }, -1, 1)
 m = Actor{ {"Body", 10, 10, 50, 50} }
