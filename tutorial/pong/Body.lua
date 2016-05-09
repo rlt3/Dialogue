@@ -13,10 +13,6 @@ Body = Script("Body", function(width, height, x, y)
     return {}
 end)
 
-function Body:body (body)
-    actor.body = body
-end
-
 -- We assume that the author of the draw message is going to handle the
 -- drawing. So we register our body (dimensions & location) with that author.
 function Body:draw (author)
